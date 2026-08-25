@@ -5,6 +5,8 @@ from docx import Document
 from docx.shared import Inches
 from docx.table import Table
 
+from app.routers.screenshots import UPLOADS_DIR
+
 TEMPLATE_PATH = Path(__file__).parent / "Template_Artifact_V1.docx"
 
 HEADER_FIELD_ORDER = [
@@ -97,7 +99,7 @@ def build_docx(testcase, output_path: str) -> str:
             if i > 0:
                 current_table = _clone_table(current_table)
             _fill_step_block(current_table, step.step_no, step.step_text, step.expected_result, step.actual_result)
-            _insert_screenshots(current_table, [s.file_path for s in step.screenshots])
+            _insert_screenshots(current_table, [str(UPLOADS_DIR / s.file_path) for s in step.screenshots])
 
     doc.save(output_path)
     return output_path

@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
-from app.routers import bugs, curls, dashboard, execution, screenshots, stories, subtasks, testcases
+from app.routers import bugs, curls, dashboard, docx_export, execution, screenshots, stories, subtasks, testcases
 
 Base.metadata.create_all(bind=engine)
 
@@ -28,3 +28,4 @@ app.include_router(execution.router)
 app.include_router(screenshots.router)
 app.include_router(bugs.router)
 app.include_router(curls.router)
+app.include_router(docx_export.router)
