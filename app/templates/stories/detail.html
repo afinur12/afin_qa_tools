@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;align-items:center;">
+    <div>
+      <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ story.display_code }}</span>
+      <span style="font-size:18px;font-weight:600;margin-left:8px;">{{ story.title }}</span>
+    </div>
+    <div style="flex-grow:1;"></div>
+    <a class="btn secondary" href="/stories/{{ story.id }}/edit">Edit</a>
+    <form method="post" action="/stories/{{ story.id }}/delete" style="display:inline;">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Phases</h3>
+  {% for phase in story.phases %}
+    <div style="margin-bottom:8px;"><a href="/stories/{{ story.id }}#{{ phase.type.value }}">{{ phase.type.value }}</a> ({{ phase.subtasks|length }} subtasks)</div>
+  {% endfor %}
+  {% if available_phase_types %}
+  <form method="post" action="/stories/{{ story.id }}/phases" style="margin-top:10px;">
+    <select name="type">
+      {% for t in available_phase_types %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">+ Add Phase</button>
+  </form>
+  {% endif %}
+</div>
+
+{% for phase in story.phases %}
+<div class="card" id="{{ phase.type.value }}">
+  <h3>{{ phase.type.value }}</h3>
+  {% for subtask in phase.subtasks %}
+    <div style="padding:8px 0;border-bottom:1px solid #eceef1;">
+      <span class="mono">{{ subtask.display_code }}</span>
+      <a href="/subtasks/{{ subtask.id }}">{{ subtask.title }}</a>
+      <span style="color:#8a93a1;">({{ subtask.subtask_type.value }})</span>
+    </div>
+  {% endfor %}
+  <a class="btn secondary" style="margin-top:10px;" href="/phases/{{ phase.id }}/subtasks/new">+ New Subtask</a>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;align-items:center;margin-bottom:14px;">
+    <h2 style="margin:0;">Stories</h2>
+    <div style="flex-grow:1;"></div>
+    <a class="btn" href="/stories/new">+ New Story</a>
+  </div>
+  <table>
+    <thead><tr><th>Code</th><th>Title</th><th>Created</th></tr></thead>
+    <tbody>
+      {% for s in stories %}
+      <tr>
+        <td class="mono"><a href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
+        <td>{{ s.title }}</td>
+        <td>{{ s.created_at.strftime("%Y-%m-%d") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

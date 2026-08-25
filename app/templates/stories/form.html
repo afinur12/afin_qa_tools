@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+  <h2>{% if story %}Edit Story{% else %}New Story{% endif %}</h2>
+  <form method="post" action="{% if story %}/stories/{{ story.id }}/edit{% else %}/stories{% endif %}">
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" value="{{ values.display_code }}" required>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input name="title" value="{{ values.title }}" required>
+    </div>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+{% endblock %}
