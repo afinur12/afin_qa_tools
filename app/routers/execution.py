@@ -62,11 +62,9 @@ def update_section1(
     testcase = db.get(TestCase, testcase_id)
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    try:
-        status_enum = TestCaseStatus(status)
-    except ValueError:
-        return _render_execute(request, testcase, error="Invalid status.", status_code=422)
 
+    # Assign all submitted values to testcase object (in memory only, not yet committed)
+    # This ensures validation error re-renders show submitted values, not stale DB values
     testcase.tester = tester
     testcase.test_date = test_date
     testcase.test_priority = test_priority
@@ -78,6 +76,13 @@ def update_section1(
     testcase.usage = usage
     testcase.remark = remark
     testcase.data_test = data_test
+
+    try:
+        status_enum = TestCaseStatus(status)
+    except ValueError:
+        # Re-render with error, showing submitted values via testcase object
+        return _render_execute(request, testcase, error="Invalid status.", status_code=422)
+
     testcase.status = status_enum
     db.commit()
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
@@ -99,7 +104,9 @@ def create_step(
     try:
         section_enum = StepSection(section)
     except ValueError:
-        return _render_execute(request, testcase, error="Invalid section.", status_code=422)
+        # Invalid section (forged POST). Show clear error; submitted step data cannot be preserved
+        # in the template since there's no "new step" form slot until the step is created.
+        return _render_execute(request, testcase, error=f'Invalid section "{section}". Valid sections: PRECONDITION, MAIN, POSTCONDITION.', status_code=422)
     existing = [s for s in testcase.steps if s.section == section_enum]
     next_no = max((s.step_no for s in existing), default=0) + 1
     db.add(
