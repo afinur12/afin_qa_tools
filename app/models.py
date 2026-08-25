@@ -73,3 +73,77 @@ class Subtask(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     phase: Mapped["Phase"] = relationship("Phase", back_populates="subtasks")
+    testcases: Mapped[list["TestCase"]] = relationship(
+        "TestCase", back_populates="subtask", order_by="TestCase.id"
+    )
+
+
+class TestCaseStatus(str, enum.Enum):
+    NOT_RUN = "NOT_RUN"
+    PASS = "PASS"
+    FAIL = "FAIL"
+    BLOCKED = "BLOCKED"
+    CANCELLED = "CANCELLED"
+    POSTPONED = "POSTPONED"
+
+
+class StepSection(str, enum.Enum):
+    PRECONDITION = "PRECONDITION"
+    MAIN = "MAIN"
+    POSTCONDITION = "POSTCONDITION"
+
+
+class TestCase(Base):
+    __tablename__ = "testcases"
+    __table_args__ = (UniqueConstraint("subtask_id", "display_code", name="uq_testcase_subtask_code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subtask_id: Mapped[int] = mapped_column(ForeignKey("subtasks.id"), nullable=False)
+    display_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
+    status: Mapped[TestCaseStatus] = mapped_column(SAEnum(TestCaseStatus), nullable=False, default=TestCaseStatus.NOT_RUN)
+
+    # Section 1 / docx header fields not covered elsewhere in the hierarchy.
+    tester: Mapped[str] = mapped_column(String(255), nullable=False, default="Andri Firman Nurvianto")
+    test_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    test_priority: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    test_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    iteration: Mapped[str] = mapped_column(String(16), nullable=False, default="1")
+    balance_before: Mapped[str] = mapped_column(String(64), nullable=False, default="Rp. -")
+    balance_after: Mapped[str] = mapped_column(String(64), nullable=False, default="Rp. -")
+    usage: Mapped[str] = mapped_column(String(64), nullable=False, default="Rp. -")
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_test: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
+    steps: Mapped[list["TestCaseStep"]] = relationship(
+        "TestCaseStep", back_populates="testcase", order_by="TestCaseStep.step_no"
+    )
+
+
+class TestCaseStep(Base):
+    __tablename__ = "testcase_steps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    testcase_id: Mapped[int] = mapped_column(ForeignKey("testcases.id"), nullable=False)
+    section: Mapped[StepSection] = mapped_column(SAEnum(StepSection), nullable=False)
+    step_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    step_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    expected_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    actual_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    testcase: Mapped["TestCase"] = relationship("TestCase", back_populates="steps")
+    screenshots: Mapped[list["Screenshot"]] = relationship("Screenshot", back_populates="step")
+
+
+class Screenshot(Base):
+    __tablename__ = "screenshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    step_id: Mapped[int] = mapped_column(ForeignKey("testcase_steps.id"), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+    step: Mapped["TestCaseStep"] = relationship("TestCaseStep", back_populates="screenshots")
