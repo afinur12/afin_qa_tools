@@ -31,7 +31,13 @@
 
 {% for phase in story.phases %}
 <div class="card" id="{{ phase.type.value }}">
-  <h3>{{ phase.type.value }}</h3>
+  <div style="display:flex;align-items:center;">
+    <h3 style="margin:0;">{{ phase.type.value }}</h3>
+    <div style="flex-grow:1;"></div>
+    <form method="post" action="/phases/{{ phase.id }}/delete" style="display:inline;">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
+  </div>
   {% for subtask in phase.subtasks %}
     <div style="padding:8px 0;border-bottom:1px solid #eceef1;">
       <span class="mono">{{ subtask.display_code }}</span>

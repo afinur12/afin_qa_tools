@@ -32,3 +32,48 @@ def test_create_phase_rejects_duplicate_type(client):
     assert first.status_code == 303
     second = client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
     assert second.status_code == 422
+
+
+def test_delete_empty_phase_succeeds(client):
+    create = client.post("/stories", data={"display_code": "EX-104", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+
+    response = client.post(f"/phases/{phase_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].rstrip("/") == f"/stories/{story_id}"
+
+    story_page_after = client.get(f"/stories/{story_id}")
+    assert 'id="SIT"' not in story_page_after.text
+    assert f"#SIT" not in story_page_after.text
+
+    # With the phase gone, the story itself can now be deleted.
+    delete_story = client.post(f"/stories/{story_id}/delete", follow_redirects=False)
+    assert delete_story.status_code == 303
+
+
+def test_delete_phase_blocked_when_subtasks_exist(client):
+    create = client.post("/stories", data={"display_code": "EX-105", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+    )
+
+    response = client.post(f"/phases/{phase_id}/delete")
+    assert response.status_code == 422
+    assert "Delete" in response.text
+
+    # The phase must still exist (delete was blocked, not silently no-op'd).
+    story_page_after = client.get(f"/stories/{story_id}")
+    assert "SIT" in story_page_after.text
+
+
+def test_delete_phase_not_found_returns_404(client):
+    response = client.post("/phases/999999/delete")
+    assert response.status_code == 404

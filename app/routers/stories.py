@@ -154,3 +154,30 @@ def create_phase(request: Request, story_id: int, type: str = Form(...), db: Ses
     db.add(Phase(story_id=story.id, type=phase_type))
     db.commit()
     return RedirectResponse(url=f"/stories/{story_id}", status_code=303)
+
+
+@router.post("/phases/{phase_id}/delete")
+def delete_phase(request: Request, phase_id: int, db: Session = Depends(get_db)):
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    if len(phase.subtasks) > 0:
+        story = phase.story
+        curls = db.query(CurlCollection).filter(
+            CurlCollection.attach_type == CurlAttachType.STORY, CurlCollection.attach_id == story.id
+        ).all()
+        return templates.TemplateResponse(
+            request,
+            "stories/detail.html",
+            {
+                "story": story,
+                "available_phase_types": _available_phase_types(story),
+                "error": f"Delete {len(phase.subtasks)} subtask(s) first.",
+                "curls": curls,
+            },
+            status_code=422,
+        )
+    story_id = phase.story_id
+    db.delete(phase)
+    db.commit()
+    return RedirectResponse(url=f"/stories/{story_id}", status_code=303)
