@@ -3052,22 +3052,35 @@ def story_detail(request: Request, story_id: int, db: Session = Depends(get_db))
     )
 ```
 
-Add the same `curls` fetch (filtered on `CurlAttachType.SUBTASK`) to `subtask_detail` in `app/routers/subtasks.py`.
+Apply the equivalent change to `subtask_detail` in `app/routers/subtasks.py` — add the same import line (`from app.models import CurlAttachType, CurlCollection`, merged into that file's existing `from app.models import ...` line) and replace the function with:
 
-Add to `app/templates/stories/detail.html`, right before `{% endblock %}`:
-
-```html
-{% include "curls/_panel.html" with context %}
+```python
+@router.get("/subtasks/{subtask_id}")
+def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_db)):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    curls = db.query(CurlCollection).filter(
+        CurlCollection.attach_type == CurlAttachType.SUBTASK, CurlCollection.attach_id == subtask_id
+    ).all()
+    return templates.TemplateResponse(request, "subtasks/detail.html", {"subtask": subtask, "error": None, "curls": curls})
 ```
 
-and just above it:
+Add these three lines, in this order, immediately before `{% endblock %}` in `app/templates/stories/detail.html`:
 
 ```html
 {% set attach_type = "STORY" %}
 {% set attach_id = story.id %}
+{% include "curls/_panel.html" with context %}
 ```
 
-Add the same two lines (with `"SUBTASK"` / `subtask.id`) plus the include to `app/templates/subtasks/detail.html`.
+Add the same three lines to `app/templates/subtasks/detail.html` (immediately before its `{% endblock %}`), with `"SUBTASK"` in place of `"STORY"` and `subtask.id` in place of `story.id`:
+
+```html
+{% set attach_type = "SUBTASK" %}
+{% set attach_id = subtask.id %}
+{% include "curls/_panel.html" with context %}
+```
 
 - [ ] **Step 6: Wire the router into `app/main.py`**
 
