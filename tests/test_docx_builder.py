@@ -125,6 +125,51 @@ def test_build_docx_inserts_screenshots(tmp_path):
     assert len(doc.inline_shapes) == 1
 
 
+def test_build_docx_screenshots_do_not_accumulate_across_cloned_step_tables(tmp_path):
+    """Regression test for cloned step-block image accumulation.
+
+    3 MAIN steps; screenshots on steps 1 and 2 only (step 3 has none). Each
+    step's cloned table must contain exactly its own screenshots -- not the
+    screenshots of steps that came before it. A bug where clones are made
+    from an already-filled table (instead of a pristine snapshot) causes
+    images to bleed forward into later steps' tables.
+    """
+    import base64
+
+    png_path = tmp_path / "shot.png"
+    png_path.write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+        "+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    ))
+    tc, StepSection = _make_testcase([])
+    tc.steps = [
+        _Step(1, StepSection.MAIN, "step one", "e1", "a1", screenshots=[_Screenshot(str(png_path))]),
+        _Step(2, StepSection.MAIN, "step two", "e2", "a2", screenshots=[_Screenshot(str(png_path))]),
+        _Step(3, StepSection.MAIN, "step three", "e3", "a3"),
+    ]
+    output_path = str(tmp_path / "out_accum.docx")
+    build_docx(tc, output_path)
+
+    doc = Document(output_path)
+    # Isolate the 3 MAIN step-block tables in document order (4-row step
+    # blocks whose step-text cell starts with "step").
+    step_tables = [
+        t for t in doc.tables
+        if len(t.rows) == 4 and t.cell(0, 5).text.startswith("step")
+    ]
+    assert [t.cell(0, 5).text for t in step_tables] == ["step one", "step two", "step three"]
+
+    def _drawing_count(table):
+        # Count w:drawing elements within just this table's own XML subtree,
+        # so images are attributed to the correct table rather than counted
+        # globally (a global doc.inline_shapes count would not distinguish
+        # which step a bled-forward image landed in).
+        return len(table._tbl.xpath(".//*[local-name()='drawing']"))
+
+    counts = [_drawing_count(t) for t in step_tables]
+    assert counts == [1, 1, 0]
+
+
 def test_build_docx_preserves_data_test_field_despite_cell_index_anomaly(tmp_path):
     """Regression test: data_test field must be written even when row 14 col 3 is inaccessible.
 
@@ -150,3 +195,27 @@ def test_build_docx_preserves_data_test_field_despite_cell_index_anomaly(tmp_pat
         if header_text_found:
             break
     assert header_text_found, "data_test field value 'msisdn: 62812' not found in header table"
+
+
+def test_build_docx_handles_unembeddable_screenshot_without_crashing(tmp_path):
+    """Regression test: a screenshot file add_picture can't embed must not abort the export.
+
+    Screenshot format is deliberately never validated at upload time, so a referenced
+    "screenshot" can be anything -- e.g. a non-image file, or an image format python-docx
+    can't embed (such as WebP). build_docx must complete successfully and leave a
+    traceable placeholder in that step's table instead of raising.
+    """
+    bad_path = tmp_path / "not_an_image.webp"
+    bad_path.write_bytes(b"not actually an image")
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a", screenshots=[_Screenshot(str(bad_path))])]
+    output_path = str(tmp_path / "out_bad_screenshot.docx")
+
+    # Must not raise.
+    build_docx(tc, output_path)
+
+    doc = Document(output_path)
+    step_table = next(t for t in doc.tables if len(t.rows) == 4 and t.cell(0, 5).text == "step")
+    assert "not_an_image.webp" in step_table.cell(3, 0).text
+    assert len(step_table._tbl.xpath(".//*[local-name()='drawing']")) == 0

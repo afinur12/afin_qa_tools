@@ -17,12 +17,27 @@ HEADER_FIELD_ORDER = [
 SECTION_ORDER = ["PRECONDITION", "MAIN", "POSTCONDITION"]
 
 
-def _clone_table(table: Table) -> Table:
-    new_tbl = copy.deepcopy(table._tbl)
-    table._tbl.addnext(new_tbl)
-    return Table(new_tbl, table._parent)
+def _clone_table(pristine_tbl_xml, after_table: Table) -> Table:
+    """Clone a pristine (never filled/inserted-into) table XML snapshot and
+    insert it into the document immediately after `after_table`.
+
+    Callers must always pass a deepcopy of an UNTOUCHED template table as
+    `pristine_tbl_xml` — never the XML of a table that has already gone
+    through `_fill_step_block`/`_insert_screenshots` — otherwise content
+    (in particular, appended screenshot image runs) accumulates across
+    clones instead of each clone starting empty.
+    """
+    new_tbl = copy.deepcopy(pristine_tbl_xml)
+    after_table._tbl.addnext(new_tbl)
+    return Table(new_tbl, after_table._parent)
 
 
+# Depends on `table.rows[row_index].cells` being ROW-SCOPED (each row's own
+# cell list), not the flat/deprecated `Table.cell()`/`Table.row_cells`
+# accessor which indexes across merged-cell spans and can silently return a
+# cell from the wrong row. This is documented behavior in python-docx 1.1.x
+# (see requirements.txt pin) but was NOT reliably true in older releases,
+# where using it here would reintroduce cross-row header data corruption.
 def _fill_header(doc: Document, fields: dict) -> None:
     table = doc.tables[0]
     for row_index, field_name in enumerate(HEADER_FIELD_ORDER):
@@ -49,7 +64,15 @@ def _insert_screenshots(table: Table, screenshot_paths: list[str]) -> None:
     cell = table.cell(3, 0)
     for i, path in enumerate(screenshot_paths):
         paragraph = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
-        paragraph.add_run().add_picture(path, width=Inches(2.5))
+        try:
+            paragraph.add_run().add_picture(path, width=Inches(2.5))
+        except Exception:
+            # Screenshot format/content is deliberately never validated at
+            # upload time, so add_picture can fail here (e.g. WebP, a
+            # missing file, or a corrupted image). Don't let one bad
+            # screenshot abort the whole export — fall back to a text
+            # placeholder naming the file so it's traceable, and keep going.
+            paragraph.add_run(f"[screenshot could not be embedded: {Path(path).name}]")
 
 
 def build_docx(testcase, output_path: str) -> str:
@@ -92,10 +115,17 @@ def build_docx(testcase, output_path: str) -> str:
         if not steps:
             _fill_step_block(base_table, "", "", "", "")
             continue
+        # Snapshot the base table's XML BEFORE any fill/insert happens for this
+        # section, so every clone is deep-copied from a pristine table rather
+        # than from a table that already has content (e.g. inserted screenshot
+        # runs, which are appends, not replacements — cloning from an
+        # already-filled table would carry those images forward into every
+        # subsequent step's table).
+        pristine_tbl_xml = copy.deepcopy(base_table._tbl)
         current_table = base_table
         for i, step in enumerate(steps):
             if i > 0:
-                current_table = _clone_table(current_table)
+                current_table = _clone_table(pristine_tbl_xml, current_table)
             _fill_step_block(current_table, step.step_no, step.step_text, step.expected_result, step.actual_result)
             from app.routers.screenshots import UPLOADS_DIR
 
