@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -11,32 +10,22 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _steps_by_section(testcase: TestCase, db: Session | None = None) -> dict[str, list[TestCaseStep]]:
+def _steps_by_section(testcase: TestCase) -> dict[str, list[TestCaseStep]]:
     grouped: dict[str, list[TestCaseStep]] = {"PRECONDITION": [], "MAIN": [], "POSTCONDITION": []}
-
-    # Get steps, ordered by section then step_no, fallback to id if step_no values are unreliable
-    if db is not None:
-        steps_list = db.execute(
-            select(TestCaseStep)
-            .where(TestCaseStep.testcase_id == testcase.id)
-            .order_by(TestCaseStep.section, TestCaseStep.step_no, TestCaseStep.id)
-        ).scalars().all()
-    else:
-        steps_list = sorted(testcase.steps, key=lambda s: (s.section.value, s.step_no, s.id))
-
-    for step in steps_list:
+    for step in testcase.steps:
         grouped[step.section.value].append(step)
-
+    for steps in grouped.values():
+        steps.sort(key=lambda s: s.step_no)
     return grouped
 
 
-def _render_execute(request: Request, testcase: TestCase, error: str | None = None, status_code: int = 200, db: Session | None = None):
+def _render_execute(request: Request, testcase: TestCase, error: str | None = None, status_code: int = 200):
     return templates.TemplateResponse(
         request,
         "testcases/execute.html",
         {
             "testcase": testcase,
-            "steps": _steps_by_section(testcase, db),
+            "steps": _steps_by_section(testcase),
             "statuses": list(TestCaseStatus),
             "error": error,
         },
@@ -49,9 +38,7 @@ def execute_page(request: Request, testcase_id: int, db: Session = Depends(get_d
     testcase = db.get(TestCase, testcase_id)
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    # Reload steps with explicit ordering
-    db.refresh(testcase)
-    return _render_execute(request, testcase, db=db)
+    return _render_execute(request, testcase)
 
 
 @router.post("/testcases/{testcase_id}/section1")
@@ -78,7 +65,7 @@ def update_section1(
     try:
         status_enum = TestCaseStatus(status)
     except ValueError:
-        return _render_execute(request, testcase, error="Invalid status.", status_code=422, db=db)
+        return _render_execute(request, testcase, error="Invalid status.", status_code=422)
 
     testcase.tester = tester
     testcase.test_date = test_date
@@ -112,14 +99,9 @@ def create_step(
     try:
         section_enum = StepSection(section)
     except ValueError:
-        return _render_execute(request, testcase, error="Invalid section.", status_code=422, db=db)
-    max_no = db.execute(
-        select(func.max(TestCaseStep.step_no)).where(
-            (TestCaseStep.testcase_id == testcase_id) &
-            (TestCaseStep.section == section_enum)
-        )
-    ).scalar()
-    next_no = (max_no or 0) + 1
+        return _render_execute(request, testcase, error="Invalid section.", status_code=422)
+    existing = [s for s in testcase.steps if s.section == section_enum]
+    next_no = max((s.step_no for s in existing), default=0) + 1
     db.add(
         TestCaseStep(
             testcase_id=testcase_id, section=section_enum, step_no=next_no,

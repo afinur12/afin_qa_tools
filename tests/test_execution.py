@@ -30,7 +30,7 @@ def test_add_step_and_ordering(client):
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "first", "expected_result": "e1", "actual_result": "a1"})
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "second", "expected_result": "e2", "actual_result": "a2"})
     response = client.get(f"/testcases/{testcase_id}/execute")
-    assert response.text.index("first") < response.text.index("second")
+    assert response.text.index('value="first"') < response.text.index('value="second"')
 
 
 def test_update_section1_fields(client):
