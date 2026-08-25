@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;align-items:center;">
+    <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ bug.display_code }}</span>
+    <span style="font-size:18px;font-weight:600;margin-left:8px;">{{ bug.title }}</span>
+    <div style="flex-grow:1;"></div>
+    <span class="badge" style="background:#fef3c7;">{{ bug.severity.value }}</span>
+    <span class="badge" style="background:#eef1f4;margin-left:6px;">{{ bug.status.value }}</span>
+    <a class="btn secondary" style="margin-left:10px;" href="/bugs/{{ bug.id }}/edit">Edit</a>
+    <form method="post" action="/bugs/{{ bug.id }}/delete" style="display:inline;"><button class="btn danger" type="submit">Delete</button></form>
+  </div>
+  <p style="margin-top:12px;">{{ bug.description }}</p>
+  <a href="/subtasks/{{ bug.subtask_id }}">Back to subtask</a>
+</div>
+{% endblock %}

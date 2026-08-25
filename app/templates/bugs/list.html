@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Bugs</h2>
+  <table>
+    <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for bug in bugs %}
+      <tr><td class="mono"><a href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td><td>{{ bug.title }}</td><td>{{ bug.severity.value }}</td><td>{{ bug.status.value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

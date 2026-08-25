@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:520px;">
+  <h2>{% if bug %}Edit Bug{% else %}New Bug{% endif %}</h2>
+  <form method="post" action="{% if bug %}/bugs/{{ bug.id }}/edit{% else %}/subtasks/{{ subtask.id }}/bugs{% endif %}">
+    <div class="field"><label>Code</label><input name="display_code" value="{{ values.display_code }}" required></div>
+    <div class="field"><label>Title</label><input name="title" value="{{ values.title }}" required></div>
+    <div class="field"><label>Description</label><textarea name="description" rows="4">{{ values.description }}</textarea></div>
+    {% if bug %}
+    <div class="field">
+      <label>Severity</label>
+      <select name="severity">{% for s in severities %}<option value="{{ s.value }}" {% if s.value == values.severity %}selected{% endif %}>{{ s.value }}</option>{% endfor %}</select>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select name="status">{% for s in statuses %}<option value="{{ s.value }}" {% if s.value == values.status %}selected{% endif %}>{{ s.value }}</option>{% endfor %}</select>
+    </div>
+    {% endif %}
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+{% endblock %}
