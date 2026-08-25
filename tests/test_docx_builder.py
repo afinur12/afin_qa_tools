@@ -77,9 +77,16 @@ def test_build_docx_header_and_single_step(tmp_path):
     build_docx(tc, output_path)
 
     doc = Document(output_path)
-    assert doc.tables[0].cell(0, 3).text == "Payments"
-    assert doc.tables[0].cell(1, 3).text == "SIT Login Flow"
-    assert doc.tables[0].cell(4, 3).text == "SIT"
+    # Use ground-truth row-scoped access (immune to flat-index bugs) for key header fields
+    header_table = doc.tables[0]
+    assert header_table.rows[0].cells[3].text == "Payments"  # project (row 0)
+    assert header_table.rows[1].cells[3].text == "SIT Login Flow"  # scenario (row 1)
+    assert header_table.rows[4].cells[3].text == "SIT"  # environment (row 4, affected by flat-index bug if using .cell())
+    assert header_table.rows[8].cells[3].text == "1"  # iteration (row 8, affected by flat-index bug)
+    assert header_table.rows[13].cells[3].text == ""  # remark (row 13, affected by flat-index bug)
+    assert header_table.rows[14].cells[-1].text == "msisdn: 62812"  # data_test (row 14, uses fallback to last cell)
+
+    # Step blocks
     assert doc.tables[1].cell(0, 5).text == "pre text"
     assert doc.tables[2].cell(1, 2).text == "main actual"
     assert doc.tables[3].cell(1, 5).text == "post expected"

@@ -27,11 +27,15 @@ def _fill_header(doc: Document, fields: dict) -> None:
     table = doc.tables[0]
     for row_index, field_name in enumerate(HEADER_FIELD_ORDER):
         value_text = str(fields.get(field_name, "") or "")
+        row_cells = table.rows[row_index].cells
         try:
-            table.cell(row_index, 3).text = value_text
+            row_cells[3].text = value_text
         except IndexError:
-            # Fallback for rows where column 3 is inaccessible due to table structure irregularities
-            table.cell(row_index, 2).text = value_text
+            # This row's template row is genuinely missing its 4th (value) cell
+            # in the source .docx (confirmed: row 3 "Test Date" has only 3 cells).
+            # Write into the last existing cell in that row so the value is still
+            # visible, rather than silently dropping it or corrupting another row.
+            row_cells[-1].text = value_text
 
 
 def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actual: str) -> None:
