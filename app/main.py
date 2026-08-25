@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
-from app.routers import bugs, curls, execution, screenshots, stories, subtasks, testcases
+from app.routers import bugs, curls, dashboard, execution, screenshots, stories, subtasks, testcases
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,6 +20,7 @@ app.mount("/uploads", StaticFiles(directory="app/uploads"), name="uploads")
 
 templates = Jinja2Templates(directory="app/templates")
 
+app.include_router(dashboard.router)
 app.include_router(stories.router)
 app.include_router(subtasks.router)
 app.include_router(testcases.router)
