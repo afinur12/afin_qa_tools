@@ -141,10 +141,15 @@ def edit_step(
 
 @router.post("/testcases/{testcase_id}/steps/{step_id}/delete")
 def delete_step(request: Request, testcase_id: int, step_id: int, db: Session = Depends(get_db)):
+    from app.routers.screenshots import UPLOADS_DIR
+
     step = db.get(TestCaseStep, step_id)
     if step is None or step.testcase_id != testcase_id:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     for screenshot in step.screenshots:
+        disk_path = UPLOADS_DIR / screenshot.file_path
+        if disk_path.exists():
+            disk_path.unlink()
         db.delete(screenshot)
     db.delete(step)
     db.commit()

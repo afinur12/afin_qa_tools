@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+qa_toolbox.db
+app/uploads/screenshots/**
+app/uploads/exports/**
+!app/uploads/screenshots/.gitkeep
+!app/uploads/exports/.gitkeep

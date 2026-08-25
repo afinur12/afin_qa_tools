@@ -58,8 +58,16 @@
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete" style="margin-top:6px;">
     <button class="btn danger" type="submit">Delete Step</button>
   </form>
-  <div class="dropzone" style="margin-top:10px;" data-step-id="{{ step.id }}">
-    Screenshot paste zone (wired up in a later step of this build)
+  <div class="dropzone" style="margin-top:10px;" tabindex="0" data-step-id="{{ step.id }}">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      {% for shot in step.screenshots %}
+      <div>
+        <img src="/uploads/{{ shot.file_path }}" style="width:80px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e3e6ea;">
+        <form method="post" action="/screenshots/{{ shot.id }}/delete"><button class="btn danger" type="submit" style="font-size:11px;padding:2px 6px;">Remove</button></form>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="font-size:12px;color:#8a93a1;">Click here, then press Ctrl+V to paste a screenshot.</div>
   </div>
 </div>
 {% endmacro %}
@@ -74,4 +82,5 @@
   </form>
 </div>
 {% endfor %}
+<script src="/static/js/paste_screenshot.js"></script>
 {% endblock %}
