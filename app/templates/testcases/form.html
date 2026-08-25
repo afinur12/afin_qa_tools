@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+  <h2>{% if testcase %}Edit TestCase{% else %}New TestCase{% endif %}</h2>
+  <form method="post" action="{% if testcase %}/testcases/{{ testcase.id }}/edit{% else %}/subtasks/{{ subtask.id }}/testcases{% endif %}">
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" value="{{ values.display_code }}" required>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input name="title" value="{{ values.title }}" required>
+    </div>
+    <button class="btn" type="submit">Save</button>
+  </form>
+  {% if testcase %}
+  <form method="post" action="/testcases/{{ testcase.id }}/delete" style="margin-top:10px;">
+    <button class="btn danger" type="submit">Delete</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
