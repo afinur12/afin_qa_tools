@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Phase, PhaseType, Subtask, SubtaskType, generate_internal_key
+from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Subtask, SubtaskType, generate_internal_key
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -94,7 +94,10 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
     subtask = db.get(Subtask, subtask_id)
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    return templates.TemplateResponse(request, "subtasks/detail.html", {"subtask": subtask, "error": None})
+    curls = db.query(CurlCollection).filter(
+        CurlCollection.attach_type == CurlAttachType.SUBTASK, CurlCollection.attach_id == subtask_id
+    ).all()
+    return templates.TemplateResponse(request, "subtasks/detail.html", {"subtask": subtask, "error": None, "curls": curls})
 
 
 @router.get("/subtasks/{subtask_id}/edit")

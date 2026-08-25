@@ -1,0 +1,19 @@
+<div class="card">
+  <h3>Curl Collections</h3>
+  {% for curl in curls %}
+  <div style="border-bottom:1px solid #eceef1;padding:8px 0;">
+    <div><span class="mono badge" style="background:#eef1f4;">{{ curl.method }}</span> <span class="mono">{{ curl.url }}</span></div>
+    <form method="post" action="/curls/{{ curl.id }}/delete" style="margin-top:4px;">
+      <input type="hidden" name="attach_type" value="{{ attach_type }}">
+      <input type="hidden" name="attach_id" value="{{ attach_id }}">
+      <button class="btn danger" type="submit" style="font-size:11px;padding:2px 8px;">Remove</button>
+    </form>
+  </div>
+  {% endfor %}
+  <form method="post" action="/curls" style="margin-top:10px;">
+    <input type="hidden" name="attach_type" value="{{ attach_type }}">
+    <input type="hidden" name="attach_id" value="{{ attach_id }}">
+    <div class="field"><textarea name="raw_text" rows="3" placeholder="curl ..."></textarea></div>
+    <button class="btn secondary" type="submit">+ Add Curl</button>
+  </form>
+</div>

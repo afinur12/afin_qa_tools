@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Phase, PhaseType, Story, generate_internal_key
+from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Story, generate_internal_key
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -60,10 +60,13 @@ def story_detail(request: Request, story_id: int, db: Session = Depends(get_db))
     story = db.get(Story, story_id)
     if story is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    curls = db.query(CurlCollection).filter(
+        CurlCollection.attach_type == CurlAttachType.STORY, CurlCollection.attach_id == story_id
+    ).all()
     return templates.TemplateResponse(
         request,
         "stories/detail.html",
-        {"story": story, "available_phase_types": _available_phase_types(story), "error": None},
+        {"story": story, "available_phase_types": _available_phase_types(story), "error": None, "curls": curls},
     )
 
 

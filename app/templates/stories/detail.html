@@ -42,4 +42,8 @@
   <a class="btn secondary" style="margin-top:10px;" href="/phases/{{ phase.id }}/subtasks/new">+ New Subtask</a>
 </div>
 {% endfor %}
+
+{% set attach_type = "STORY" %}
+{% set attach_id = story.id %}
+{% include "curls/_panel.html" with context %}
 {% endblock %}
