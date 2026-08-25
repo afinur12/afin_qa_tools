@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlalchemy>=2.0
+jinja2
+python-multipart
+python-docx
+pytest
+httpx
