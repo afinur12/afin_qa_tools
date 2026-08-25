@@ -4,7 +4,7 @@ def test_app_boots(client):
 
 
 def test_base_layout_renders_nav(client):
-    response = client.get("/__template_check")
+    response = client.get("/stories")
     assert response.status_code == 200
     assert "QA Toolbox" in response.text
     assert "Dashboard" in response.text

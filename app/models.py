@@ -120,7 +120,7 @@ class TestCase(Base):
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
     steps: Mapped[list["TestCaseStep"]] = relationship(
-        "TestCaseStep", back_populates="testcase", order_by="TestCaseStep.step_no"
+        "TestCaseStep", back_populates="testcase", order_by=lambda: TestCaseStep.step_no
     )
 
 

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="font-size:12px;color:#8a93a1;margin-bottom:8px;">
+  <a href="/subtasks/{{ testcase.subtask.id }}">{{ testcase.subtask.phase.story.display_code }} / {{ testcase.subtask.display_code }}</a> / {{ testcase.display_code }}
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:center;">
+    <h2 style="margin:0;">{{ testcase.display_code }} &mdash; {{ testcase.title }}</h2>
+    <div style="flex-grow:1;"></div>
+    <span class="badge" style="background:#eef1f4;">{{ testcase.status.value }}</span>
+    <a class="btn secondary" style="margin-left:10px;" href="/testcases/{{ testcase.id }}/export-docx">Export .docx</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>1. Description</h3>
+  <form method="post" action="/testcases/{{ testcase.id }}/section1">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;">
+      <div class="field"><label>Project</label><input value="{{ testcase.subtask.phase.story.title }}" disabled></div>
+      <div class="field"><label>Scenario</label><input value="{{ testcase.subtask.title }}" disabled></div>
+      <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
+      <div class="field"><label>Test Date</label><input name="test_date" value="{{ testcase.test_date or '' }}" placeholder="YYYY-MM-DD"></div>
+      <div class="field"><label>Environment</label><input value="{{ testcase.subtask.phase.type.value }}" disabled></div>
+      <div class="field"><label>Test Priority</label><input name="test_priority" value="{{ testcase.test_priority or '' }}"></div>
+      <div class="field"><label>Test Type</label><input name="test_type" value="{{ testcase.test_type or '' }}"></div>
+      <div class="field"><label>Channel</label><input name="channel" value="{{ testcase.channel or '' }}"></div>
+      <div class="field"><label>Iteration</label><input name="iteration" value="{{ testcase.iteration }}"></div>
+      <div class="field"><label>Balance Before</label><input name="balance_before" value="{{ testcase.balance_before }}"></div>
+      <div class="field"><label>Balance After</label><input name="balance_after" value="{{ testcase.balance_after }}"></div>
+      <div class="field"><label>Usage</label><input name="usage" value="{{ testcase.usage }}"></div>
+      <div class="field">
+        <label>Final Status</label>
+        <select name="status">
+          {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.value }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
+    </div>
+    <div class="field"><label>Data Test</label><textarea name="data_test" rows="3">{{ testcase.data_test or '' }}</textarea></div>
+    <button class="btn" type="submit">Save Section 1</button>
+  </form>
+</div>
+
+{% macro step_block(step) %}
+<div class="card" style="margin-bottom:10px;">
+  <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit">
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ step.step_no }}</span>
+      <input name="step_text" value="{{ step.step_text }}" style="flex-grow:1;" placeholder="Step">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+      <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
+      <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result }}</textarea></div>
+    </div>
+    <button class="btn secondary" type="submit">Save Step</button>
+  </form>
+  <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete" style="margin-top:6px;">
+    <button class="btn danger" type="submit">Delete Step</button>
+  </form>
+  <div class="dropzone" style="margin-top:10px;" data-step-id="{{ step.id }}">
+    Screenshot paste zone (wired up in a later step of this build)
+  </div>
+</div>
+{% endmacro %}
+
+{% for section_key, section_label in [("PRECONDITION", "2. Pre Condition"), ("MAIN", "3. Main Test"), ("POSTCONDITION", "4. Post Condition")] %}
+<div class="card">
+  <h3>{{ section_label }}</h3>
+  {% for step in steps[section_key] %}{{ step_block(step) }}{% endfor %}
+  <form method="post" action="/testcases/{{ testcase.id }}/steps">
+    <input type="hidden" name="section" value="{{ section_key }}">
+    <button class="btn secondary" type="submit">+ Add Step</button>
+  </form>
+</div>
+{% endfor %}
+{% endblock %}

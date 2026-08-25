@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
-from app.routers import stories, subtasks, testcases
+from app.routers import execution, stories, subtasks, testcases
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,8 +19,4 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(stories.router)
 app.include_router(subtasks.router)
 app.include_router(testcases.router)
-
-
-@app.get("/__template_check")
-def _template_check(request: Request):
-    return templates.TemplateResponse(request, "base.html", {})
+app.include_router(execution.router)
