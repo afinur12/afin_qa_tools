@@ -26,11 +26,12 @@ def _clone_table(table: Table) -> Table:
 def _fill_header(doc: Document, fields: dict) -> None:
     table = doc.tables[0]
     for row_index, field_name in enumerate(HEADER_FIELD_ORDER):
+        value_text = str(fields.get(field_name, "") or "")
         try:
-            table.cell(row_index, 3).text = str(fields.get(field_name, "") or "")
+            table.cell(row_index, 3).text = value_text
         except IndexError:
-            # Some rows may not have column 3 accessible due to table structure
-            pass
+            # Fallback for rows where column 3 is inaccessible due to table structure irregularities
+            table.cell(row_index, 2).text = value_text
 
 
 def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actual: str) -> None:

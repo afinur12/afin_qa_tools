@@ -116,3 +116,30 @@ def test_build_docx_inserts_screenshots(tmp_path):
 
     doc = Document(output_path)
     assert len(doc.inline_shapes) == 1
+
+
+def test_build_docx_preserves_data_test_field_despite_cell_index_anomaly(tmp_path):
+    """Regression test: data_test field must be written even when row 14 col 3 is inaccessible.
+
+    The template has a structural anomaly: row 14 column 3 raises IndexError when accessed via
+    table.cell(), requiring a fallback to column 2. This test verifies the value is not silently
+    dropped but actually written to the document.
+    """
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.data_test = "msisdn: 62812"
+    output_path = str(tmp_path / "out_data_test.docx")
+    build_docx(tc, output_path)
+
+    doc = Document(output_path)
+    # Verify the data_test value appears somewhere in the header table (exact column not guaranteed)
+    header_table = doc.tables[0]
+    header_text_found = False
+    for row in header_table.rows:
+        for cell in row.cells:
+            if "msisdn: 62812" in cell.text.lower():
+                header_text_found = True
+                break
+        if header_text_found:
+            break
+    assert header_text_found, "data_test field value 'msisdn: 62812' not found in header table"
