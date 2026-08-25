@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseStatus, TestCaseStep
+from app.models import Bug, BugSeverity, BugStatus, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseStatus, TestCaseStep
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -102,3 +102,40 @@ def test_testcase_step_ordering(db_session):
     db_session.refresh(tc)
     main_steps = [s for s in tc.steps if s.section == StepSection.MAIN]
     assert [s.step_no for s in main_steps] == [1, 2]
+
+
+def test_bug_display_code_unique_within_subtask(db_session):
+    story = Story(display_code="EX-7", title="A", internal_key="k17")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k18", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    db_session.add(Bug(subtask_id=subtask.id, display_code="B-1", title="[ISSUE] a", internal_key="k19"))
+    db_session.commit()
+    db_session.add(Bug(subtask_id=subtask.id, display_code="B-1", title="[ISSUE] b", internal_key="k20"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_bug_defaults(db_session):
+    story = Story(display_code="EX-8", title="A", internal_key="k21")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k22", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    bug = Bug(subtask_id=subtask.id, display_code="B-1", title="[ISSUE] a", internal_key="k23")
+    db_session.add(bug)
+    db_session.commit()
+    db_session.refresh(bug)
+    assert bug.severity == BugSeverity.MEDIUM
+    assert bug.status == BugStatus.OPEN

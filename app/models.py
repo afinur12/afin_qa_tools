@@ -76,6 +76,7 @@ class Subtask(Base):
     testcases: Mapped[list["TestCase"]] = relationship(
         "TestCase", back_populates="subtask", order_by="TestCase.id"
     )
+    bugs: Mapped[list["Bug"]] = relationship("Bug", back_populates="subtask", order_by="Bug.id")
 
 
 class TestCaseStatus(str, enum.Enum):
@@ -147,3 +148,33 @@ class Screenshot(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     step: Mapped["TestCaseStep"] = relationship("TestCaseStep", back_populates="screenshots")
+
+
+class BugSeverity(str, enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class BugStatus(str, enum.Enum):
+    OPEN = "OPEN"
+    IN_PROGRESS = "IN_PROGRESS"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+
+
+class Bug(Base):
+    __tablename__ = "bugs"
+    __table_args__ = (UniqueConstraint("subtask_id", "display_code", name="uq_bug_subtask_code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subtask_id: Mapped[int] = mapped_column(ForeignKey("subtasks.id"), nullable=False)
+    display_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    severity: Mapped[BugSeverity] = mapped_column(SAEnum(BugSeverity), nullable=False, default=BugSeverity.MEDIUM)
+    status: Mapped[BugStatus] = mapped_column(SAEnum(BugStatus), nullable=False, default=BugStatus.OPEN)
+
+    subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="bugs")
