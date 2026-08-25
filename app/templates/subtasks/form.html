@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:520px;">
+  <h2>{% if subtask %}Edit Subtask{% else %}New Subtask ({{ phase.type.value }}){% endif %}</h2>
+  <form method="post" action="{% if subtask %}/subtasks/{{ subtask.id }}/edit{% else %}/phases/{{ phase.id }}/subtasks{% endif %}">
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" value="{{ values.display_code }}" required>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input name="title" value="{{ values.title }}" required>
+    </div>
+    {% if not subtask %}
+    <div class="field">
+      <label>Type</label>
+      <select name="subtask_type" required>
+        <option value="">Select&hellip;</option>
+        {% for t in allowed_types %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="field">
+      <label>Notes</label>
+      <textarea name="notes" rows="4">{{ values.notes }}</textarea>
+    </div>
+    {% endif %}
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+{% endblock %}
