@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}QA Toolbox{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav>
+    <a class="brand" href="/">QA Toolbox</a>
+    <a href="/">Dashboard</a>
+    <a href="/stories">Stories</a>
+    <a href="/bugs">Bugs</a>
+  </nav>
+  <main>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
