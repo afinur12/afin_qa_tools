@@ -30,6 +30,15 @@ def test_create_curl_attached_to_story(client):
     assert "api.example.com/health" in story_page.text
 
 
+def test_curl_panel_displays_raw_text_verbatim(client):
+    create = client.post("/stories", data={"display_code": "EX-702", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    raw_text = "curl -X POST https://api.example.com/users -H Content-Type:application/json"
+    client.post("/curls", data={"attach_type": "STORY", "attach_id": story_id, "raw_text": raw_text})
+    story_page = client.get(f"/stories/{story_id}")
+    assert raw_text in story_page.text
+
+
 def test_delete_curl(client):
     create = client.post("/stories", data={"display_code": "EX-701", "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]

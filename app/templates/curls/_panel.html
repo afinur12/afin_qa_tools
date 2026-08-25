@@ -3,6 +3,7 @@
   {% for curl in curls %}
   <div style="border-bottom:1px solid #eceef1;padding:8px 0;">
     <div><span class="mono badge" style="background:#eef1f4;">{{ curl.method }}</span> <span class="mono">{{ curl.url }}</span></div>
+    <pre class="mono" style="white-space:pre-wrap;word-break:break-all;margin:6px 0;">{{ curl.raw_text }}</pre>
     <form method="post" action="/curls/{{ curl.id }}/delete" style="margin-top:4px;">
       <input type="hidden" name="attach_type" value="{{ attach_type }}">
       <input type="hidden" name="attach_id" value="{{ attach_id }}">
