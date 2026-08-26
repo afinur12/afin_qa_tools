@@ -6,3 +6,4 @@ app/uploads/screenshots/**
 app/uploads/exports/**
 !app/uploads/screenshots/.gitkeep
 !app/uploads/exports/.gitkeep
+.files
