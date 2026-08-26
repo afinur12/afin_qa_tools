@@ -28,9 +28,11 @@
 <div class="card">
   <div class="card-head">
     <div class="card-title">1. Description</div>
+    <div class="spacer"></div>
+    <span class="save-state" data-save-state></span>
   </div>
 
-  <form method="post" action="/testcases/{{ testcase.id }}/section1">
+  <form method="post" action="/testcases/{{ testcase.id }}/section1" data-autosave>
     <div class="grid-2">
       <div class="field"><label>Project</label><input value="{{ story.title }}" disabled></div>
       <div class="field"><label>Scenario</label><input value="{{ testcase.subtask.title }}" disabled></div>
@@ -90,24 +92,28 @@
       <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
     </div>
 
-    <div class="field"><label>Data Test</label><textarea name="data_test" rows="3">{{ testcase.data_test or '' }}</textarea></div>
-    <div class="form-actions"><button class="btn" type="submit">Save Description</button></div>
+    <div class="field">
+      <label>Data Test</label>
+      <textarea name="data_test" rows="3" placeholder="One item per line — each line exports as a bullet">{{ testcase.data_test or '' }}</textarea>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit" data-manual-save>Save Description</button></div>
   </form>
 </div>
 
 {% macro step_block(step) %}
 <div class="step">
-  <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit">
+  <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit" data-autosave>
     <div class="step-head">
       <span class="step-no">{{ step.step_no }}</span>
       <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
+      <span class="save-state" data-save-state></span>
     </div>
     <div class="grid-2" style="gap:2px 16px;">
       <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
       <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result or 'Same as expected' }}</textarea></div>
     </div>
     <div class="form-actions">
-      <button class="btn secondary sm" type="submit">Save Step</button>
+      <button class="btn secondary sm" type="submit" data-manual-save>Save Step</button>
     </div>
   </form>
 
