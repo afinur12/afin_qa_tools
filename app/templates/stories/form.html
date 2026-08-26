@@ -11,7 +11,7 @@
   <form method="post" action="{% if story %}/stories/{{ story.id }}/edit{% else %}/stories{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. EX-142" autocomplete="off" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. PROJ-142" autocomplete="off" required>
     </div>
     <div class="field">
       <label>Title</label>

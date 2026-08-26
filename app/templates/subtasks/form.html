@@ -17,7 +17,7 @@
   <form method="post" action="{% if subtask %}/subtasks/{{ subtask.id }}/edit{% else %}/phases/{{ phase.id }}/subtasks{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. SIT-EX142" autocomplete="off" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. SIT-PROJ142" autocomplete="off" required>
     </div>
     <div class="field">
       <label>Title</label>
