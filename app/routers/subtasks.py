@@ -5,7 +5,7 @@ from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, generate_internal_key
+from app.models import Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, generate_internal_key
 
 router = APIRouter()
 
@@ -90,14 +90,14 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
     subtask = db.get(Subtask, subtask_id)
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    curls = db.query(CurlCollection).filter(
-        CurlCollection.attach_type == CurlAttachType.SUBTASK, CurlCollection.attach_id == subtask_id
+    notes = db.query(Note).filter(
+        Note.attach_type == NoteAttachType.SUBTASK, Note.attach_id == subtask_id
     ).all()
     return templates.TemplateResponse(
         request,
         "subtasks/detail.html",
         {
-            "subtask": subtask, "error": None, "curls": curls,
+            "subtask": subtask, "error": None, "notes": notes,
             "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
         },
     )

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Story, generate_internal_key
+from app.models import Note, NoteAttachType, Phase, PhaseType, Story, generate_internal_key
 
 router = APIRouter()
 
@@ -59,13 +59,13 @@ def story_detail(request: Request, story_id: int, db: Session = Depends(get_db))
     story = db.get(Story, story_id)
     if story is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    curls = db.query(CurlCollection).filter(
-        CurlCollection.attach_type == CurlAttachType.STORY, CurlCollection.attach_id == story_id
+    notes = db.query(Note).filter(
+        Note.attach_type == NoteAttachType.STORY, Note.attach_id == story_id
     ).all()
     return templates.TemplateResponse(
         request,
         "stories/detail.html",
-        {"story": story, "available_phase_types": _available_phase_types(story), "error": None, "curls": curls},
+        {"story": story, "available_phase_types": _available_phase_types(story), "error": None, "notes": notes},
     )
 
 
@@ -163,8 +163,8 @@ def delete_phase(request: Request, phase_id: int, db: Session = Depends(get_db))
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     if len(phase.subtasks) > 0:
         story = phase.story
-        curls = db.query(CurlCollection).filter(
-            CurlCollection.attach_type == CurlAttachType.STORY, CurlCollection.attach_id == story.id
+        notes = db.query(Note).filter(
+            Note.attach_type == NoteAttachType.STORY, Note.attach_id == story.id
         ).all()
         return templates.TemplateResponse(
             request,
@@ -173,7 +173,7 @@ def delete_phase(request: Request, phase_id: int, db: Session = Depends(get_db))
                 "story": story,
                 "available_phase_types": _available_phase_types(story),
                 "error": f"Delete {len(phase.subtasks)} subtask(s) first.",
-                "curls": curls,
+                "notes": notes,
             },
             status_code=422,
         )

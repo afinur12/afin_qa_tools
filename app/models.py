@@ -249,22 +249,24 @@ class Bug(Base):
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="bugs")
 
 
-class CurlAttachType(str, enum.Enum):
+class NoteAttachType(str, enum.Enum):
     STORY = "STORY"
     SUBTASK = "SUBTASK"
 
 
-class CurlCollection(Base):
-    __tablename__ = "curl_collections"
+class Note(Base):
+    """A saved snippet (curl, SQL, JSON, or any other text) with an optional
+    remark, attached to a story or subtask. Stored verbatim — nothing here
+    is ever executed or parsed."""
+
+    __tablename__ = "notes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    attach_type: Mapped[CurlAttachType] = mapped_column(SAEnum(CurlAttachType), nullable=False)
+    attach_type: Mapped[NoteAttachType] = mapped_column(SAEnum(NoteAttachType), nullable=False)
     attach_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
-    method: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    headers: Mapped[str | None] = mapped_column(Text, nullable=True)
-    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str] = mapped_column(String(32), nullable=False, default="TEXT")
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 

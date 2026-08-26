@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, CurlAttachType, CurlCollection, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
+from app.models import Bug, BugSeverity, BugStatus, Note, NoteAttachType, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -144,20 +144,18 @@ def test_bug_defaults(db_session):
     assert bug.status == BugStatus.OPEN
 
 
-def test_curl_collection_create(db_session):
+def test_note_create(db_session):
     story = Story(display_code="EX-9", title="A", internal_key="k24")
     db_session.add(story)
     db_session.commit()
-    curl = CurlCollection(
-        attach_type=CurlAttachType.STORY,
+    note = Note(
+        attach_type=NoteAttachType.STORY,
         attach_id=story.id,
-        raw_text="curl https://api.example.com/health",
-        method="GET",
-        url="https://api.example.com/health",
-        headers="{}",
-        body="",
+        language="CURL",
+        content="curl https://api.example.com/health",
+        remark="Health check",
     )
-    db_session.add(curl)
+    db_session.add(note)
     db_session.commit()
-    db_session.refresh(curl)
-    assert curl.id is not None
+    db_session.refresh(note)
+    assert note.id is not None
