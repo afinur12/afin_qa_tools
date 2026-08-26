@@ -1,0 +1,31 @@
+{# Reusable modal dialog.
+
+   The form posts to the same endpoint the standalone page used, so the
+   backend is unchanged. If validation fails the server re-renders the
+   standalone form page with its inline error, which also serves as the
+   no-JS fallback: the "+ New ..." trigger keeps a real href.
+#}
+{% macro modal(id, title, action, hint=None) %}
+<div class="modal-backdrop" id="{{ id }}" data-modal hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title">
+    <div class="modal-head">
+      <div class="modal-title" id="{{ id }}-title">{{ title }}</div>
+      <div class="spacer"></div>
+      <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    {% if hint %}
+    <div class="hint">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>
+      {{ hint }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ action }}">
+      {{ caller() }}
+    </form>
+  </div>
+</div>
+{% endmacro %}

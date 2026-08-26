@@ -219,3 +219,91 @@ def test_build_docx_handles_unembeddable_screenshot_without_crashing(tmp_path):
     step_table = next(t for t in doc.tables if len(t.rows) == 4 and t.cell(0, 5).text == "step")
     assert "not_an_image.webp" in step_table.cell(3, 0).text
     assert len(step_table._tbl.xpath(".//*[local-name()='drawing']")) == 0
+
+
+def _png_bytes():
+    import struct
+    import zlib
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+    w = h = 8
+    raw = (b"\x00" + bytes((90, 120, 200)) * w) * h
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+def test_build_docx_unwraps_content_controls_and_writes_test_date_once(tmp_path):
+    """The template ships Word content controls (a date picker on Test Date,
+    dropdowns elsewhere). The date control wraps the value CELL itself, so
+    leaving it in place both hid the real cell from python-docx and left its
+    stale placeholder in the row -- the date rendered twice. Export must
+    contain no content controls and exactly one Test Date value.
+    """
+    import zipfile
+
+    import lxml.etree as ET
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.test_date = "2026-08-26"
+    output_path = str(tmp_path / "out_controls.docx")
+    build_docx(tc, output_path)
+
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    root = ET.fromstring(zipfile.ZipFile(output_path).read("word/document.xml"))
+    assert root.findall(".//" + ns + "sdt") == [], "content controls must be unwrapped"
+
+    header = Document(output_path).tables[0]
+    date_row = header.rows[3]
+    assert len(date_row.cells) == 4, "Test Date row must expose its real value cell"
+    assert date_row.cells[3].text == "2026-08-26"
+    # The stale placeholder from the date picker must be gone, and the value
+    # must not also appear in the narrow spacer cell.
+    row_text = [c.text for c in date_row.cells]
+    assert row_text.count("2026-08-26") == 1
+    assert not any("August" in t for t in row_text)
+
+
+def test_build_docx_renders_data_test_as_bullet_list(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.data_test = "msisdn: 62812\nSID: 8117369\namount: 50000"
+    output_path = str(tmp_path / "out_bullets.docx")
+    build_docx(tc, output_path)
+
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    cell = Document(output_path).tables[0].rows[14].cells[3]
+    paragraphs = [p for p in cell.paragraphs if p.text.strip()]
+    assert [p.text for p in paragraphs] == ["msisdn: 62812", "SID: 8117369", "amount: 50000"]
+    for paragraph in paragraphs:
+        p_pr = paragraph._p.find(ns + "pPr")
+        assert p_pr is not None and p_pr.find(ns + "numPr") is not None, (
+            "each Data Test line must carry real Word bullet numbering"
+        )
+
+
+def test_build_docx_screenshots_are_18cm_wide_and_centered(tmp_path):
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Emu
+
+    png_path = tmp_path / "shot.png"
+    png_path.write_bytes(_png_bytes())
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a", screenshots=[_Screenshot(str(png_path))])]
+    output_path = str(tmp_path / "out_shot_size.docx")
+    build_docx(tc, output_path)
+
+    doc = Document(output_path)
+    assert len(doc.inline_shapes) == 1
+    assert round(Emu(doc.inline_shapes[0].width).cm, 2) == 18.0
+
+    step_table = next(t for t in doc.tables if len(t.rows) == 4 and t.cell(0, 5).text == "step")
+    shot_cell = step_table.cell(3, 0)
+    assert shot_cell.paragraphs[0].alignment == WD_ALIGN_PARAGRAPH.CENTER

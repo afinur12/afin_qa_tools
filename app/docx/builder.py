@@ -2,7 +2,10 @@ import copy
 from pathlib import Path
 
 from docx import Document
-from docx.shared import Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Cm
 from docx.table import Table
 
 TEMPLATE_PATH = Path(__file__).parent / "Template_Artifact_V1.docx"
@@ -15,6 +18,56 @@ HEADER_FIELD_ORDER = [
 ]
 
 SECTION_ORDER = ["PRECONDITION", "MAIN", "POSTCONDITION"]
+
+# Fields rendered as a bulleted list rather than a single run of text.
+BULLET_FIELDS = {"data_test"}
+
+# Screenshots are sized to the template's usable content width (A4 minus the
+# 1.27cm margins is 18.46cm, and the step tables are 18.44cm wide), so 18cm
+# fills the block without overflowing the page or the cell.
+SCREENSHOT_WIDTH = Cm(18)
+
+# numId 1 in the template's numbering.xml is a real Word bullet list
+# (abstractNumId 0, numFmt "bullet"). Reusing it gives native bullets that
+# behave correctly in Word rather than a literal "-" typed into the text.
+BULLET_NUM_ID = 1
+
+
+def _unwrap_content_controls(doc: Document) -> None:
+    """Replace every ``<w:sdt>`` with the contents it wraps.
+
+    The source template ships with Word content controls: a date picker on
+    the Test Date row and dropdowns on Environment / Priority / Type /
+    Channel / Final Status. Two problems follow from leaving them in place:
+
+    1. The Test Date control wraps the table CELL itself (``sdt`` -> ``tc``),
+       so python-docx's ``row.cells`` only sees the three plain ``<w:tc>``
+       siblings and never the real value cell hidden inside the control.
+       Writing the date into the last visible cell then left the control's
+       own stale placeholder ("Tuesday, 11 August 2026") sitting in the row
+       as well, so the exported document showed the date twice.
+    2. They render in Word as interactive form controls, which is not what an
+       exported artifact should contain.
+
+    Unwrapping first makes every header row a uniform four-cell row and
+    leaves plain text behind, which fixes both.
+    """
+    body = doc.element.body
+    # Controls can nest, so keep unwrapping until none are left.
+    while True:
+        sdts = body.findall(".//" + qn("w:sdt"))
+        if not sdts:
+            return
+        for sdt in sdts:
+            parent = sdt.getparent()
+            if parent is None:
+                continue
+            content = sdt.find(qn("w:sdtContent"))
+            index = list(parent).index(sdt)
+            if content is not None:
+                for child in reversed(list(content)):
+                    parent.insert(index, child)
+            parent.remove(sdt)
 
 
 def _clone_table(pristine_tbl_xml, after_table: Table) -> Table:
@@ -32,6 +85,44 @@ def _clone_table(pristine_tbl_xml, after_table: Table) -> Table:
     return Table(new_tbl, after_table._parent)
 
 
+def _apply_bullet(paragraph) -> None:
+    """Attach the template's native bullet numbering to a paragraph."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    num_pr = OxmlElement("w:numPr")
+    ilvl = OxmlElement("w:ilvl")
+    ilvl.set(qn("w:val"), "0")
+    num_id = OxmlElement("w:numId")
+    num_id.set(qn("w:val"), str(BULLET_NUM_ID))
+    num_pr.append(ilvl)
+    num_pr.append(num_id)
+    p_pr.append(num_pr)
+
+
+def _write_cell(cell, text: str, bullet: bool = False) -> None:
+    """Replace a cell's contents with ``text``.
+
+    With ``bullet`` set, each non-empty line becomes its own bulleted
+    paragraph; otherwise the text is written as-is (newlines preserved as
+    line breaks within one paragraph).
+    """
+    if not bullet:
+        cell.text = text
+        return
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    cell.text = ""
+    if not lines:
+        return
+    for i, line in enumerate(lines):
+        paragraph = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
+        paragraph.text = line
+        try:
+            paragraph.style = "List Paragraph"
+        except KeyError:
+            pass
+        _apply_bullet(paragraph)
+
+
 # Depends on `table.rows[row_index].cells` being ROW-SCOPED (each row's own
 # cell list), not the flat/deprecated `Table.cell()`/`Table.row_cells`
 # accessor which indexes across merged-cell spans and can silently return a
@@ -43,14 +134,10 @@ def _fill_header(doc: Document, fields: dict) -> None:
     for row_index, field_name in enumerate(HEADER_FIELD_ORDER):
         value_text = str(fields.get(field_name, "") or "")
         row_cells = table.rows[row_index].cells
-        try:
-            row_cells[3].text = value_text
-        except IndexError:
-            # This row's template row is genuinely missing its 4th (value) cell
-            # in the source .docx (confirmed: row 3 "Test Date" has only 3 cells).
-            # Write into the last existing cell in that row so the value is still
-            # visible, rather than silently dropping it or corrupting another row.
-            row_cells[-1].text = value_text
+        # Every header row has its own value cell at index 3 once the
+        # template's content controls have been unwrapped.
+        target = row_cells[3] if len(row_cells) > 3 else row_cells[-1]
+        _write_cell(target, value_text, bullet=field_name in BULLET_FIELDS)
 
 
 def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actual: str) -> None:
@@ -64,8 +151,9 @@ def _insert_screenshots(table: Table, screenshot_paths: list[str]) -> None:
     cell = table.cell(3, 0)
     for i, path in enumerate(screenshot_paths):
         paragraph = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
-            paragraph.add_run().add_picture(path, width=Inches(2.5))
+            paragraph.add_run().add_picture(path, width=SCREENSHOT_WIDTH)
         except Exception:
             # Screenshot format/content is deliberately never validated at
             # upload time, so add_picture can fail here (e.g. WebP, a
@@ -77,6 +165,7 @@ def _insert_screenshots(table: Table, screenshot_paths: list[str]) -> None:
 
 def build_docx(testcase, output_path: str) -> str:
     doc = Document(str(TEMPLATE_PATH))
+    _unwrap_content_controls(doc)
 
     story = testcase.subtask.phase.story
     fields = {

@@ -606,6 +606,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   padding: 24px;
   z-index: 50;
 }
+.modal-backdrop[hidden] { display: none; }
 .modal {
   background: var(--surface);
   border-radius: var(--r-card);

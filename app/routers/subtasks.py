@@ -11,11 +11,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _allowed_subtask_types(phase: Phase) -> list[SubtaskType]:
-    if phase.type == PhaseType.STAGING_AFTER_ROLLBACK:
-        if len(phase.subtasks) >= 1:
-            return []
-        return [SubtaskType.EXECUTION]
-    return list(SubtaskType)
+    return phase.allowed_subtask_types
 
 
 @router.get("/phases/{phase_id}/subtasks/new")

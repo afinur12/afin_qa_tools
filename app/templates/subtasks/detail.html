@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import modal with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -37,8 +38,23 @@
       <div class="card-sub">{{ subtask.testcases | length }} case{{ '' if subtask.testcases | length == 1 else 's' }}</div>
     </div>
     <div class="spacer"></div>
-    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/testcases/new">+ New Test Case</a>
+    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase">+ New Test Case</a>
   </div>
+
+  {% call modal('new-testcase', 'New Test Case', '/subtasks/' ~ subtask.id ~ '/testcases') %}
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" placeholder="e.g. TC-1" required>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input name="title" placeholder="What does this case verify?" required>
+    </div>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+      <button class="btn" type="submit">Save</button>
+    </div>
+  {% endcall %}
   <table>
     <thead><tr><th>Code</th><th>Title</th><th>Status</th></tr></thead>
     <tbody>
@@ -62,8 +78,27 @@
       <div class="card-sub">{{ subtask.bugs | length }} logged</div>
     </div>
     <div class="spacer"></div>
-    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/bugs/new">+ New Bug</a>
+    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/bugs/new" data-modal-open="new-bug">+ New Bug</a>
   </div>
+
+  {% call modal('new-bug', 'New Bug', '/subtasks/' ~ subtask.id ~ '/bugs') %}
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" placeholder="e.g. BUG-12" required>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input name="title" placeholder="[ISSUE] short description" required>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea name="description" rows="4" placeholder="Steps to reproduce, expected vs actual"></textarea>
+    </div>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+      <button class="btn" type="submit">Save</button>
+    </div>
+  {% endcall %}
   <table>
     <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
     <tbody>

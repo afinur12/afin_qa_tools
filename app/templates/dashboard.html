@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import modal with context %}
 {% block content %}
 
 {% set total = status_counts.values() | sum %}
@@ -17,11 +18,26 @@
     <h1 class="page-title">Test execution at a glance</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn" href="/stories/new">
+  <a class="btn" href="/stories/new" data-modal-open="new-story">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     New Story
   </a>
 </div>
+
+{% call modal('new-story', 'New Story', '/stories') %}
+  <div class="field">
+    <label>Code</label>
+    <input name="display_code" placeholder="e.g. EX-142" required>
+  </div>
+  <div class="field">
+    <label>Title</label>
+    <input name="title" placeholder="e.g. OWS-W2W (Top-up RO Balance)" required>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
 
 <div class="stat-grid">
   <div class="card dark">

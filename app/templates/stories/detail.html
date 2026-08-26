@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import modal with context %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
@@ -52,11 +53,37 @@
       <div class="card-sub">{{ phase.subtasks | length }} subtask{{ '' if phase.subtasks | length == 1 else 's' }}</div>
     </div>
     <div class="spacer"></div>
-    <a class="btn secondary sm" href="/phases/{{ phase.id }}/subtasks/new">+ New Subtask</a>
+    {% if phase.allowed_subtask_types %}
+    <a class="btn secondary sm" href="/phases/{{ phase.id }}/subtasks/new" data-modal-open="new-subtask-{{ phase.id }}">+ New Subtask</a>
+    {% endif %}
     <form class="inline-form" method="post" action="/phases/{{ phase.id }}/delete">
       <button class="btn danger sm" type="submit">Delete</button>
     </form>
   </div>
+
+  {% if phase.allowed_subtask_types %}
+  {% call modal('new-subtask-' ~ phase.id, 'New Subtask · ' ~ phase.type.value, '/phases/' ~ phase.id ~ '/subtasks') %}
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" placeholder="e.g. SIT-EX142" required>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input name="title" placeholder="e.g. OWS-W2W (Top-up RO Balance)" required>
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select name="subtask_type" required>
+        <option value="">Select&hellip;</option>
+        {% for t in phase.allowed_subtask_types %}<option value="{{ t.value }}">{{ t.value.replace('_', ' ') | title }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+      <button class="btn" type="submit">Save</button>
+    </div>
+  {% endcall %}
+  {% endif %}
 
   {% if phase.subtasks %}
   <div class="stack">

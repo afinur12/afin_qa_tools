@@ -59,6 +59,18 @@ class Phase(Base):
     story: Mapped["Story"] = relationship("Story", back_populates="phases")
     subtasks: Mapped[list["Subtask"]] = relationship("Subtask", back_populates="phase", order_by="Subtask.id")
 
+    @property
+    def allowed_subtask_types(self) -> list["SubtaskType"]:
+        """Subtask types this phase will still accept.
+
+        STAGING_AFTER_ROLLBACK skips the usual five-way breakdown: it takes a
+        single EXECUTION subtask and nothing more. Lives on the model so the
+        routers and the templates agree on one rule.
+        """
+        if self.type == PhaseType.STAGING_AFTER_ROLLBACK:
+            return [] if self.subtasks else [SubtaskType.EXECUTION]
+        return list(SubtaskType)
+
 
 class Subtask(Base):
     __tablename__ = "subtasks"
