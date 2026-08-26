@@ -1,31 +1,48 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card" style="max-width:520px;">
-  <h2>{% if subtask %}Edit Subtask{% else %}New Subtask ({{ phase.type.value }}){% endif %}</h2>
+
+<div class="crumbs">
+  <a href="/stories">Tasks</a><span class="sep">/</span>
+  {% if subtask %}<a href="/subtasks/{{ subtask.id }}">{{ subtask.display_code }}</a><span class="sep">/</span>Edit{% else %}New subtask{% endif %}
+</div>
+
+<div class="page-head">
+  <div>
+    {% if not subtask %}<div class="eyebrow">{{ phase.type.value }}</div>{% endif %}
+    <h1 class="page-title">{% if subtask %}Edit subtask{% else %}New subtask{% endif %}</h1>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px;">
   <form method="post" action="{% if subtask %}/subtasks/{{ subtask.id }}/edit{% else %}/phases/{{ phase.id }}/subtasks{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. SIT-EX142" required>
     </div>
     <div class="field">
       <label>Title</label>
-      <input name="title" value="{{ values.title }}" required>
+      <input name="title" value="{{ values.title }}" placeholder="e.g. OWS-W2W (Top-up RO Balance)" required>
     </div>
+
     {% if not subtask %}
     <div class="field">
       <label>Type</label>
       <select name="subtask_type" required>
         <option value="">Select&hellip;</option>
-        {% for t in allowed_types %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}
+        {% for t in allowed_types %}<option value="{{ t.value }}">{{ t.value.replace('_', ' ') | title }}</option>{% endfor %}
       </select>
     </div>
     {% else %}
     <div class="field">
       <label>Notes</label>
-      <textarea name="notes" rows="4">{{ values.notes }}</textarea>
+      <textarea name="notes" rows="4" placeholder="Optional context for this subtask">{{ values.notes }}</textarea>
     </div>
     {% endif %}
-    <button class="btn" type="submit">Save</button>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+      {% if subtask %}<a class="btn secondary" href="/subtasks/{{ subtask.id }}">Cancel</a>{% endif %}
+    </div>
   </form>
 </div>
 {% endblock %}

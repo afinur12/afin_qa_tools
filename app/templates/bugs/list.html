@@ -1,12 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <h2>Bugs</h2>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">Bugs</h1>
+    <div class="page-sub">{{ bugs | length }} logged across all tasks</div>
+  </div>
+</div>
+
+<div class="card flush">
   <table>
     <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
     <tbody>
       {% for bug in bugs %}
-      <tr><td class="mono"><a href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td><td>{{ bug.title }}</td><td>{{ bug.severity.value }}</td><td>{{ bug.status.value }}</td></tr>
+      <tr>
+        <td><a class="badge code" href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td>
+        <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
+        <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span></td>
+        <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">No bugs logged. Nice.</td></tr>
       {% endfor %}
     </tbody>
   </table>

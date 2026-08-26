@@ -1,34 +1,86 @@
 {% extends "base.html" %}
 {% block content %}
-<div style="font-size:12px;color:#8a93a1;margin-bottom:8px;">
-  <a href="/subtasks/{{ testcase.subtask.id }}">{{ testcase.subtask.phase.story.display_code }} / {{ testcase.subtask.display_code }}</a> / {{ testcase.display_code }}
+
+{% set story = testcase.subtask.phase.story %}
+<div class="crumbs">
+  <a href="/stories">Tasks</a><span class="sep">/</span>
+  <a href="/stories/{{ story.id }}">{{ story.display_code }}</a><span class="sep">/</span>
+  <a href="/subtasks/{{ testcase.subtask.id }}">{{ testcase.subtask.display_code }}</a><span class="sep">/</span>
+  {{ testcase.display_code }}
 </div>
 
-<div class="card">
-  <div style="display:flex;align-items:center;">
-    <h2 style="margin:0;">{{ testcase.display_code }} &mdash; {{ testcase.title }}</h2>
-    <div style="flex-grow:1;"></div>
-    <span class="badge" style="background:#eef1f4;">{{ testcase.status.value }}</span>
-    <a class="btn secondary" style="margin-left:10px;" href="/testcases/{{ testcase.id }}/export-docx">Export .docx</a>
+<div class="page-head">
+  <div>
+    <div class="row" style="margin-bottom:6px;">
+      <span class="badge code">{{ testcase.display_code }}</span>
+      <span class="badge badge--{{ testcase.status.value | lower }}">{{ testcase.status.value }}</span>
+    </div>
+    <h1 class="page-title">{{ testcase.title }}</h1>
   </div>
+  <div class="spacer"></div>
+  <a class="btn secondary" href="/testcases/{{ testcase.id }}/edit">Edit</a>
+  <a class="btn" href="/testcases/{{ testcase.id }}/export-docx">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+    Export .docx
+  </a>
 </div>
 
 <div class="card">
-  <h3>1. Description</h3>
+  <div class="card-head">
+    <div class="card-title">1. Description</div>
+  </div>
+
   <form method="post" action="/testcases/{{ testcase.id }}/section1">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;">
-      <div class="field"><label>Project</label><input value="{{ testcase.subtask.phase.story.title }}" disabled></div>
+    <div class="grid-2">
+      <div class="field"><label>Project</label><input value="{{ story.title }}" disabled></div>
       <div class="field"><label>Scenario</label><input value="{{ testcase.subtask.title }}" disabled></div>
+
       <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
-      <div class="field"><label>Test Date</label><input name="test_date" value="{{ testcase.test_date or '' }}" placeholder="YYYY-MM-DD"></div>
+      <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>
+
       <div class="field"><label>Environment</label><input value="{{ testcase.subtask.phase.type.value }}" disabled></div>
-      <div class="field"><label>Test Priority</label><input name="test_priority" value="{{ testcase.test_priority or '' }}"></div>
-      <div class="field"><label>Test Type</label><input name="test_type" value="{{ testcase.test_type or '' }}"></div>
-      <div class="field"><label>Channel</label><input name="channel" value="{{ testcase.channel or '' }}"></div>
+
+      {% set priorities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] %}
+      <div class="field">
+        <label>Test Priority</label>
+        <select name="test_priority">
+          <option value="">Select&hellip;</option>
+          {% for o in priorities %}<option value="{{ o }}" {% if testcase.test_priority == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+          {% if testcase.test_priority and testcase.test_priority not in priorities %}
+          <option value="{{ testcase.test_priority }}" selected>{{ testcase.test_priority }}</option>
+          {% endif %}
+        </select>
+      </div>
+
+      {% set test_types = ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}
+      <div class="field">
+        <label>Test Type</label>
+        <select name="test_type">
+          <option value="">Select&hellip;</option>
+          {% for o in test_types %}<option value="{{ o }}" {% if testcase.test_type == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+          {% if testcase.test_type and testcase.test_type not in test_types %}
+          <option value="{{ testcase.test_type }}" selected>{{ testcase.test_type }}</option>
+          {% endif %}
+        </select>
+      </div>
+
+      {% set channels = ['myXL', 'AXISnet', 'COMET', 'Other'] %}
+      <div class="field">
+        <label>Channel</label>
+        <select name="channel">
+          <option value="">Select&hellip;</option>
+          {% for o in channels %}<option value="{{ o }}" {% if testcase.channel == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+          {% if testcase.channel and testcase.channel not in channels %}
+          <option value="{{ testcase.channel }}" selected>{{ testcase.channel }}</option>
+          {% endif %}
+        </select>
+      </div>
+
       <div class="field"><label>Iteration</label><input name="iteration" value="{{ testcase.iteration }}"></div>
       <div class="field"><label>Balance Before</label><input name="balance_before" value="{{ testcase.balance_before }}"></div>
       <div class="field"><label>Balance After</label><input name="balance_after" value="{{ testcase.balance_after }}"></div>
       <div class="field"><label>Usage</label><input name="usage" value="{{ testcase.usage }}"></div>
+
       <div class="field">
         <label>Final Status</label>
         <select name="status">
@@ -37,50 +89,70 @@
       </div>
       <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
     </div>
+
     <div class="field"><label>Data Test</label><textarea name="data_test" rows="3">{{ testcase.data_test or '' }}</textarea></div>
-    <button class="btn" type="submit">Save Section 1</button>
+    <div class="form-actions"><button class="btn" type="submit">Save Description</button></div>
   </form>
 </div>
 
 {% macro step_block(step) %}
-<div class="card" style="margin-bottom:10px;">
+<div class="step">
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit">
-    <div style="display:flex;gap:10px;align-items:center;">
-      <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ step.step_no }}</span>
-      <input name="step_text" value="{{ step.step_text }}" style="flex-grow:1;" placeholder="Step">
+    <div class="step-head">
+      <span class="step-no">{{ step.step_no }}</span>
+      <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+    <div class="grid-2" style="gap:2px 16px;">
       <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
-      <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result }}</textarea></div>
+      <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result or 'Same as expected' }}</textarea></div>
     </div>
-    <button class="btn secondary" type="submit">Save Step</button>
+    <div class="form-actions">
+      <button class="btn secondary sm" type="submit">Save Step</button>
+    </div>
   </form>
-  <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete" style="margin-top:6px;">
-    <button class="btn danger" type="submit">Delete Step</button>
-  </form>
-  <div class="dropzone" style="margin-top:10px;" tabindex="0" data-step-id="{{ step.id }}">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+
+  <div class="dropzone" style="margin-top:12px;" tabindex="0" data-step-id="{{ step.id }}">
+    {% if step.screenshots %}
+    <div class="shots">
       {% for shot in step.screenshots %}
-      <div>
-        <img src="/uploads/{{ shot.file_path }}" style="width:80px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e3e6ea;">
-        <form method="post" action="/screenshots/{{ shot.id }}/delete"><button class="btn danger" type="submit" style="font-size:11px;padding:2px 6px;">Remove</button></form>
+      <div class="shot">
+        <img src="/uploads/{{ shot.file_path }}" alt="Screenshot for step {{ step.step_no }}">
+        <form method="post" action="/screenshots/{{ shot.id }}/delete" style="margin-top:5px;">
+          <button class="btn danger sm" type="submit" style="width:100%; padding:3px 6px; font-size:11px;">Remove</button>
+        </form>
       </div>
       {% endfor %}
     </div>
-    <div style="font-size:12px;color:#8a93a1;">Click here, then press Ctrl+V to paste a screenshot.</div>
+    {% endif %}
+    <div class="dropzone-hint">Click here, then press Ctrl+V to paste a screenshot.</div>
+  </div>
+
+  <div class="form-actions" style="margin-top:12px;">
+    <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete">
+      <button class="btn danger sm" type="submit">Delete Step</button>
+    </form>
   </div>
 </div>
 {% endmacro %}
 
 {% for section_key, section_label in [("PRECONDITION", "2. Pre Condition"), ("MAIN", "3. Main Test"), ("POSTCONDITION", "4. Post Condition")] %}
 <div class="card">
-  <h3>{{ section_label }}</h3>
+  <div class="card-head">
+    <div class="card-title">{{ section_label }}</div>
+    <div class="card-sub">{{ steps[section_key] | length }} step{{ '' if steps[section_key] | length == 1 else 's' }}</div>
+  </div>
+
   {% for step in steps[section_key] %}{{ step_block(step) }}{% endfor %}
+
   <form method="post" action="/testcases/{{ testcase.id }}/steps">
     <input type="hidden" name="section" value="{{ section_key }}">
-    <button class="btn secondary" type="submit">+ Add Step</button>
+    <button class="btn secondary sm" type="submit">+ Add Step</button>
   </form>
 </div>
 {% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
 <script src="/static/js/paste_screenshot.js"></script>
 {% endblock %}

@@ -1,22 +1,51 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card" style="max-width:520px;">
-  <h2>{% if bug %}Edit Bug{% else %}New Bug{% endif %}</h2>
+
+<div class="crumbs">
+  <a href="/bugs">Bugs</a><span class="sep">/</span>
+  {% if bug %}{{ bug.display_code }}<span class="sep">/</span>Edit{% else %}New bug{% endif %}
+</div>
+
+<div class="page-head">
+  <h1 class="page-title">{% if bug %}Edit bug{% else %}New bug{% endif %}</h1>
+</div>
+
+<div class="card" style="max-width:560px;">
   <form method="post" action="{% if bug %}/bugs/{{ bug.id }}/edit{% else %}/subtasks/{{ subtask.id }}/bugs{% endif %}">
-    <div class="field"><label>Code</label><input name="display_code" value="{{ values.display_code }}" required></div>
-    <div class="field"><label>Title</label><input name="title" value="{{ values.title }}" required></div>
-    <div class="field"><label>Description</label><textarea name="description" rows="4">{{ values.description }}</textarea></div>
-    {% if bug %}
     <div class="field">
-      <label>Severity</label>
-      <select name="severity">{% for s in severities %}<option value="{{ s.value }}" {% if s.value == values.severity %}selected{% endif %}>{{ s.value }}</option>{% endfor %}</select>
+      <label>Code</label>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. BUG-12" required>
     </div>
     <div class="field">
-      <label>Status</label>
-      <select name="status">{% for s in statuses %}<option value="{{ s.value }}" {% if s.value == values.status %}selected{% endif %}>{{ s.value }}</option>{% endfor %}</select>
+      <label>Title</label>
+      <input name="title" value="{{ values.title }}" placeholder="[ISSUE] short description" required>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea name="description" rows="5" placeholder="Steps to reproduce, expected vs actual">{{ values.description }}</textarea>
+    </div>
+
+    {% if bug %}
+    <div class="grid-2">
+      <div class="field">
+        <label>Severity</label>
+        <select name="severity">
+          {% for s in severities %}<option value="{{ s.value }}" {% if s.value == values.severity %}selected{% endif %}>{{ s.value }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select name="status">
+          {% for s in statuses %}<option value="{{ s.value }}" {% if s.value == values.status %}selected{% endif %}>{{ s.value.replace('_', ' ') | title }}</option>{% endfor %}
+        </select>
+      </div>
     </div>
     {% endif %}
-    <button class="btn" type="submit">Save</button>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+      {% if bug %}<a class="btn secondary" href="/bugs/{{ bug.id }}">Cancel</a>{% endif %}
+    </div>
   </form>
 </div>
 {% endblock %}

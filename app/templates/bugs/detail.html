@@ -1,16 +1,38 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <div style="display:flex;align-items:center;">
-    <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ bug.display_code }}</span>
-    <span style="font-size:18px;font-weight:600;margin-left:8px;">{{ bug.title }}</span>
-    <div style="flex-grow:1;"></div>
-    <span class="badge" style="background:#fef3c7;">{{ bug.severity.value }}</span>
-    <span class="badge" style="background:#eef1f4;margin-left:6px;">{{ bug.status.value }}</span>
-    <a class="btn secondary" style="margin-left:10px;" href="/bugs/{{ bug.id }}/edit">Edit</a>
-    <form method="post" action="/bugs/{{ bug.id }}/delete" style="display:inline;"><button class="btn danger" type="submit">Delete</button></form>
-  </div>
-  <p style="margin-top:12px;">{{ bug.description }}</p>
-  <a href="/subtasks/{{ bug.subtask_id }}">Back to subtask</a>
+
+<div class="crumbs">
+  <a href="/bugs">Bugs</a><span class="sep">/</span>
+  {{ bug.display_code }}
 </div>
+
+<div class="page-head">
+  <div>
+    <div class="row" style="margin-bottom:6px;">
+      <span class="badge code">{{ bug.display_code }}</span>
+      <span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span>
+      <span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span>
+    </div>
+    <h1 class="page-title">{{ bug.title }}</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn secondary" href="/bugs/{{ bug.id }}/edit">Edit</a>
+  <form class="inline-form" method="post" action="/bugs/{{ bug.id }}/delete">
+    <button class="btn danger" type="submit">Delete</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-head" style="margin-bottom:10px;"><div class="card-title">Description</div></div>
+  {% if bug.description %}
+  <div style="white-space:pre-wrap;">{{ bug.description }}</div>
+  {% else %}
+  <div class="muted">No description provided.</div>
+  {% endif %}
+</div>
+
+<a class="btn secondary" href="/subtasks/{{ bug.subtask_id }}">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+  Back to subtask
+</a>
 {% endblock %}

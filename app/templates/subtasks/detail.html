@@ -1,40 +1,81 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <div style="display:flex;align-items:center;">
-    <div>
-      <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ subtask.display_code }}</span>
-      <span style="font-size:18px;font-weight:600;margin-left:8px;">{{ subtask.title }}</span>
-      <span style="color:#8a93a1;">({{ subtask.subtask_type.value }})</span>
-    </div>
-    <div style="flex-grow:1;"></div>
-    <a class="btn secondary" href="/subtasks/{{ subtask.id }}/edit">Edit</a>
-    <form method="post" action="/subtasks/{{ subtask.id }}/delete" style="display:inline;">
-      <button class="btn danger" type="submit">Delete</button>
-    </form>
-  </div>
-  {% if subtask.notes %}<p style="margin-top:12px;">{{ subtask.notes }}</p>{% endif %}
+
+<div class="crumbs">
+  <a href="/stories">Tasks</a><span class="sep">/</span>
+  <a href="/stories/{{ subtask.phase.story.id }}">{{ subtask.phase.story.display_code }}</a><span class="sep">/</span>
+  {{ subtask.display_code }}
 </div>
 
-{% if subtask.subtask_type.value == "EXECUTION" %}
+<div class="page-head">
+  <div>
+    <div class="row" style="margin-bottom:6px;">
+      <span class="badge code">{{ subtask.display_code }}</span>
+      <span class="badge">{{ subtask.phase.type.value }}</span>
+    </div>
+    <h1 class="page-title">{{ subtask.title }}</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn secondary" href="/subtasks/{{ subtask.id }}/edit">Edit</a>
+  <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/delete">
+    <button class="btn danger" type="submit">Delete</button>
+  </form>
+</div>
+
+{% if subtask.notes %}
 <div class="card">
-  <div style="display:flex;align-items:center;"><h3 style="margin:0;">TestCases</h3><div style="flex-grow:1;"></div><a class="btn secondary" href="/subtasks/{{ subtask.id }}/testcases/new">+ New TestCase</a></div>
+  <div class="card-head" style="margin-bottom:8px;"><div class="card-title">Notes</div></div>
+  <div style="white-space:pre-wrap;">{{ subtask.notes }}</div>
+</div>
+{% endif %}
+
+{% if subtask.subtask_type.value == "EXECUTION" %}
+<div class="card flush">
+  <div class="card-head" style="padding:22px 22px 0; margin-bottom:14px;">
+    <div>
+      <div class="card-title">Test Cases</div>
+      <div class="card-sub">{{ subtask.testcases | length }} case{{ '' if subtask.testcases | length == 1 else 's' }}</div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/testcases/new">+ New Test Case</a>
+  </div>
   <table>
     <thead><tr><th>Code</th><th>Title</th><th>Status</th></tr></thead>
     <tbody>
       {% for tc in subtask.testcases %}
-      <tr><td class="mono"><a href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td><td>{{ tc.title }}</td><td>{{ tc.status.value }}</td></tr>
+      <tr>
+        <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
+        <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
+        <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.value }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="empty">No test cases yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<div class="card">
-  <div style="display:flex;align-items:center;"><h3 style="margin:0;">Bugs</h3><div style="flex-grow:1;"></div><a class="btn secondary" href="/subtasks/{{ subtask.id }}/bugs/new">+ New Bug</a></div>
+
+<div class="card flush">
+  <div class="card-head" style="padding:22px 22px 0; margin-bottom:14px;">
+    <div>
+      <div class="card-title">Bugs</div>
+      <div class="card-sub">{{ subtask.bugs | length }} logged</div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/bugs/new">+ New Bug</a>
+  </div>
   <table>
     <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
     <tbody>
       {% for bug in subtask.bugs %}
-      <tr><td class="mono"><a href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td><td>{{ bug.title }}</td><td>{{ bug.severity.value }}</td><td>{{ bug.status.value }}</td></tr>
+      <tr>
+        <td><a class="badge code" href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td>
+        <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
+        <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span></td>
+        <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">No bugs logged yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

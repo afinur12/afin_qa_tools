@@ -1,21 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card" style="max-width:480px;">
-  <h2>{% if testcase %}Edit TestCase{% else %}New TestCase{% endif %}</h2>
+
+<div class="crumbs">
+  <a href="/stories">Tasks</a><span class="sep">/</span>
+  {% if testcase %}{{ testcase.display_code }}<span class="sep">/</span>Edit{% else %}New test case{% endif %}
+</div>
+
+<div class="page-head">
+  <h1 class="page-title">{% if testcase %}Edit test case{% else %}New test case{% endif %}</h1>
+</div>
+
+<div class="card" style="max-width:520px;">
   <form method="post" action="{% if testcase %}/testcases/{{ testcase.id }}/edit{% else %}/subtasks/{{ subtask.id }}/testcases{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. TC-1" required>
     </div>
     <div class="field">
       <label>Title</label>
-      <input name="title" value="{{ values.title }}" required>
+      <input name="title" value="{{ values.title }}" placeholder="What does this case verify?" required>
     </div>
-    <button class="btn" type="submit">Save</button>
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn secondary" href="/subtasks/{{ subtask.id }}">Cancel</a>
+    </div>
   </form>
+
   {% if testcase %}
-  <form method="post" action="/testcases/{{ testcase.id }}/delete" style="margin-top:10px;">
-    <button class="btn danger" type="submit">Delete</button>
+  <form method="post" action="/testcases/{{ testcase.id }}/delete" style="margin-top:18px; padding-top:18px; border-top:1px solid var(--line);">
+    <button class="btn danger sm" type="submit">Delete test case</button>
   </form>
   {% endif %}
 </div>

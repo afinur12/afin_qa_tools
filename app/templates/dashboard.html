@@ -1,34 +1,104 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <h2 style="margin:0 0 12px 0;">TestCase Status Breakdown</h2>
-  <div style="display:flex;gap:18px;flex-wrap:wrap;">
-    {% for status, count in status_counts.items() %}
-    <div><span class="badge" style="background:#eef1f4;">{{ status.value }}</span> <span class="mono">{{ count }}</span></div>
-    {% endfor %}
+
+{% set total = status_counts.values() | sum %}
+{% set ns = namespace(passed=0, failed=0, not_run=0) %}
+{% for status, count in status_counts.items() %}
+  {% if status.value == 'PASS' %}{% set ns.passed = count %}{% endif %}
+  {% if status.value == 'FAIL' %}{% set ns.failed = count %}{% endif %}
+  {% if status.value == 'NOT_RUN' %}{% set ns.not_run = count %}{% endif %}
+{% endfor %}
+{% set executed = total - ns.not_run %}
+{% set pass_rate = ((ns.passed / executed * 100) | round | int) if executed else 0 %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Overview</div>
+    <h1 class="page-title">Test execution at a glance</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn" href="/stories/new">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    New Story
+  </a>
+</div>
+
+<div class="stat-grid">
+  <div class="card dark">
+    <div class="stat-label">Test cases</div>
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-foot"><span class="dot"></span>{{ executed }} executed &middot; {{ ns.not_run }} not run</div>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">Passed</div>
+    <div class="stat-value">{{ ns.passed }}</div>
+    <div class="stat-foot">Across all phases</div>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">Failed</div>
+    <div class="stat-value">{{ ns.failed }}</div>
+    <div class="stat-foot">Needs attention</div>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">Open bugs</div>
+    <div class="stat-value">{{ open_bugs }}</div>
+    <div class="stat-foot">Open or in progress</div>
   </div>
 </div>
-<div class="card">
-  <h2 style="margin:0;">Open Bugs</h2>
-  <div class="mono" style="font-size:28px;font-weight:700;color:#b91c1c;">{{ open_bugs }}</div>
-</div>
-<div class="card">
-  <div style="display:flex;align-items:center;margin-bottom:14px;">
-    <h2 style="margin:0;">Stories</h2>
-    <div style="flex-grow:1;"></div>
-    <a class="btn" href="/stories/new">+ New Story</a>
+
+<div class="split">
+
+  <div class="card flush">
+    <div class="card-head" style="padding: 22px 22px 0; margin-bottom: 14px;">
+      <div>
+        <div class="card-title">Stories</div>
+        <div class="card-sub">Every task tracked in this workspace</div>
+      </div>
+      <div class="spacer"></div>
+      <a class="btn secondary sm" href="/stories">View all</a>
+    </div>
+    <table>
+      <thead><tr><th>Code</th><th>Title</th><th>Created</th></tr></thead>
+      <tbody>
+        {% for s in stories %}
+        <tr>
+          <td><a class="badge code" href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
+          <td>{{ s.title }}</td>
+          <td class="muted">{{ s.created_at.strftime("%d %b %Y") }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty">No stories yet. Create one to get started.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-  <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Created</th></tr></thead>
-    <tbody>
-      {% for s in stories %}
-      <tr>
-        <td class="mono"><a href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
-        <td>{{ s.title }}</td>
-        <td>{{ s.created_at.strftime("%Y-%m-%d") }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+  <div>
+    <div class="card accent">
+      <div class="stat-label">Pass rate</div>
+      <div class="stat-value">{{ pass_rate }}<span style="font-size:18px; opacity:.7;">%</span></div>
+      <div class="stat-foot">{{ ns.passed }} of {{ executed }} executed case{{ '' if executed == 1 else 's' }} passing</div>
+      <div class="meter">
+        {% for i in range(10) %}<i class="{% if i < (pass_rate / 10) | round | int %}on{% endif %}"></i>{% endfor %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Status breakdown</div></div>
+      <div class="stack">
+        {% for status, count in status_counts.items() %}
+        <div class="row">
+          <span class="badge badge--{{ status.value | lower }}">{{ status.value }}</span>
+          <div class="spacer"></div>
+          <span class="mono" style="font-weight:650;">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

@@ -1,20 +1,32 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <div style="display:flex;align-items:center;margin-bottom:14px;">
-    <h2 style="margin:0;">Stories</h2>
-    <div style="flex-grow:1;"></div>
-    <a class="btn" href="/stories/new">+ New Story</a>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">Tasks</h1>
+    <div class="page-sub">{{ stories | length }} stor{{ 'y' if stories | length == 1 else 'ies' }} tracked</div>
   </div>
+  <div class="spacer"></div>
+  <a class="btn" href="/stories/new">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    New Story
+  </a>
+</div>
+
+<div class="card flush">
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Created</th></tr></thead>
+    <thead><tr><th>Code</th><th>Title</th><th>Phases</th><th>Created</th></tr></thead>
     <tbody>
       {% for s in stories %}
       <tr>
-        <td class="mono"><a href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
-        <td>{{ s.title }}</td>
-        <td>{{ s.created_at.strftime("%Y-%m-%d") }}</td>
+        <td><a class="badge code" href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
+        <td><a href="/stories/{{ s.id }}" style="color:var(--ink); font-weight:500;">{{ s.title }}</a></td>
+        <td class="muted">{{ s.phases | length }}</td>
+        <td class="muted">{{ s.created_at.strftime("%d %b %Y") }}</td>
       </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">No stories yet. Create one to get started.</td></tr>
       {% endfor %}
     </tbody>
   </table>

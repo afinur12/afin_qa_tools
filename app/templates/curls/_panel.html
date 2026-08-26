@@ -1,20 +1,39 @@
 <div class="card">
-  <h3>Curl Collections</h3>
+  <div class="card-head">
+    <div>
+      <div class="card-title">Curl Collections</div>
+      <div class="card-sub">Stored verbatim for reference &mdash; nothing is executed</div>
+    </div>
+  </div>
+
   {% for curl in curls %}
-  <div style="border-bottom:1px solid #eceef1;padding:8px 0;">
-    <div><span class="mono badge" style="background:#eef1f4;">{{ curl.method }}</span> <span class="mono">{{ curl.url }}</span></div>
-    <pre class="mono" style="white-space:pre-wrap;word-break:break-all;margin:6px 0;">{{ curl.raw_text }}</pre>
-    <form method="post" action="/curls/{{ curl.id }}/delete" style="margin-top:4px;">
-      <input type="hidden" name="attach_type" value="{{ attach_type }}">
-      <input type="hidden" name="attach_id" value="{{ attach_id }}">
-      <button class="btn danger" type="submit" style="font-size:11px;padding:2px 8px;">Remove</button>
-    </form>
+  <div class="code-block">
+    <div class="code-bar">
+      <span class="code-method">{{ curl.method or 'CURL' }}</span>
+      <span class="code-url">{{ curl.url or '' }}</span>
+      <div class="spacer"></div>
+      <button class="copy-btn" type="button" data-copy>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span data-copy-label>Copy</span>
+      </button>
+      <form class="inline-form" method="post" action="/curls/{{ curl.id }}/delete">
+        <input type="hidden" name="attach_type" value="{{ attach_type }}">
+        <input type="hidden" name="attach_id" value="{{ attach_id }}">
+        <button class="copy-btn" type="submit" title="Remove">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </form>
+    </div>
+    <pre class="code-body">{{ curl.raw_text }}</pre>
   </div>
   {% endfor %}
-  <form method="post" action="/curls" style="margin-top:10px;">
+
+  <form method="post" action="/curls">
     <input type="hidden" name="attach_type" value="{{ attach_type }}">
     <input type="hidden" name="attach_id" value="{{ attach_id }}">
-    <div class="field"><textarea name="raw_text" rows="3" placeholder="curl ..."></textarea></div>
+    <div class="field">
+      <textarea name="raw_text" rows="3" placeholder="curl --request POST --url https://... " required></textarea>
+    </div>
     <button class="btn secondary" type="submit">+ Add Curl</button>
   </form>
 </div>

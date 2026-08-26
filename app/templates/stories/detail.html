@@ -1,51 +1,79 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <div style="display:flex;align-items:center;">
-    <div>
-      <span class="mono badge" style="background:#eef1fd;color:#3454d1;">{{ story.display_code }}</span>
-      <span style="font-size:18px;font-weight:600;margin-left:8px;">{{ story.title }}</span>
+
+<div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
+
+<div class="page-head">
+  <div>
+    <div class="row" style="margin-bottom:6px;">
+      <span class="badge code">{{ story.display_code }}</span>
     </div>
-    <div style="flex-grow:1;"></div>
-    <a class="btn secondary" href="/stories/{{ story.id }}/edit">Edit</a>
-    <form method="post" action="/stories/{{ story.id }}/delete" style="display:inline;">
-      <button class="btn danger" type="submit">Delete</button>
-    </form>
+    <h1 class="page-title">{{ story.title }}</h1>
   </div>
+  <div class="spacer"></div>
+  <a class="btn secondary" href="/stories/{{ story.id }}/edit">Edit</a>
+  <form class="inline-form" method="post" action="/stories/{{ story.id }}/delete">
+    <button class="btn danger" type="submit">Delete</button>
+  </form>
 </div>
 
-<div class="card">
-  <h3>Phases</h3>
+{% if story.phases %}
+<div class="tabs">
   {% for phase in story.phases %}
-    <div style="margin-bottom:8px;"><a href="/stories/{{ story.id }}#{{ phase.type.value }}">{{ phase.type.value }}</a> ({{ phase.subtasks|length }} subtasks)</div>
+  <a class="tab" href="#{{ phase.type.value }}">{{ phase.type.value }}</a>
   {% endfor %}
-  {% if available_phase_types %}
-  <form method="post" action="/stories/{{ story.id }}/phases" style="margin-top:10px;">
-    <select name="type">
-      {% for t in available_phase_types %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}
-    </select>
+</div>
+{% endif %}
+
+{% if available_phase_types %}
+<div class="card">
+  <div class="card-head" style="margin-bottom:12px;">
+    <div>
+      <div class="card-title">Add a phase</div>
+      <div class="card-sub">Testing starts at SIT and moves forward from there</div>
+    </div>
+  </div>
+  <form method="post" action="/stories/{{ story.id }}/phases" class="row">
+    <div class="field" style="margin-bottom:0; min-width:220px;">
+      <select name="type">
+        {% for t in available_phase_types %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}
+      </select>
+    </div>
     <button class="btn secondary" type="submit">+ Add Phase</button>
   </form>
-  {% endif %}
 </div>
+{% endif %}
 
 {% for phase in story.phases %}
 <div class="card" id="{{ phase.type.value }}">
-  <div style="display:flex;align-items:center;">
-    <h3 style="margin:0;">{{ phase.type.value }}</h3>
-    <div style="flex-grow:1;"></div>
-    <form method="post" action="/phases/{{ phase.id }}/delete" style="display:inline;">
-      <button class="btn danger" type="submit">Delete</button>
+  <div class="card-head">
+    <div>
+      <div class="card-title">{{ phase.type.value }}</div>
+      <div class="card-sub">{{ phase.subtasks | length }} subtask{{ '' if phase.subtasks | length == 1 else 's' }}</div>
+    </div>
+    <div class="spacer"></div>
+    <a class="btn secondary sm" href="/phases/{{ phase.id }}/subtasks/new">+ New Subtask</a>
+    <form class="inline-form" method="post" action="/phases/{{ phase.id }}/delete">
+      <button class="btn danger sm" type="submit">Delete</button>
     </form>
   </div>
-  {% for subtask in phase.subtasks %}
-    <div style="padding:8px 0;border-bottom:1px solid #eceef1;">
-      <span class="mono">{{ subtask.display_code }}</span>
-      <a href="/subtasks/{{ subtask.id }}">{{ subtask.title }}</a>
-      <span style="color:#8a93a1;">({{ subtask.subtask_type.value }})</span>
-    </div>
-  {% endfor %}
-  <a class="btn secondary" style="margin-top:10px;" href="/phases/{{ phase.id }}/subtasks/new">+ New Subtask</a>
+
+  {% if phase.subtasks %}
+  <div class="stack">
+    {% for subtask in phase.subtasks %}
+    <a class="row" href="/subtasks/{{ subtask.id }}"
+       style="padding:12px 14px; border:1px solid var(--line); border-radius:12px; color:var(--ink);">
+      <span class="badge code">{{ subtask.display_code }}</span>
+      <span style="font-weight:500;">{{ subtask.title }}</span>
+      <div class="spacer"></div>
+      <span class="muted" style="font-size:12.5px;">{{ subtask.subtask_type.value.replace('_', ' ') | title }}</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty" style="padding:22px;">No subtasks in this phase yet.</div>
+  {% endif %}
 </div>
 {% endfor %}
 

@@ -1,17 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card" style="max-width:480px;">
-  <h2>{% if story %}Edit Story{% else %}New Story{% endif %}</h2>
+
+<div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{% if story %}Edit{% else %}New{% endif %}</div>
+
+<div class="page-head">
+  <h1 class="page-title">{% if story %}Edit story{% else %}New story{% endif %}</h1>
+</div>
+
+<div class="card" style="max-width:520px;">
   <form method="post" action="{% if story %}/stories/{{ story.id }}/edit{% else %}/stories{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. EX-142" required>
     </div>
     <div class="field">
       <label>Title</label>
-      <input name="title" value="{{ values.title }}" required>
+      <input name="title" value="{{ values.title }}" placeholder="e.g. OWS-W2W (Top-up RO Balance)" required>
     </div>
-    <button class="btn" type="submit">Save</button>
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn secondary" href="/stories">Cancel</a>
+    </div>
   </form>
 </div>
 {% endblock %}
