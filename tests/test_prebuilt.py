@@ -92,21 +92,21 @@ def test_editing_a_prebuilt_does_not_change_cases_already_created_from_it(client
     assert "changed text" not in page
 
 
-def test_prebuilt_category_test_type_and_remark_round_trip(client):
+def test_prebuilt_service_name_test_type_and_remark_round_trip(client):
     resp = client.post(
         "/prebuilt",
-        data={"name": "Tagged", "description": "d", "category": "Payment", "test_type": "NEGATIVE", "remark": "flaky on staging"},
+        data={"name": "Tagged", "description": "d", "service_name": "payment-service", "test_type": "NEGATIVE", "remark": "flaky on staging"},
         follow_redirects=False,
     )
     prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
 
     page = client.get(f"/prebuilt/{prebuilt_id}").text
-    assert "Payment" in page
+    assert "payment-service" in page
     assert "NEGATIVE" in page
     assert "flaky on staging" in page
 
     list_page = client.get("/prebuilt").text
-    assert "Payment" in list_page
+    assert "payment-service" in list_page
     assert "NEGATIVE" in list_page
 
 
@@ -126,6 +126,28 @@ def test_creating_a_testcase_from_a_prebuilt_prefills_test_type_and_remark(clien
     page = client.get(f"/testcases/{testcase_id}/execute").text
     assert "REGRESSION" in page
     assert "run every release" in page
+
+
+def test_new_testcase_modal_exposes_search_filter_and_title_autofill_hooks(client):
+    resp = client.post(
+        "/prebuilt",
+        data={"name": "Top-up flow", "service_name": "payment-service", "test_type": "POSITIVE"},
+        follow_redirects=False,
+    )
+    prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
+    subtask_id = _make_subtask(client, "EX-806")
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert "data-prebuilt-search" in page
+    assert 'data-prebuilt-filter="service_name"' in page
+    assert 'data-prebuilt-filter="test_type"' in page
+    assert 'data-service_name="payment-service"' in page
+    assert f'data-prebuilt-name="Top-up flow"' in page
+    assert f'value="{prebuilt_id}" data-prebuilt-name' in page
+    # "Blank" must carry no name, or the JS would overwrite a typed title.
+    blank_input = re.search(r'<input type="radio" name="prebuilt_id" value="" checked>', page)
+    assert blank_input is not None
+    assert "data-prebuilt-name" not in blank_input.group(0)
 
 
 def test_save_an_existing_testcase_as_a_prebuilt(client):

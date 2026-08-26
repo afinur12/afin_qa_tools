@@ -283,7 +283,7 @@ class PrebuiltTestCase(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    service_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     test_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

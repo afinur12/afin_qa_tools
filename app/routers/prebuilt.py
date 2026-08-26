@@ -44,7 +44,7 @@ def create_prebuilt(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
-    category: str = Form(""),
+    service_name: str = Form(""),
     test_type: str = Form(""),
     remark: str = Form(""),
     db: Session = Depends(get_db),
@@ -52,7 +52,7 @@ def create_prebuilt(
     prebuilt = PrebuiltTestCase(
         name=name.strip(),
         description=description.strip() or None,
-        category=category.strip() or None,
+        service_name=service_name.strip() or None,
         test_type=test_type.strip() or None,
         remark=remark.strip() or None,
     )
@@ -79,7 +79,7 @@ def update_prebuilt(
     prebuilt_id: int,
     name: str = Form(...),
     description: str = Form(""),
-    category: str = Form(""),
+    service_name: str = Form(""),
     test_type: str = Form(""),
     remark: str = Form(""),
     db: Session = Depends(get_db),
@@ -89,7 +89,7 @@ def update_prebuilt(
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     prebuilt.name = name.strip()
     prebuilt.description = description.strip() or None
-    prebuilt.category = category.strip() or None
+    prebuilt.service_name = service_name.strip() or None
     prebuilt.test_type = test_type.strip() or None
     prebuilt.remark = remark.strip() or None
     db.commit()

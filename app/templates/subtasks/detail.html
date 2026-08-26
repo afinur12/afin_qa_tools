@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -17,9 +17,10 @@
     <h1 class="page-title">{{ subtask.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/subtasks/{{ subtask.id }}/edit" data-modal-open="edit-subtask">Edit</a>
-  <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/delete">
-    <button class="btn danger" type="submit">Delete</button>
+  <a class="btn act edit" href="/subtasks/{{ subtask.id }}/edit" data-modal-open="edit-subtask" title="Edit subtask" aria-label="Edit subtask">{{ icon_pencil() }}</a>
+  <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/delete"
+        onsubmit="return confirm('Delete this subtask, and all of its test cases and bugs?');">
+    <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask">{{ icon_trash() }}</button>
   </form>
 </div>
 
@@ -70,25 +71,7 @@
       <label>Title</label>
       <input name="title" placeholder="What does this case verify?" required>
     </div>
-    <div class="field">
-      <label>Start from</label>
-      <label class="choice">
-        <input type="radio" name="prebuilt_id" value="" checked>
-        <span><strong>Blank</strong> &mdash; Pre Condition, Main Test and Post Condition with no steps</span>
-      </label>
-      {% for prebuilt in prebuilts %}
-      <label class="choice">
-        <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}">
-        <span><strong>{{ prebuilt.name }}</strong>
-          <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
-          {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}</span>
-        </span>
-      </label>
-      {% endfor %}
-      {% if not prebuilts %}
-      <div class="hint" style="margin:6px 0 0;">No templates yet &mdash; build one under <a href="/prebuilt">Prebuilt</a>.</div>
-      {% endif %}
-    </div>
+    {% include "testcases/_prebuilt_picker.html" %}
     <div class="form-actions" style="justify-content:flex-end;">
       <button class="btn secondary" type="button" data-modal-close>Cancel</button>
       <button class="btn" type="submit">Save</button>

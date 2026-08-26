@@ -9,7 +9,7 @@ import webbrowser
 import zipfile
 from datetime import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import filedialog, messagebox, ttk
 import urllib.request
 
 HOST = "127.0.0.1"
@@ -47,6 +47,22 @@ def get_python():
     return None
 
 
+def _clear_uploads():
+    """Empty screenshots/exports in place, keeping each folder's .gitkeep."""
+    for sub in ("screenshots", "exports"):
+        d = os.path.join(UPLOADS_DIR, sub)
+        if not os.path.isdir(d):
+            continue
+        for entry_name in os.listdir(d):
+            if entry_name == ".gitkeep":
+                continue
+            full = os.path.join(d, entry_name)
+            if os.path.isdir(full):
+                shutil.rmtree(full)
+            else:
+                os.remove(full)
+
+
 class LauncherApp:
     def __init__(self, root):
         self.root = root
@@ -54,7 +70,7 @@ class LauncherApp:
         self.setup_running = False
 
         root.title("QA Toolbox Launcher")
-        root.geometry("320x340")
+        root.geometry("320x380")
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -81,6 +97,9 @@ class LauncherApp:
 
         self.backup_btn = ttk.Button(root, text="Backup Data (db + images)", command=self.backup)
         self.backup_btn.pack(pady=(0, 8))
+
+        self.import_btn = ttk.Button(root, text="Import Backup...", command=self.import_backup)
+        self.import_btn.pack(pady=(0, 8))
 
         self.reset_btn = ttk.Button(root, text="Reset / Clear All Data", command=self.reset_data)
         self.reset_btn.pack()
@@ -285,22 +304,54 @@ class LauncherApp:
         try:
             if os.path.exists(DB_PATH):
                 os.remove(DB_PATH)
-            for sub in ("screenshots", "exports"):
-                d = os.path.join(UPLOADS_DIR, sub)
-                if not os.path.isdir(d):
-                    continue
-                for entry_name in os.listdir(d):
-                    if entry_name == ".gitkeep":
-                        continue
-                    full = os.path.join(d, entry_name)
-                    if os.path.isdir(full):
-                        shutil.rmtree(full)
-                    else:
-                        os.remove(full)
+            _clear_uploads()
         except Exception as e:
             messagebox.showerror("Reset failed", str(e))
             return
         messagebox.showinfo("Reset complete", "All data cleared. Database and uploads are empty.")
+        if was_running:
+            self.start()
+
+    # -- import -----------------------------------------------------------
+
+    def import_backup(self):
+        path = filedialog.askopenfilename(
+            title="Select a QA Toolbox backup",
+            filetypes=[("QA Toolbox backup", "*.zip"), ("All files", "*.*")],
+            initialdir=BACKUPS_DIR if os.path.isdir(BACKUPS_DIR) else BASE_DIR,
+        )
+        if not path:
+            return
+        if not messagebox.askyesno(
+            "Import backup",
+            "This replaces the current database and all screenshots/exports "
+            f"with the contents of:\n\n{path}\n\n"
+            "Current data will be lost unless you've backed it up first. Continue?",
+        ):
+            return
+
+        was_running = self.proc is not None
+        if was_running:
+            self.stop()
+        try:
+            with zipfile.ZipFile(path) as zf:
+                names = zf.namelist()
+                if "qa_toolbox.db" not in names:
+                    raise RuntimeError("Not a QA Toolbox backup (missing qa_toolbox.db).")
+                _clear_uploads()
+                with zf.open("qa_toolbox.db") as src, open(DB_PATH, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                for name in names:
+                    if not name.startswith("uploads/") or name.endswith("/"):
+                        continue
+                    dest = os.path.join(BASE_DIR, "app", *name.split("/"))
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    with zf.open(name) as src, open(dest, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+        except Exception as e:
+            messagebox.showerror("Import failed", str(e))
+            return
+        messagebox.showinfo("Import complete", "Backup restored.")
         if was_running:
             self.start()
 

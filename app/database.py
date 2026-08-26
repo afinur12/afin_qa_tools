@@ -34,3 +34,17 @@ def ensure_columns(table: str, columns: dict[str, str]) -> None:
             if name not in existing:
                 conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
         conn.commit()
+
+
+def backfill_column(table: str, dest: str, src: str) -> None:
+    """One-time copy of `src` into `dest` (where `dest` is still empty).
+
+    Used right after a rename via ensure_columns(): the old column is left
+    in place (SQLite can't drop columns easily) and its values are copied
+    across, so renaming a field doesn't lose data already on disk.
+    """
+    with engine.connect() as conn:
+        cols = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+        if src in cols and dest in cols:
+            conn.exec_driver_sql(f"UPDATE {table} SET {dest} = {src} WHERE {dest} IS NULL AND {src} IS NOT NULL")
+            conn.commit()

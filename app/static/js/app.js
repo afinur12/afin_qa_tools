@@ -320,6 +320,45 @@ document.addEventListener("submit", (event) => {
   });
 })();
 
+// ── Prebuilt picker: search/filter and title autofill ───────────────────────
+function filterPrebuiltOptions(control) {
+  const field = control.closest(".field");
+  if (!field) return;
+  const search = (field.querySelector("[data-prebuilt-search]")?.value || "").trim().toLowerCase();
+  const filters = {};
+  field.querySelectorAll("[data-prebuilt-filter]").forEach((select) => {
+    if (select.value) filters[select.dataset.prebuiltFilter] = select.value;
+  });
+
+  let anyVisible = false;
+  field.querySelectorAll("[data-prebuilt-option]").forEach((option) => {
+    const isBlank = option.dataset.name === "";
+    const matchesSearch = isBlank || !search || option.dataset.name.includes(search);
+    const matchesFilters = isBlank || Object.entries(filters).every(([key, value]) => option.dataset[key] === value);
+    const visible = matchesSearch && matchesFilters;
+    option.hidden = !visible;
+    if (visible) anyVisible = true;
+  });
+
+  const empty = field.querySelector("[data-prebuilt-empty]");
+  if (empty) empty.hidden = anyVisible;
+}
+
+document.addEventListener("input", (event) => {
+  if (event.target.matches("[data-prebuilt-search]")) filterPrebuiltOptions(event.target);
+});
+
+document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-prebuilt-filter]")) filterPrebuiltOptions(event.target);
+
+  if (event.target.matches('input[name="prebuilt_id"]')) {
+    const name = event.target.dataset.prebuiltName;
+    if (!name) return; // "Blank" carries no name — leave whatever the user typed
+    const title = event.target.closest("form")?.querySelector('input[name="title"]');
+    if (title) title.value = name;
+  }
+});
+
 // ── Collapsible sidebar ─────────────────────────────────────────────────────
 // The choice is applied before paint by an inline script in <head>, so the
 // rail never flashes open on navigation; this only handles the toggle.
