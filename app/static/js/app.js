@@ -534,3 +534,54 @@ document.addEventListener("click", (event) => {
 
   sync();
 })();
+
+// ── Note Section: guess the snippet's language from what got pasted ─────────
+function detectSnippetLanguage(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  if (/^curl\b/i.test(trimmed)) return "CURL";
+
+  try {
+    JSON.parse(trimmed);
+    return "JSON";
+  } catch {
+    /* not JSON — keep checking */
+  }
+
+  if (/^(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|CREATE\s+(TABLE|INDEX|VIEW)|ALTER\s+TABLE|DROP\s+TABLE|WITH)\b/i.test(trimmed)) {
+    return "SQL";
+  }
+
+  if (/^<\?xml/i.test(trimmed) || (/^<[a-zA-Z!][^>]*>/.test(trimmed) && /<\/[a-zA-Z][^>]*>\s*$/.test(trimmed))) {
+    return "XML";
+  }
+
+  if (/^#!.*\b(bash|sh)\b/.test(trimmed) || /^\s*(if|for|while)\s*\[.*\]\s*;\s*then\b/m.test(trimmed) || /^\$\s+\S/m.test(trimmed)) {
+    return "BASH";
+  }
+
+  if (/^\s*(import\s+\w|from\s+\w+\s+import|def\s+\w+\s*\(|print\()/m.test(trimmed)) {
+    return "PYTHON";
+  }
+
+  if (/\b(function\s*\w*\s*\(|=>|const\s+\w+\s*=|let\s+\w+\s*=|console\.log\()/.test(trimmed)) {
+    return "JAVASCRIPT";
+  }
+
+  if (/^---/.test(trimmed) || /^[\w.-]+:\s?.+$/m.test(trimmed)) {
+    return "YAML";
+  }
+
+  return "TEXT";
+}
+
+document.addEventListener("paste", (event) => {
+  if (!event.target.matches("[data-note-content]")) return;
+  const pasted = (event.clipboardData || window.clipboardData)?.getData("text");
+  if (!pasted) return;
+  const detected = detectSnippetLanguage(pasted);
+  if (!detected) return;
+  const languageSelect = event.target.closest("form")?.querySelector("[data-note-language]");
+  if (languageSelect) languageSelect.value = detected;
+});

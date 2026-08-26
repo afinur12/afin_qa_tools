@@ -34,7 +34,7 @@
     <div class="grid-2" style="gap:2px 16px;">
       <div class="field">
         <label>Type</label>
-        <select name="language">
+        <select name="language" data-note-language autocomplete="off">
           {% for o in ['CURL', 'JSON', 'SQL', 'TEXT', 'YAML', 'XML', 'BASH', 'PYTHON', 'JAVASCRIPT'] %}
           <option value="{{ o }}">{{ o }}</option>
           {% endfor %}
@@ -42,11 +42,11 @@
       </div>
       <div class="field">
         <label>Remark</label>
-        <input name="remark" placeholder="Optional description">
+        <input name="remark" placeholder="Optional description" autocomplete="off">
       </div>
     </div>
     <div class="field">
-      <textarea name="content" rows="4" placeholder="Paste your snippet here&hellip;" required></textarea>
+      <textarea name="content" rows="4" placeholder="Paste your snippet here&hellip;" data-note-content autocomplete="off" required></textarea>
     </div>
     <button class="btn secondary" type="submit">+ Add Note</button>
   </form>
