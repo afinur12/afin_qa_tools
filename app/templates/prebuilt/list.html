@@ -23,6 +23,23 @@
     <label>Description</label>
     <textarea name="description" rows="3" placeholder="When should this template be used?"></textarea>
   </div>
+  <div class="grid-2" style="gap:2px 16px;">
+    <div class="field">
+      <label>Category</label>
+      <input name="category" placeholder="e.g. Login, Payment">
+    </div>
+    <div class="field">
+      <label>Test Type</label>
+      <select name="test_type">
+        <option value="">&mdash;</option>
+        {% for o in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="field">
+    <label>Remark</label>
+    <input name="remark">
+  </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
     <button class="btn" type="submit">Save</button>
@@ -31,12 +48,14 @@
 
 <div class="card flush">
   <table>
-    <thead><tr><th>Name</th><th>Description</th><th>Sections</th><th>Steps</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Description</th><th>Category</th><th>Test Type</th><th>Sections</th><th>Steps</th><th></th></tr></thead>
     <tbody>
       {% for prebuilt in prebuilts %}
       <tr>
         <td><a href="/prebuilt/{{ prebuilt.id }}" style="color:var(--ink); font-weight:500;">{{ prebuilt.name }}</a></td>
         <td class="muted">{{ prebuilt.description or '' }}</td>
+        <td>{% if prebuilt.category %}<span class="badge">{{ prebuilt.category }}</span>{% endif %}</td>
+        <td>{% if prebuilt.test_type %}<span class="badge">{{ prebuilt.test_type }}</span>{% endif %}</td>
         <td class="muted">{{ prebuilt.sections | length }}</td>
         <td class="muted">{{ prebuilt.step_count }}</td>
         <td style="width:1%;">
@@ -47,7 +66,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="empty">No templates yet. Create one, or save an existing test case as a template from its page.</td></tr>
+      <tr><td colspan="7" class="empty">No templates yet. Create one, or save an existing test case as a template from its page.</td></tr>
       {% endfor %}
     </tbody>
   </table>

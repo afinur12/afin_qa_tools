@@ -44,9 +44,18 @@ def create_prebuilt(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
+    category: str = Form(""),
+    test_type: str = Form(""),
+    remark: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    prebuilt = PrebuiltTestCase(name=name.strip(), description=description.strip() or None)
+    prebuilt = PrebuiltTestCase(
+        name=name.strip(),
+        description=description.strip() or None,
+        category=category.strip() or None,
+        test_type=test_type.strip() or None,
+        remark=remark.strip() or None,
+    )
     db.add(prebuilt)
     db.flush()
     for position, kind in enumerate(DEFAULT_SECTION_KINDS):
@@ -70,6 +79,9 @@ def update_prebuilt(
     prebuilt_id: int,
     name: str = Form(...),
     description: str = Form(""),
+    category: str = Form(""),
+    test_type: str = Form(""),
+    remark: str = Form(""),
     db: Session = Depends(get_db),
 ):
     prebuilt = db.get(PrebuiltTestCase, prebuilt_id)
@@ -77,6 +89,9 @@ def update_prebuilt(
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     prebuilt.name = name.strip()
     prebuilt.description = description.strip() or None
+    prebuilt.category = category.strip() or None
+    prebuilt.test_type = test_type.strip() or None
+    prebuilt.remark = remark.strip() or None
     db.commit()
     return RedirectResponse(url=f"/prebuilt/{prebuilt_id}", status_code=303)
 
@@ -196,6 +211,8 @@ def save_testcase_as_prebuilt(request: Request, testcase_id: int, db: Session = 
     prebuilt = PrebuiltTestCase(
         name=testcase.title or testcase.display_code,
         description=f"Saved from {testcase.display_code}",
+        test_type=testcase.test_type,
+        remark=testcase.remark,
     )
     db.add(prebuilt)
     db.flush()

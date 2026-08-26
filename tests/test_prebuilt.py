@@ -92,6 +92,42 @@ def test_editing_a_prebuilt_does_not_change_cases_already_created_from_it(client
     assert "changed text" not in page
 
 
+def test_prebuilt_category_test_type_and_remark_round_trip(client):
+    resp = client.post(
+        "/prebuilt",
+        data={"name": "Tagged", "description": "d", "category": "Payment", "test_type": "NEGATIVE", "remark": "flaky on staging"},
+        follow_redirects=False,
+    )
+    prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
+
+    page = client.get(f"/prebuilt/{prebuilt_id}").text
+    assert "Payment" in page
+    assert "NEGATIVE" in page
+    assert "flaky on staging" in page
+
+    list_page = client.get("/prebuilt").text
+    assert "Payment" in list_page
+    assert "NEGATIVE" in list_page
+
+
+def test_creating_a_testcase_from_a_prebuilt_prefills_test_type_and_remark(client):
+    resp = client.post(
+        "/prebuilt",
+        data={"name": "With defaults", "test_type": "REGRESSION", "remark": "run every release"},
+        follow_redirects=False,
+    )
+    prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
+
+    subtask_id = _make_subtask(client, "EX-805")
+    client.post(f"/subtasks/{subtask_id}/testcases",
+                data={"display_code": "TC-1", "title": "From template", "prebuilt_id": prebuilt_id})
+
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+    page = client.get(f"/testcases/{testcase_id}/execute").text
+    assert "REGRESSION" in page
+    assert "run every release" in page
+
+
 def test_save_an_existing_testcase_as_a_prebuilt(client):
     subtask_id = _make_subtask(client, "EX-804")
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-9", "title": "Reusable flow"})

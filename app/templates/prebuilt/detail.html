@@ -8,6 +8,13 @@
   <div>
     <h1 class="page-title">{{ prebuilt.name }}</h1>
     {% if prebuilt.description %}<div class="page-sub">{{ prebuilt.description }}</div>{% endif %}
+    {% if prebuilt.category or prebuilt.test_type or prebuilt.remark %}
+    <div class="page-sub" style="margin-top:6px;">
+      {% if prebuilt.category %}<span class="badge">{{ prebuilt.category }}</span>{% endif %}
+      {% if prebuilt.test_type %}<span class="badge">{{ prebuilt.test_type }}</span>{% endif %}
+      {% if prebuilt.remark %}<span class="muted">{{ prebuilt.remark }}</span>{% endif %}
+    </div>
+    {% endif %}
   </div>
   <div class="spacer"></div>
   <a class="btn act edit" href="#" data-modal-open="edit-prebuilt" title="Edit template" aria-label="Edit template">{{ icon_pencil() }}</a>
@@ -25,6 +32,26 @@
   <div class="field">
     <label>Description</label>
     <textarea name="description" rows="3">{{ prebuilt.description or '' }}</textarea>
+  </div>
+  <div class="grid-2" style="gap:2px 16px;">
+    <div class="field">
+      <label>Category</label>
+      <input name="category" value="{{ prebuilt.category or '' }}" placeholder="e.g. Login, Payment">
+    </div>
+    <div class="field">
+      <label>Test Type</label>
+      <select name="test_type">
+        <option value="">&mdash;</option>
+        {% for o in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}<option value="{{ o }}" {% if prebuilt.test_type == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        {% if prebuilt.test_type and prebuilt.test_type not in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}
+        <option value="{{ prebuilt.test_type }}" selected>{{ prebuilt.test_type }}</option>
+        {% endif %}
+      </select>
+    </div>
+  </div>
+  <div class="field">
+    <label>Remark</label>
+    <input name="remark" value="{{ prebuilt.remark or '' }}">
   </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>

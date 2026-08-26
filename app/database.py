@@ -19,3 +19,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_columns(table: str, columns: dict[str, str]) -> None:
+    """Add any of `columns` (name -> SQL type) missing from `table`.
+
+    create_all() only creates tables that don't exist yet; it never alters
+    ones that do, so a schema addition on an existing qa_toolbox.db needs
+    this instead.
+    """
+    with engine.connect() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+        for name, sql_type in columns.items():
+            if name not in existing:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
+        conn.commit()

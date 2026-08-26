@@ -3,10 +3,11 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine
+from app.database import Base, engine, ensure_columns
 from app.routers import bugs, prebuilt, curls, dashboard, docx_export, execution, screenshots, stories, subtasks, testcases
 
 Base.metadata.create_all(bind=engine)
+ensure_columns("prebuilt_testcases", {"category": "VARCHAR(64)", "test_type": "VARCHAR(64)", "remark": "TEXT"})
 
 app = FastAPI(title="QA Toolbox")
 

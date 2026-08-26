@@ -64,6 +64,8 @@ def create_testcase(
     if prebuilt is not None:
         # Copy the template's structure and step text. Screenshots are never
         # part of a template, so the new case starts with none.
+        testcase.test_type = prebuilt.test_type
+        testcase.remark = prebuilt.remark
         for source in prebuilt.sections:
             section = TestCaseSection(testcase_id=testcase.id, kind=source.kind, position=source.position)
             db.add(section)
