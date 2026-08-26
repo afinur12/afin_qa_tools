@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -35,8 +35,18 @@ async def upload_screenshot(
     disk_path.parent.mkdir(parents=True, exist_ok=True)
     disk_path.write_bytes(await file.read())
 
-    db.add(Screenshot(step_id=step_id, file_path=relative_path))
+    screenshot = Screenshot(step_id=step_id, file_path=relative_path)
+    db.add(screenshot)
     db.commit()
+    db.refresh(screenshot)
+
+    # The paste handler asks for JSON so it can drop the thumbnail straight
+    # into the page; without a reload the caret and scroll position never
+    # move. A plain form post still gets the redirect.
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse(
+            {"id": screenshot.id, "url": f"/uploads/{screenshot.file_path}", "step_id": step_id}
+        )
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
 
 

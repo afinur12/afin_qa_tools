@@ -78,3 +78,42 @@ def test_deleting_step_removes_screenshot_file(client):
 
     client.post(f"/testcases/{testcase_id}/steps/{step_id}/delete")
     assert not disk_path.exists()
+
+
+def test_upload_returns_json_when_requested(client):
+    """The paste handler asks for JSON so it can insert the thumbnail without
+    reloading the page (which used to reset the scroll position)."""
+    testcase_id = _create_testcase(client, "EX-502")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+
+    response = client.post(
+        f"/testcases/{testcase_id}/steps/{step_id}/screenshot",
+        files={"file": ("paste.png", PNG_BYTES, "image/png")},
+        headers={"Accept": "application/json"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["step_id"] == int(step_id)
+    assert body["url"].startswith("/uploads/screenshots/")
+    assert isinstance(body["id"], int)
+
+    # The url the JSON hands back must actually serve the stored file.
+    assert (Path("app/uploads") / body["url"].removeprefix("/uploads/")).exists()
+    assert client.get(body["url"]).status_code == 200
+
+
+def test_upload_still_redirects_for_a_plain_form_post(client):
+    testcase_id = _create_testcase(client, "EX-503")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+
+    response = client.post(
+        f"/testcases/{testcase_id}/steps/{step_id}/screenshot",
+        files={"file": ("paste.png", PNG_BYTES, "image/png")},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
