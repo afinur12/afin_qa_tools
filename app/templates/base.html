@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}QA Toolbox{% endblock %}</title>
+  <link rel="stylesheet" href="{{ static_url('css/vendor/highlightjs/atom-one-dark.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <script>
     // Applied before first paint so a collapsed rail never flashes open.
@@ -74,6 +75,7 @@
     </div>
   </div>
 </div>
+<script src="{{ static_url('js/vendor/highlightjs/highlight.bundle.js') }}"></script>
 <script src="{{ static_url('js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

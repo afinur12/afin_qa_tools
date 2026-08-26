@@ -28,12 +28,10 @@
     </div>
 
     <div class="snippet-code">
-      {% for line in note.content.split('\n') %}
-      <div class="snippet-line">
-        <span class="snippet-line-no">{{ loop.index }}</span>
-        <span class="snippet-line-text">{{ line }}</span>
+      <div class="snippet-gutter">
+        {% for _ in note.content.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}
       </div>
-      {% endfor %}
+      <pre class="snippet-pre"><code data-snippet-code="{{ note.language }}">{{ note.content }}</code></pre>
     </div>
   </div>
   {% endfor %}

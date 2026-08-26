@@ -634,24 +634,36 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 .snippet-remark { margin-top: 4px; font-size: 12.5px; color: #8f8c9e; }
 
-.snippet-code { padding: 2px 0 16px; overflow-x: auto; }
-.snippet-line {
-  display: flex;
-  padding: 1px 18px;
+.snippet-code { display: flex; padding: 2px 0 16px; overflow-x: auto; }
+.snippet-gutter {
+  flex: 0 0 auto;
+  padding: 0 16px 0 18px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #47454f;
+  user-select: none;
+}
+.snippet-gutter span { display: block; }
+.snippet-pre {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0 18px 0 0;
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.7;
   white-space: pre;
   tab-size: 2;
 }
-.snippet-line-no {
-  flex: 0 0 26px;
-  margin-right: 16px;
-  text-align: right;
-  color: #47454f;
-  user-select: none;
+/* atom-one-dark ships its own frame (background/padding) meant for a
+   standalone block; here it's just supplying token colors inside a card
+   we already control, so strip its own chrome back out. */
+.snippet-pre code.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+  color: #d5d2e0;
 }
-.snippet-line-text { color: #d5d2e0; }
 
 /* ── Steps + screenshots ─────────────────────────────────────────────────── */
 

@@ -590,3 +590,17 @@ document.addEventListener("submit", (event) => {
   if (!contentField || !languageField) return;
   languageField.value = detectSnippetLanguage(contentField.value) || "TEXT";
 });
+
+// Our language names -> the names highlight.js registers them under (see
+// app/static/js/vendor/highlightjs/README.md for the vendored bundle).
+const HLJS_LANGUAGE_MAP = {
+  CURL: "bash", JSON: "json", SQL: "sql", TEXT: "plaintext",
+  YAML: "yaml", XML: "xml", BASH: "bash", PYTHON: "python", JAVASCRIPT: "javascript",
+};
+
+document.querySelectorAll("[data-snippet-code]").forEach((block) => {
+  if (!window.hljs) return; // vendored bundle failed to load — plain text is still readable
+  const lang = HLJS_LANGUAGE_MAP[block.dataset.snippetCode] || "plaintext";
+  block.classList.add(`language-${lang}`);
+  window.hljs.highlightElement(block);
+});
