@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
 from app.routers import bugs, curls, dashboard, docx_export, execution, screenshots, stories, subtasks, testcases
@@ -18,7 +17,7 @@ Path("app/uploads/screenshots").mkdir(parents=True, exist_ok=True)
 Path("app/uploads/exports").mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="app/uploads"), name="uploads")
 
-templates = Jinja2Templates(directory="app/templates")
+from app.templating import templates  # noqa: F401  (shared Jinja env)
 
 app.include_router(dashboard.router)
 app.include_router(stories.router)

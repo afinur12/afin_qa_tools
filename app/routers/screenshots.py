@@ -4,14 +4,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.templating import templates
 from app.models import Screenshot, TestCaseStep
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 UPLOADS_DIR = Path("app/uploads")
 

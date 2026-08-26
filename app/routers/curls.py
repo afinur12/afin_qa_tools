@@ -3,14 +3,13 @@ import shlex
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.templating import templates
 from app.models import CurlAttachType, CurlCollection
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 def parse_curl(raw_text: str) -> dict:

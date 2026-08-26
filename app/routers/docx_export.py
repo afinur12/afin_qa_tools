@@ -6,16 +6,15 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.templating import templates
 from app.docx.builder import SECTION_FILE_LABELS, build_docx
 from app.models import TestCase
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 EXPORTS_DIR = Path("app/uploads/exports")
 

@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app import deletion
 from app.database import get_db
+from app.templating import templates
 from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Subtask, SubtaskType, generate_internal_key
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _allowed_subtask_types(phase: Phase) -> list[SubtaskType]:

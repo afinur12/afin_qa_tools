@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}QA Toolbox{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
 </head>
 <body>
 {% set path = request.url.path %}
@@ -41,7 +41,7 @@
   </main>
 
 </div>
-<script src="/static/js/app.js"></script>
+<script src="{{ static_url('js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
