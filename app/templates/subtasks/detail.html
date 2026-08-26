@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -57,7 +57,8 @@
       <div class="card-sub">{{ subtask.testcases | length }} case{{ '' if subtask.testcases | length == 1 else 's' }}</div>
     </div>
     <div class="spacer"></div>
-    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase">+ New Test Case</a>
+    <a class="btn act add" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase"
+       title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
   </div>
 
   {% call modal('new-testcase', 'New Test Case', '/subtasks/' ~ subtask.id ~ '/testcases') %}
@@ -75,16 +76,22 @@
     </div>
   {% endcall %}
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Status</th></tr></thead>
+    <thead><tr><th>Code</th><th>Title</th><th>Status</th><th></th></tr></thead>
     <tbody>
       {% for tc in subtask.testcases %}
       <tr>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
         <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
         <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>
+        <td style="width:1%;">
+          <form method="post" action="/testcases/{{ tc.id }}/delete"
+                onsubmit="return confirm('Delete {{ tc.display_code }} and all of its steps?');">
+            <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case {{ tc.display_code }}">{{ icon_trash() }}</button>
+          </form>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="3" class="empty">No test cases yet.</td></tr>
+      <tr><td colspan="4" class="empty">No test cases yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -97,7 +104,8 @@
       <div class="card-sub">{{ subtask.bugs | length }} logged</div>
     </div>
     <div class="spacer"></div>
-    <a class="btn secondary sm" href="/subtasks/{{ subtask.id }}/bugs/new" data-modal-open="new-bug">+ New Bug</a>
+    <a class="btn act add" href="/subtasks/{{ subtask.id }}/bugs/new" data-modal-open="new-bug"
+       title="New bug" aria-label="New bug">{{ icon_plus() }}</a>
   </div>
 
   {% call modal('new-bug', 'New Bug', '/subtasks/' ~ subtask.id ~ '/bugs') %}
@@ -119,7 +127,7 @@
     </div>
   {% endcall %}
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+    <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th><th></th></tr></thead>
     <tbody>
       {% for bug in subtask.bugs %}
       <tr>
@@ -127,9 +135,15 @@
         <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
         <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span></td>
         <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span></td>
+        <td style="width:1%;">
+          <form method="post" action="/bugs/{{ bug.id }}/delete"
+                onsubmit="return confirm('Delete {{ bug.display_code }}?');">
+            <button class="btn act remove" type="submit" title="Delete bug" aria-label="Delete bug {{ bug.display_code }}">{{ icon_trash() }}</button>
+          </form>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="empty">No bugs logged yet.</td></tr>
+      <tr><td colspan="5" class="empty">No bugs logged yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

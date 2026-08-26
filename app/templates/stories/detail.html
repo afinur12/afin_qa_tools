@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron with context %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
@@ -69,10 +69,12 @@
     </div>
     <div class="spacer"></div>
     {% if phase.allowed_subtask_types %}
-    <a class="btn secondary sm" href="/phases/{{ phase.id }}/subtasks/new" data-modal-open="new-subtask-{{ phase.id }}">+ New Subtask</a>
+    <a class="btn act add" href="/phases/{{ phase.id }}/subtasks/new" data-modal-open="new-subtask-{{ phase.id }}"
+       title="New subtask" aria-label="New subtask">{{ icon_plus() }}</a>
     {% endif %}
-    <form class="inline-form" method="post" action="/phases/{{ phase.id }}/delete">
-      <button class="btn danger sm" type="submit">Delete</button>
+    <form class="inline-form" method="post" action="/phases/{{ phase.id }}/delete"
+          {% if phase.subtasks %}onsubmit="return confirm('Delete the {{ phase.type.value }} phase?');"{% endif %}>
+      <button class="btn act remove" type="submit" title="Delete phase" aria-label="Delete phase">{{ icon_trash() }}</button>
     </form>
   </div>
 
@@ -105,14 +107,19 @@
   {% if phase.subtasks %}
   <div class="stack">
     {% for subtask in phase.subtasks %}
-    <a class="row" href="/subtasks/{{ subtask.id }}"
-       style="padding:12px 14px; border:1px solid var(--line); border-radius:12px; color:var(--ink);">
-      <span class="badge code">{{ subtask.display_code }}</span>
-      <span style="font-weight:500;">{{ subtask.title }}</span>
-      <div class="spacer"></div>
-      <span class="muted" style="font-size:12.5px;">{{ subtask.subtask_type.value.replace('_', ' ') | title }}</span>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-    </a>
+    <div class="list-row">
+      <a class="list-row-main" href="/subtasks/{{ subtask.id }}">
+        <span class="badge code">{{ subtask.display_code }}</span>
+        <span class="list-row-title">{{ subtask.title }}</span>
+        <div class="spacer"></div>
+        <span class="muted" style="font-size:12.5px;">{{ subtask.subtask_type.value.replace('_', ' ') | title }}</span>
+        <span class="muted">{{ icon_chevron() }}</span>
+      </a>
+      <form method="post" action="/subtasks/{{ subtask.id }}/delete"
+            onsubmit="return confirm('Delete {{ subtask.display_code }} and everything inside it?');">
+        <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask {{ subtask.display_code }}">{{ icon_trash() }}</button>
+      </form>
+    </div>
     {% endfor %}
   </div>
   {% else %}

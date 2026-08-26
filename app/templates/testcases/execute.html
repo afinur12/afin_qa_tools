@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash with context %}
 {% block content %}
 
 {% set story = testcase.subtask.phase.story %}
@@ -150,7 +150,7 @@
       <div class="shot">
         <img src="/uploads/{{ shot.file_path }}" alt="Screenshot for step {{ step.step_no }}">
         <form method="post" action="/screenshots/{{ shot.id }}/delete" style="margin-top:5px;">
-          <button class="btn danger sm" type="submit" style="width:100%; padding:3px 6px; font-size:11px;">Remove</button>
+          <button class="btn act remove" type="submit" style="width:100%;" title="Remove screenshot" aria-label="Remove screenshot">{{ icon_trash(13) }}</button>
         </form>
       </div>
       {% endfor %}
@@ -161,7 +161,7 @@
 
   <div class="form-actions" style="margin-top:12px;">
     <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete">
-      <button class="btn danger sm" type="submit">Delete Step</button>
+      <button class="btn act remove" type="submit" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash() }}</button>
     </form>
   </div>
 </div>
@@ -180,7 +180,7 @@
       <span class="save-state" data-reorder-state></span>
       <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/delete"
             {% if section.steps %}onsubmit="return confirm('Delete this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
-        <button class="btn danger sm" type="submit">Remove section</button>
+        <button class="btn act remove" type="submit" title="Remove this section" aria-label="Remove {{ section.label }} section">{{ icon_trash() }}</button>
       </form>
     </div>
 

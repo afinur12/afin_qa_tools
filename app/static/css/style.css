@@ -7,7 +7,11 @@
 :root {
   /* Canvas */
   --bg:            #faf9f5;
-  --bg-sidebar:    #f4f3ed;
+  --bg-sidebar:    #17171a;
+  --sidebar-ink:   #f2f1ec;
+  --sidebar-ink-2: #9b9aa4;
+  --sidebar-line:  #26262b;
+  --sidebar-hover: rgba(255, 255, 255, 0.07);
   --surface:       #ffffff;
   --surface-sunk:  #f7f6f1;
   --ink-inverse:   #1b1b19;
@@ -84,7 +88,7 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
   width: 248px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--sidebar-line);
   padding: 22px 14px;
   display: flex;
   flex-direction: column;
@@ -102,10 +106,10 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
   padding: 4px 10px 22px;
   font-size: 16px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--sidebar-ink);
   letter-spacing: -0.02em;
 }
-.brand:hover { color: var(--ink); }
+.brand:hover { color: #fff; }
 
 .brand-mark {
   width: 30px;
@@ -123,7 +127,7 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--sidebar-ink-2);
   padding: 16px 10px 6px;
 }
 
@@ -135,10 +139,10 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
   border-radius: var(--r-ctl);
   font-size: 14px;
   font-weight: 500;
-  color: var(--ink-2);
+  color: var(--sidebar-ink-2);
   transition: background 120ms ease, color 120ms ease;
 }
-.nav-link:hover { background: rgba(27, 27, 25, 0.05); color: var(--ink); }
+.nav-link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
 .nav-link.active {
   background: var(--lime);
   color: var(--ink);
@@ -314,6 +318,53 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 
 .btn.sm { padding: 6px 11px; font-size: 12px; border-radius: 8px; }
 .btn.icon { padding: 8px; border-radius: var(--r-pill); }
+
+/* Icon-only actions. Tinted rather than outlined so the intent reads at a
+   glance in a dense list; every one carries a title/aria-label since there
+   is no visible text. */
+.btn.act {
+  padding: 7px;
+  border-radius: 9px;
+  border-color: transparent;
+  background: var(--idle-bg);
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+.btn.act:hover { opacity: 1; }
+.btn.act svg { display: block; }
+
+.btn.act.add     { background: var(--pass-bg);    color: var(--pass); }
+.btn.act.add:hover     { background: #cfeeda;     color: var(--pass); }
+.btn.act.edit    { background: var(--indigo-soft); color: var(--indigo-ink); }
+.btn.act.edit:hover    { background: #e2e0fb;     color: var(--indigo-ink); }
+.btn.act.remove  { background: var(--fail-bg);    color: var(--fail); }
+.btn.act.remove:hover  { background: #f7d6d2;     color: var(--fail); }
+.btn.act.export  { background: var(--warn-bg);    color: var(--warn); }
+.btn.act.export:hover  { background: #f8e6bf;     color: var(--warn); }
+
+/* A clickable row that also carries its own actions: the link fills the row,
+   the buttons sit outside it (a form cannot be nested inside an anchor). */
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 10px 6px 6px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.list-row:hover { border-color: var(--line-strong); background: var(--surface-sunk); }
+.list-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-grow: 1;
+  min-width: 0;
+  padding: 8px;
+  color: var(--ink);
+}
+.list-row-main:hover { color: var(--ink); }
+.list-row-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .inline-form { display: inline-flex; }
 
@@ -705,7 +756,7 @@ tbody tr:hover { background: var(--surface-sunk); }
     overflow-x: auto;
     padding: 12px 14px;
     border-right: none;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--sidebar-line);
   }
   .nav-label { display: none; }
   .brand { padding: 0 14px 0 4px; }
