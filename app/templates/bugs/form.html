@@ -14,7 +14,7 @@
   <form method="post" action="{% if bug %}/bugs/{{ bug.id }}/edit{% else %}/subtasks/{{ subtask.id }}/bugs{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. BUG-12" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. BUG-12" autocomplete="off" required>
     </div>
     <div class="field">
       <label>Title</label>

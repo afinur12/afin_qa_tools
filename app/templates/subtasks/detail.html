@@ -27,7 +27,7 @@
 {% call modal('edit-subtask', 'Edit Subtask', '/subtasks/' ~ subtask.id ~ '/edit') %}
   <div class="field">
     <label>Code</label>
-    <input name="display_code" value="{{ subtask.display_code }}" required>
+    <input name="display_code" value="{{ subtask.display_code }}" autocomplete="off" required>
   </div>
   <div class="field">
     <label>Title</label>
@@ -65,7 +65,7 @@
   {% call modal('new-testcase', 'New Test Case', '/subtasks/' ~ subtask.id ~ '/testcases') %}
     <div class="field">
       <label>Code</label>
-      <input name="display_code" placeholder="e.g. TC-1" required>
+      <input name="display_code" placeholder="e.g. TC-1" autocomplete="off" required>
     </div>
     <div class="field">
       <label>Title</label>
@@ -113,7 +113,7 @@
   {% call modal('new-bug', 'New Bug', '/subtasks/' ~ subtask.id ~ '/bugs') %}
     <div class="field">
       <label>Code</label>
-      <input name="display_code" placeholder="e.g. BUG-12" required>
+      <input name="display_code" placeholder="e.g. BUG-12" autocomplete="off" required>
     </div>
     <div class="field">
       <label>Title</label>

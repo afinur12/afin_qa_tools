@@ -14,7 +14,7 @@
   <form method="post" action="{% if testcase %}/testcases/{{ testcase.id }}/edit{% else %}/subtasks/{{ subtask.id }}/testcases{% endif %}">
     <div class="field">
       <label>Code</label>
-      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. TC-1" required>
+      <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. TC-1" autocomplete="off" required>
     </div>
     <div class="field">
       <label>Title</label>

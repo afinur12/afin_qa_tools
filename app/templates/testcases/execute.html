@@ -40,7 +40,7 @@
 {% call modal('edit-testcase', 'Edit Test Case', '/testcases/' ~ testcase.id ~ '/edit') %}
   <div class="field">
     <label>Code</label>
-    <input name="display_code" value="{{ testcase.display_code }}" required>
+    <input name="display_code" value="{{ testcase.display_code }}" autocomplete="off" required>
   </div>
   <div class="field">
     <label>Title</label>

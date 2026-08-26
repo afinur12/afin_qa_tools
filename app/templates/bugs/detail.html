@@ -26,7 +26,7 @@
 {% call modal('edit-bug', 'Edit Bug', '/bugs/' ~ bug.id ~ '/edit') %}
   <div class="field">
     <label>Code</label>
-    <input name="display_code" value="{{ bug.display_code }}" required>
+    <input name="display_code" value="{{ bug.display_code }}" autocomplete="off" required>
   </div>
   <div class="field">
     <label>Title</label>
