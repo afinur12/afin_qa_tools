@@ -16,6 +16,7 @@ HOST = "127.0.0.1"
 PORT = 8000
 URL = f"http://{HOST}:{PORT}"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW
+VERSION = "1.0.0-alpha.1"
 
 if getattr(sys, "frozen", False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -70,7 +71,7 @@ class LauncherApp:
         self.setup_running = False
 
         root.title("QA Toolbox Launcher")
-        root.geometry("320x380")
+        root.geometry("320x410")
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -103,6 +104,12 @@ class LauncherApp:
 
         self.reset_btn = ttk.Button(root, text="Reset / Clear All Data", command=self.reset_data)
         self.reset_btn.pack()
+
+        footer = ttk.Label(
+            root, text=f"vibecoded with claude by afin | {VERSION}",
+            foreground="#888888", font=("Segoe UI", 8),
+        )
+        footer.pack(side="bottom", pady=(0, 8))
 
     # -- service control -------------------------------------------------
 

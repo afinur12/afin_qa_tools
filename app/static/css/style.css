@@ -179,6 +179,15 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 .sidebar-toggle:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
 .sidebar-toggle svg { flex-shrink: 0; transition: transform 160ms ease; }
 
+.sidebar-footer {
+  padding: 6px 11px 2px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--sidebar-ink-2);
+  text-align: center;
+}
+body.is-collapsed .sidebar-footer { display: none; }
+
 body.is-collapsed .sidebar { width: 68px; padding-left: 10px; padding-right: 10px; }
 body.is-collapsed .brand { justify-content: center; padding: 4px 0 22px; }
 body.is-collapsed .brand-text,
