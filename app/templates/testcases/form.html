@@ -32,6 +32,12 @@
           <label>Title</label>
           <input name="title" value="{{ values.title }}" placeholder="What does this case verify?" required>
         </div>
+        <div class="field">
+          <label>Preview</label>
+          <div class="prebuilt-preview" data-prebuilt-preview-target>
+            <div class="muted">Select a template to preview its sections and steps.</div>
+          </div>
+        </div>
       </div>
       <div>
         {% include "testcases/_prebuilt_picker.html" %}

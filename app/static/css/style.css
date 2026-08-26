@@ -766,6 +766,20 @@ tbody tr:hover { background: var(--surface-sunk); }
 .modal--wide { max-width: 860px; }
 .prebuilt-list { max-height: 340px; overflow-y: auto; padding-right: 4px; }
 .prebuilt-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.prebuilt-preview {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  padding: 12px;
+  min-height: 220px;
+  max-height: 340px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.preview-section { margin-bottom: 12px; }
+.preview-section:last-child { margin-bottom: 0; }
+.preview-section-title { font-weight: 600; margin-bottom: 4px; }
+.preview-steps { margin: 0; padding-left: 18px; }
+.preview-steps li { margin-bottom: 3px; }
 .modal-head { display: flex; align-items: center; margin-bottom: 20px; }
 .modal-title { font-size: 18px; font-weight: 700; }
 

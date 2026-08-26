@@ -18,6 +18,12 @@
       <option value="{{ t }}">{{ t }}</option>
       {% endfor %}
     </select>
+    <select data-prebuilt-filter="simulate" style="flex:1;">
+      <option value="">All simulate types</option>
+      {% for sim in prebuilts | map(attribute='simulate') | select | unique | sort %}
+      <option value="{{ sim }}">{{ sim }}</option>
+      {% endfor %}
+    </select>
   </div>
   {% endif %}
 
@@ -28,13 +34,30 @@
     </label>
     {% for prebuilt in prebuilts %}
     <label class="choice" data-prebuilt-option data-name="{{ prebuilt.name | lower }}"
-           data-service_name="{{ prebuilt.service_name or '' }}" data-test_type="{{ prebuilt.test_type or '' }}">
+           data-service_name="{{ prebuilt.service_name or '' }}" data-test_type="{{ prebuilt.test_type or '' }}"
+           data-simulate="{{ prebuilt.simulate or '' }}">
       <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}" data-prebuilt-name="{{ prebuilt.name }}">
       <span><strong>{{ prebuilt.name }}</strong>
         <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
-        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service_name %} &middot; {{ prebuilt.service_name }}{% endif %}{% if prebuilt.test_type %} &middot; {{ prebuilt.test_type }}{% endif %}</span>
+        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service_name %} &middot; {{ prebuilt.service_name }}{% endif %}{% if prebuilt.test_type %} &middot; {{ prebuilt.test_type }}{% endif %}{% if prebuilt.simulate %} &middot; {{ prebuilt.simulate }}{% endif %}</span>
       </span>
     </label>
+    <template data-prebuilt-preview="{{ prebuilt.id }}">
+      {% for section in prebuilt.sections %}
+      <div class="preview-section">
+        <div class="preview-section-title">{{ loop.index }}. {{ section.label }}</div>
+        {% if section.steps %}
+        <ol class="preview-steps">
+          {% for step in section.steps %}
+          <li>{{ step.step_text or '(no description)' }}</li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <div class="muted" style="font-size:12px;">No steps</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </template>
     {% endfor %}
     <div class="empty" data-prebuilt-empty hidden>No templates match your search.</div>
   </div>

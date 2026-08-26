@@ -394,10 +394,24 @@ document.addEventListener("change", (event) => {
   if (event.target.matches("[data-prebuilt-filter]")) applyPrebuiltView(event.target.closest(".field"), true);
 
   if (event.target.matches('input[name="prebuilt_id"]')) {
+    const form = event.target.closest("form");
     const name = event.target.dataset.prebuiltName;
-    if (!name) return; // "Blank" carries no name — leave whatever the user typed
-    const title = event.target.closest("form")?.querySelector('input[name="title"]');
-    if (title) title.value = name;
+    if (name) {
+      // "Blank" carries no name — leave whatever the user typed for Title.
+      const title = form?.querySelector('input[name="title"]');
+      if (title) title.value = name;
+    }
+
+    const previewTarget = form?.querySelector("[data-prebuilt-preview-target]");
+    if (previewTarget) {
+      if (!event.target.value) {
+        previewTarget.innerHTML =
+          '<div class="muted">Blank template &mdash; Pre Condition, Main Test and Post Condition with no steps.</div>';
+      } else {
+        const tpl = document.querySelector(`template[data-prebuilt-preview="${event.target.value}"]`);
+        previewTarget.innerHTML = tpl ? tpl.innerHTML : "";
+      }
+    }
   }
 });
 
