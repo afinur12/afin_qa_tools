@@ -54,7 +54,7 @@ class LauncherApp:
         self.setup_running = False
 
         root.title("QA Toolbox Launcher")
-        root.geometry("320x300")
+        root.geometry("320x340")
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -80,7 +80,10 @@ class LauncherApp:
         self.setup_btn.pack(pady=(0, 8))
 
         self.backup_btn = ttk.Button(root, text="Backup Data (db + images)", command=self.backup)
-        self.backup_btn.pack()
+        self.backup_btn.pack(pady=(0, 8))
+
+        self.reset_btn = ttk.Button(root, text="Reset / Clear All Data", command=self.reset_data)
+        self.reset_btn.pack()
 
     # -- service control -------------------------------------------------
 
@@ -236,6 +239,70 @@ class LauncherApp:
             os.startfile(BACKUPS_DIR)
         except Exception:
             pass
+
+    # -- reset ------------------------------------------------------------
+
+    def reset_data(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Confirm Reset")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        ttk.Label(
+            dialog,
+            text="This permanently deletes the database and all\nscreenshots/exports. This cannot be undone.",
+            foreground="red",
+            justify="center",
+        ).pack(padx=24, pady=(16, 8))
+        ttk.Label(dialog, text='Type DELETE ALL to confirm:').pack(pady=(0, 4))
+
+        entry_var = tk.StringVar()
+        entry = ttk.Entry(dialog, textvariable=entry_var, width=20, justify="center")
+        entry.pack(pady=(0, 12))
+        entry.focus_set()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=(0, 16))
+        confirm_btn = ttk.Button(
+            btn_frame, text="Delete Everything", state="disabled",
+            command=lambda: self._do_reset(dialog),
+        )
+        confirm_btn.grid(row=0, column=0, padx=6)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).grid(row=0, column=1, padx=6)
+
+        def on_change(*_):
+            confirm_btn.config(state="normal" if entry_var.get() == "DELETE ALL" else "disabled")
+
+        entry_var.trace_add("write", on_change)
+        entry.bind("<Return>", lambda e: confirm_btn.invoke() if str(confirm_btn["state"]) == "normal" else None)
+
+    def _do_reset(self, dialog):
+        dialog.destroy()
+        was_running = self.proc is not None
+        if was_running:
+            self.stop()
+        try:
+            if os.path.exists(DB_PATH):
+                os.remove(DB_PATH)
+            for sub in ("screenshots", "exports"):
+                d = os.path.join(UPLOADS_DIR, sub)
+                if not os.path.isdir(d):
+                    continue
+                for entry_name in os.listdir(d):
+                    if entry_name == ".gitkeep":
+                        continue
+                    full = os.path.join(d, entry_name)
+                    if os.path.isdir(full):
+                        shutil.rmtree(full)
+                    else:
+                        os.remove(full)
+        except Exception as e:
+            messagebox.showerror("Reset failed", str(e))
+            return
+        messagebox.showinfo("Reset complete", "All data cleared. Database and uploads are empty.")
+        if was_running:
+            self.start()
 
     def on_close(self):
         self.stop()
