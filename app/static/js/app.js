@@ -474,11 +474,8 @@ document.addEventListener("change", (event) => {
   if (event.target.matches('input[name="prebuilt_id"]')) {
     const form = event.target.closest("form");
     const name = event.target.dataset.prebuiltName;
-    if (name) {
-      // "Blank" carries no name — leave whatever the user typed for Title.
-      const title = form?.querySelector('input[name="title"]');
-      if (title) title.value = name;
-    }
+    const title = form?.querySelector('input[name="title"]');
+    if (title) title.value = name || ""; // Blank clears it back out, a real template fills it in
 
     const previewTarget = form?.querySelector("[data-prebuilt-preview-target]");
     if (previewTarget) {
