@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil with context %}
 {% block content %}
 
 <div class="page-head">
@@ -64,13 +64,59 @@
         <td>{% if prebuilt.simulate %}<span class="badge">{{ prebuilt.simulate }}</span>{% endif %}</td>
         <td class="muted">{{ prebuilt.sections | length }}</td>
         <td class="muted">{{ prebuilt.step_count }}</td>
-        <td style="width:1%;">
-          <form method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
+        <td style="width:1%; white-space:nowrap;">
+          <a class="btn act edit" href="#" data-modal-open="edit-prebuilt-{{ prebuilt.id }}"
+             title="Edit template" aria-label="Edit template {{ prebuilt.name }}">{{ icon_pencil() }}</a>
+          <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
                 onsubmit="return confirm('Delete the template &quot;{{ prebuilt.name }}&quot;? Test cases already created from it are not affected.');">
             <button class="btn act remove" type="submit" title="Delete template" aria-label="Delete template {{ prebuilt.name }}">{{ icon_trash() }}</button>
           </form>
         </td>
       </tr>
+      {% call modal('edit-prebuilt-' ~ prebuilt.id, 'Edit ' ~ prebuilt.name, '/prebuilt/' ~ prebuilt.id ~ '/edit') %}
+        <div class="field">
+          <label>Name</label>
+          <input name="name" value="{{ prebuilt.name }}" required>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea name="description" rows="3">{{ prebuilt.description or '' }}</textarea>
+        </div>
+        <div class="grid-3">
+          <div class="field">
+            <label>Service Name</label>
+            <input name="service_name" value="{{ prebuilt.service_name or '' }}" placeholder="e.g. auth-service, payment-service">
+          </div>
+          <div class="field">
+            <label>Test Type</label>
+            <select name="test_type">
+              <option value="">&mdash;</option>
+              {% for o in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}<option value="{{ o }}" {% if prebuilt.test_type == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+              {% if prebuilt.test_type and prebuilt.test_type not in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}
+              <option value="{{ prebuilt.test_type }}" selected>{{ prebuilt.test_type }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Simulate</label>
+            <select name="simulate">
+              <option value="">&mdash;</option>
+              {% for o in ['E2E', 'API Testing'] %}<option value="{{ o }}" {% if prebuilt.simulate == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+              {% if prebuilt.simulate and prebuilt.simulate not in ['E2E', 'API Testing'] %}
+              <option value="{{ prebuilt.simulate }}" selected>{{ prebuilt.simulate }}</option>
+              {% endif %}
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Remark</label>
+          <input name="remark" value="{{ prebuilt.remark or '' }}">
+        </div>
+        <div class="form-actions" style="justify-content:flex-end;">
+          <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+          <button class="btn" type="submit">Save</button>
+        </div>
+      {% endcall %}
       {% else %}
       <tr><td colspan="8" class="empty">No templates yet. Create one, or save an existing test case as a template from its page.</td></tr>
       {% endfor %}
