@@ -81,7 +81,7 @@
       <tr>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
         <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
-        <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.value }}</span></td>
+        <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>
       </tr>
       {% else %}
       <tr><td colspan="3" class="empty">No test cases yet.</td></tr>

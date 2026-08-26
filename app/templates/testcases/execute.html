@@ -14,7 +14,7 @@
   <div>
     <div class="row" style="margin-bottom:6px;">
       <span class="badge code">{{ testcase.display_code }}</span>
-      <span class="badge badge--{{ testcase.status.value | lower }}">{{ testcase.status.value }}</span>
+      <span class="badge badge--{{ testcase.status.value | lower }}">{{ testcase.status.label }}</span>
     </div>
     <h1 class="page-title">{{ testcase.title }}</h1>
   </div>
@@ -112,7 +112,7 @@
       <div class="field">
         <label>Final Status</label>
         <select name="status">
-          {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.value }}</option>{% endfor %}
+          {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
         </select>
       </div>
       <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>

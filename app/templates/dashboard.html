@@ -3,13 +3,13 @@
 {% block content %}
 
 {% set total = status_counts.values() | sum %}
-{% set ns = namespace(passed=0, failed=0, not_run=0) %}
+{% set ns = namespace(passed=0, failed=0, pending=0) %}
 {% for status, count in status_counts.items() %}
   {% if status.value == 'PASS' %}{% set ns.passed = count %}{% endif %}
   {% if status.value == 'FAIL' %}{% set ns.failed = count %}{% endif %}
-  {% if status.value == 'NOT_RUN' %}{% set ns.not_run = count %}{% endif %}
+  {% if status.value in ['TO_DO', 'BACK_LOG'] %}{% set ns.pending = ns.pending + count %}{% endif %}
 {% endfor %}
-{% set executed = total - ns.not_run %}
+{% set executed = total - ns.pending %}
 {% set pass_rate = ((ns.passed / executed * 100) | round | int) if executed else 0 %}
 
 <div class="page-head">
@@ -43,7 +43,7 @@
   <div class="card dark">
     <div class="stat-label">Test cases</div>
     <div class="stat-value">{{ total }}</div>
-    <div class="stat-foot"><span class="dot"></span>{{ executed }} executed &middot; {{ ns.not_run }} not run</div>
+    <div class="stat-foot"><span class="dot"></span>{{ executed }} executed &middot; {{ ns.pending }} pending</div>
   </div>
 
   <div class="card">
@@ -107,7 +107,7 @@
       <div class="stack">
         {% for status, count in status_counts.items() %}
         <div class="row">
-          <span class="badge badge--{{ status.value | lower }}">{{ status.value }}</span>
+          <span class="badge badge--{{ status.value | lower }}">{{ status.label }}</span>
           <div class="spacer"></div>
           <span class="mono" style="font-weight:650;">{{ count }}</span>
         </div>

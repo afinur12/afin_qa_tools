@@ -17,5 +17,5 @@ def test_dashboard_shows_story_and_counts(client):
     assert response.status_code == 200
     assert "EX-800" in response.text
     assert "Payments" in response.text
-    assert "NOT_RUN" in response.text
+    assert "TO DO" in response.text
     assert "1" in response.text  # open bug count appears somewhere on the page

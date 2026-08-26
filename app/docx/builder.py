@@ -338,7 +338,7 @@ def build_docx(testcase, output_path: str) -> str:
         "balance_before": testcase.balance_before,
         "balance_after": testcase.balance_after,
         "usage": testcase.usage,
-        "final_status": testcase.status.value,
+        "final_status": testcase.status.label,
         "remark": testcase.remark,
         "data_test": testcase.data_test,
     }

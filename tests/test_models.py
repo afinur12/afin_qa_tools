@@ -76,7 +76,7 @@ def test_testcase_defaults(db_session):
     db_session.add(tc)
     db_session.commit()
     db_session.refresh(tc)
-    assert tc.status == TestCaseStatus.NOT_RUN
+    assert tc.status == TestCaseStatus.TO_DO
     assert tc.tester == "Andri Firman Nurvianto"
     assert tc.iteration == "1"
     assert tc.balance_before == "Rp. -"

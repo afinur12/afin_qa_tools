@@ -346,8 +346,9 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 .badge--blocked, .badge--postponed,
 .badge--high, .badge--medium              { background: var(--warn-bg); color: var(--warn); }
 .badge--in_progress                       { background: var(--indigo-soft); color: var(--indigo-ink); }
-.badge--not_run, .badge--cancelled,
+.badge--to_do, .badge--cancelled,
 .badge--open, .badge--low                 { background: var(--idle-bg); color: var(--idle); }
+.badge--back_log                          { background: var(--indigo-soft); color: var(--indigo-ink); }
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 

@@ -22,6 +22,10 @@ class _Enum:
     def __init__(self, value):
         self.value = value
 
+    @property
+    def label(self):
+        return self.value.replace("_", " ")
+
 
 class _Section:
     def __init__(self, kind, steps):

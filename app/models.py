@@ -92,12 +92,23 @@ class Subtask(Base):
 
 
 class TestCaseStatus(str, enum.Enum):
-    NOT_RUN = "NOT_RUN"
+    # Stored with underscores so the value stays safe in CSS class names and
+    # filenames; `label` is what the UI and the exported document show.
+    TO_DO = "TO_DO"
+    BACK_LOG = "BACK_LOG"
     PASS = "PASS"
     FAIL = "FAIL"
     BLOCKED = "BLOCKED"
     CANCELLED = "CANCELLED"
     POSTPONED = "POSTPONED"
+
+    @property
+    def label(self) -> str:
+        return self.value.replace("_", " ")
+
+
+# Statuses that mean the case has not been executed yet.
+UNEXECUTED_STATUSES = {TestCaseStatus.TO_DO, TestCaseStatus.BACK_LOG}
 
 
 class StepSection(str, enum.Enum):
@@ -115,7 +126,7 @@ class TestCase(Base):
     display_code: Mapped[str] = mapped_column(String(64), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
-    status: Mapped[TestCaseStatus] = mapped_column(SAEnum(TestCaseStatus), nullable=False, default=TestCaseStatus.NOT_RUN)
+    status: Mapped[TestCaseStatus] = mapped_column(SAEnum(TestCaseStatus), nullable=False, default=TestCaseStatus.TO_DO)
 
     # Section 1 / docx header fields not covered elsewhere in the hierarchy.
     tester: Mapped[str] = mapped_column(String(255), nullable=False, default="Andri Firman Nurvianto")
