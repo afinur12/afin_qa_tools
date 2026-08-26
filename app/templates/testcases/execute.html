@@ -26,7 +26,7 @@
             aria-label="Save as prebuilt test case">{{ icon_plus() }}</button>
   </form>
   <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/delete"
-        onsubmit="return confirm('Delete this test case and all of its steps?');">
+        data-confirm="Delete this test case and all of its steps?">
     <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case">{{ icon_trash() }}</button>
   </form>
   {% if testcase.all_steps | map(attribute='screenshots') | select | first is defined %}
@@ -194,7 +194,7 @@
       <div class="spacer"></div>
       <span class="save-state" data-reorder-state></span>
       <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/delete"
-            {% if section.steps %}onsubmit="return confirm('Delete this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
+            {% if section.steps %}data-confirm="Delete this {{ section.label }} block and its {{ section.steps | length }} step(s)?"{% endif %}>
         <button class="btn act remove" type="submit" title="Remove this section" aria-label="Remove {{ section.label }} section">{{ icon_trash() }}</button>
       </form>
     </div>

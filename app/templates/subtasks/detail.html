@@ -19,7 +19,7 @@
   <div class="spacer"></div>
   <a class="btn act edit" href="/subtasks/{{ subtask.id }}/edit" data-modal-open="edit-subtask" title="Edit subtask" aria-label="Edit subtask">{{ icon_pencil() }}</a>
   <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/delete"
-        onsubmit="return confirm('Delete this subtask, and all of its test cases and bugs?');">
+        data-confirm="Delete this subtask, and all of its test cases and bugs?">
     <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask">{{ icon_trash() }}</button>
   </form>
 </div>
@@ -99,7 +99,7 @@
         <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>
         <td style="width:1%;">
           <form method="post" action="/testcases/{{ tc.id }}/delete"
-                onsubmit="return confirm('Delete {{ tc.display_code }} and all of its steps?');">
+                data-confirm="Delete {{ tc.display_code }} and all of its steps?">
             <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case {{ tc.display_code }}">{{ icon_trash() }}</button>
           </form>
         </td>
@@ -151,7 +151,7 @@
         <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span></td>
         <td style="width:1%;">
           <form method="post" action="/bugs/{{ bug.id }}/delete"
-                onsubmit="return confirm('Delete {{ bug.display_code }}?');">
+                data-confirm="Delete {{ bug.display_code }}?">
             <button class="btn act remove" type="submit" title="Delete bug" aria-label="Delete bug {{ bug.display_code }}">{{ icon_trash() }}</button>
           </form>
         </td>

@@ -60,6 +60,19 @@
     </div>
   </main>
 
+
+  <div class="modal-backdrop" id="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" hidden>
+    <div class="modal modal--confirm">
+      <div class="modal-head">
+        <div class="modal-title" id="confirm-dialog-title">Are you sure?</div>
+      </div>
+      <div class="confirm-message" data-confirm-message></div>
+      <div class="form-actions" style="justify-content:flex-end; margin-top:20px;">
+        <button type="button" class="btn secondary" data-confirm-cancel>Cancel</button>
+        <button type="button" class="btn danger" data-confirm-ok>Delete</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script src="{{ static_url('js/app.js') }}"></script>
 {% block scripts %}{% endblock %}

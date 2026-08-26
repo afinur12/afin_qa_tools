@@ -764,6 +764,29 @@ tbody tr:hover { background: var(--surface-sunk); }
   overflow-y: auto;
 }
 .modal--wide { max-width: 860px; }
+.modal--confirm { max-width: 380px; }
+.confirm-message { color: var(--ink-2); font-size: 14.5px; line-height: 1.5; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--ink);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--r-ctl);
+  box-shadow: var(--shadow-pop);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast--success { background: var(--pass); }
+.toast--danger  { background: var(--fail); }
 .prebuilt-list { max-height: 340px; overflow-y: auto; padding-right: 4px; }
 .prebuilt-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
 .prebuilt-preview {

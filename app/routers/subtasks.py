@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import deletion
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, generate_internal_key
 
@@ -82,7 +82,7 @@ def create_subtask(
     db.add(subtask)
     db.commit()
     db.refresh(subtask)
-    return RedirectResponse(url=f"/subtasks/{subtask.id}", status_code=303)
+    return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} created.")
 
 
 @router.get("/subtasks/{subtask_id}")
@@ -162,7 +162,7 @@ def update_subtask(
     subtask.title = title
     subtask.notes = notes
     db.commit()
-    return RedirectResponse(url=f"/subtasks/{subtask.id}", status_code=303)
+    return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} updated.")
 
 
 @router.post("/subtasks/{subtask_id}/delete")
@@ -171,8 +171,9 @@ def delete_subtask(request: Request, subtask_id: int, db: Session = Depends(get_
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     story_id = subtask.phase.story_id
+    code = subtask.display_code
     # Cascades to its test cases (and their steps/screenshots) and bugs, so
     # the subtask can be removed without emptying it first.
     deletion.delete_subtask(db, subtask)
     db.commit()
-    return RedirectResponse(url=f"/stories/{story_id}", status_code=303)
+    return redirect_with_flash(f"/stories/{story_id}", f"Subtask {code} deleted.", category="danger")

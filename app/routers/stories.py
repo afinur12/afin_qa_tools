@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Story, generate_internal_key
 
@@ -46,7 +46,7 @@ def create_story(
     db.add(story)
     db.commit()
     db.refresh(story)
-    return RedirectResponse(url=f"/stories/{story.id}", status_code=303)
+    return redirect_with_flash(f"/stories/{story.id}", f"Story {story.display_code} created.")
 
 
 def _available_phase_types(story: Story) -> list[PhaseType]:
@@ -109,7 +109,7 @@ def update_story(
     story.display_code = display_code
     story.title = title
     db.commit()
-    return RedirectResponse(url=f"/stories/{story.id}", status_code=303)
+    return redirect_with_flash(f"/stories/{story.id}", f"Story {story.display_code} updated.")
 
 
 @router.post("/stories/{story_id}/delete")
@@ -128,9 +128,10 @@ def delete_story(request: Request, story_id: int, db: Session = Depends(get_db))
             },
             status_code=422,
         )
+    code = story.display_code
     db.delete(story)
     db.commit()
-    return RedirectResponse(url="/stories", status_code=303)
+    return redirect_with_flash("/stories", f"Story {code} deleted.", category="danger")
 
 
 @router.post("/stories/{story_id}/phases")
@@ -152,7 +153,7 @@ def create_phase(request: Request, story_id: int, type: str = Form(...), db: Ses
         )
     db.add(Phase(story_id=story.id, type=phase_type))
     db.commit()
-    return RedirectResponse(url=f"/stories/{story_id}", status_code=303)
+    return redirect_with_flash(f"/stories/{story_id}", f"{phase_type.value} phase added.")
 
 
 @router.post("/phases/{phase_id}/delete")
@@ -177,6 +178,7 @@ def delete_phase(request: Request, phase_id: int, db: Session = Depends(get_db))
             status_code=422,
         )
     story_id = phase.story_id
+    phase_label = phase.type.value
     db.delete(phase)
     db.commit()
-    return RedirectResponse(url=f"/stories/{story_id}", status_code=303)
+    return redirect_with_flash(f"/stories/{story_id}", f"{phase_label} phase deleted.", category="danger")

@@ -68,7 +68,7 @@
           <a class="btn act edit" href="#" data-modal-open="edit-prebuilt-{{ prebuilt.id }}"
              title="Edit template" aria-label="Edit template {{ prebuilt.name }}">{{ icon_pencil() }}</a>
           <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
-                onsubmit="return confirm('Delete the template &quot;{{ prebuilt.name }}&quot;? Test cases already created from it are not affected.');">
+                data-confirm="Delete the template &quot;{{ prebuilt.name }}&quot;? Test cases already created from it are not affected.">
             <button class="btn act remove" type="submit" title="Delete template" aria-label="Delete template {{ prebuilt.name }}">{{ icon_trash() }}</button>
           </form>
         </td>

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import deletion
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import (
     DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
@@ -82,7 +82,7 @@ def create_testcase(
         for position, kind in enumerate(DEFAULT_SECTION_KINDS):
             db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
     db.commit()
-    return RedirectResponse(url=f"/subtasks/{subtask_id}", status_code=303)
+    return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {testcase.display_code} created.")
 
 
 @router.get("/testcases/{testcase_id}/edit")
@@ -135,7 +135,7 @@ def update_testcase(
     testcase.display_code = display_code
     testcase.title = title
     db.commit()
-    return RedirectResponse(url=f"/testcases/{testcase.id}/execute", status_code=303)
+    return redirect_with_flash(f"/testcases/{testcase.id}/execute", f"Test case {testcase.display_code} updated.")
 
 
 @router.post("/testcases/{testcase_id}/delete")
@@ -144,8 +144,9 @@ def delete_testcase(request: Request, testcase_id: int, db: Session = Depends(ge
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     subtask_id = testcase.subtask_id
+    code = testcase.display_code
     # Cascades to its steps, their screenshots, and those files on disk, so
     # the case can be removed without clearing its steps out first.
     deletion.delete_testcase(db, testcase)
     db.commit()
-    return RedirectResponse(url=f"/subtasks/{subtask_id}", status_code=303)
+    return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {code} deleted.", category="danger")

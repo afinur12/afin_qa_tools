@@ -73,7 +73,7 @@
        title="New subtask" aria-label="New subtask">{{ icon_plus() }}</a>
     {% endif %}
     <form class="inline-form" method="post" action="/phases/{{ phase.id }}/delete"
-          {% if phase.subtasks %}onsubmit="return confirm('Delete the {{ phase.type.value }} phase?');"{% endif %}>
+          {% if phase.subtasks %}data-confirm="Delete the {{ phase.type.value }} phase?"{% endif %}>
       <button class="btn act remove" type="submit" title="Delete phase" aria-label="Delete phase">{{ icon_trash() }}</button>
     </form>
   </div>
@@ -116,7 +116,7 @@
         <span class="muted">{{ icon_chevron() }}</span>
       </a>
       <form method="post" action="/subtasks/{{ subtask.id }}/delete"
-            onsubmit="return confirm('Delete {{ subtask.display_code }} and everything inside it?');">
+            data-confirm="Delete {{ subtask.display_code }} and everything inside it?">
         <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask {{ subtask.display_code }}">{{ icon_trash() }}</button>
       </form>
     </div>

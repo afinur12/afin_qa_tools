@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import Bug, BugSeverity, BugStatus, Subtask, generate_internal_key
 
@@ -69,7 +69,7 @@ def create_bug(
     db.add(bug)
     db.commit()
     db.refresh(bug)
-    return RedirectResponse(url=f"/bugs/{bug.id}", status_code=303)
+    return redirect_with_flash(f"/bugs/{bug.id}", f"Bug {bug.display_code} logged.")
 
 
 @router.get("/bugs/{bug_id}")
@@ -154,7 +154,7 @@ def update_bug(
     bug.severity = severity_enum
     bug.status = status_enum
     db.commit()
-    return RedirectResponse(url=f"/bugs/{bug.id}", status_code=303)
+    return redirect_with_flash(f"/bugs/{bug.id}", f"Bug {bug.display_code} updated.")
 
 
 @router.post("/bugs/{bug_id}/delete")
@@ -163,6 +163,7 @@ def delete_bug(request: Request, bug_id: int, db: Session = Depends(get_db)):
     if bug is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     subtask_id = bug.subtask_id
+    code = bug.display_code
     db.delete(bug)
     db.commit()
-    return RedirectResponse(url=f"/subtasks/{subtask_id}", status_code=303)
+    return redirect_with_flash(f"/subtasks/{subtask_id}", f"Bug {code} deleted.", category="danger")

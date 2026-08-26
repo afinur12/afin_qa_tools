@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.models import (
     DEFAULT_SECTION_KINDS,
     SECTION_LABELS,
@@ -64,7 +65,7 @@ def create_prebuilt(
         db.add(PrebuiltSection(prebuilt_id=prebuilt.id, kind=kind, position=position))
     db.commit()
     db.refresh(prebuilt)
-    return RedirectResponse(url=f"/prebuilt/{prebuilt.id}", status_code=303)
+    return redirect_with_flash(f"/prebuilt/{prebuilt.id}", f'Template "{prebuilt.name}" created.')
 
 
 @router.get("/prebuilt/{prebuilt_id}")
@@ -97,7 +98,7 @@ def update_prebuilt(
     prebuilt.simulate = simulate.strip() or None
     prebuilt.remark = remark.strip() or None
     db.commit()
-    return RedirectResponse(url=f"/prebuilt/{prebuilt_id}", status_code=303)
+    return redirect_with_flash(f"/prebuilt/{prebuilt_id}", f'Template "{prebuilt.name}" updated.')
 
 
 @router.post("/prebuilt/{prebuilt_id}/delete")
@@ -105,13 +106,14 @@ def delete_prebuilt(request: Request, prebuilt_id: int, db: Session = Depends(ge
     prebuilt = db.get(PrebuiltTestCase, prebuilt_id)
     if prebuilt is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    name = prebuilt.name
     for section in list(prebuilt.sections):
         for step in list(section.steps):
             db.delete(step)
         db.delete(section)
     db.delete(prebuilt)
     db.commit()
-    return RedirectResponse(url="/prebuilt", status_code=303)
+    return redirect_with_flash("/prebuilt", f'Template "{name}" deleted.', category="danger")
 
 
 @router.post("/prebuilt/{prebuilt_id}/sections/reorder")
@@ -265,4 +267,4 @@ def save_testcase_as_prebuilt(request: Request, testcase_id: int, db: Session = 
             )
     db.commit()
     db.refresh(prebuilt)
-    return RedirectResponse(url=f"/prebuilt/{prebuilt.id}", status_code=303)
+    return redirect_with_flash(f"/prebuilt/{prebuilt.id}", f'Saved "{prebuilt.name}" as a template.')

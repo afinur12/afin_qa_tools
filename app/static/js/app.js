@@ -1,3 +1,81 @@
+// ── Styled confirm dialog (replaces window.confirm on [data-confirm] forms) ─
+let pendingConfirmForm = null;
+
+function openConfirmDialog(message, form) {
+  const dialog = document.getElementById("confirm-dialog");
+  if (!dialog) {
+    form.submit(); // no dialog markup on the page — degrade to submitting directly
+    return;
+  }
+  dialog.querySelector("[data-confirm-message]").textContent = message;
+  pendingConfirmForm = form;
+  dialog.hidden = false;
+  document.body.style.overflow = "hidden";
+  dialog.querySelector("[data-confirm-ok]").focus();
+}
+
+function closeConfirmDialog() {
+  const dialog = document.getElementById("confirm-dialog");
+  if (dialog) {
+    dialog.hidden = true;
+    document.body.style.overflow = "";
+  }
+  pendingConfirmForm = null;
+}
+
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!form.matches("[data-confirm]")) return;
+  if (form.dataset.confirmed === "true") return; // already approved — let it through
+  event.preventDefault();
+  openConfirmDialog(form.dataset.confirm, form);
+});
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-confirm-ok]")) {
+    const form = pendingConfirmForm;
+    closeConfirmDialog();
+    if (form) {
+      form.dataset.confirmed = "true";
+      if (form.requestSubmit) form.requestSubmit();
+      else form.submit();
+    }
+    return;
+  }
+  if (event.target.closest("[data-confirm-cancel]")) {
+    closeConfirmDialog();
+    return;
+  }
+  if (event.target.id === "confirm-dialog") closeConfirmDialog();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const dialog = document.getElementById("confirm-dialog");
+  if (dialog && !dialog.hidden) closeConfirmDialog();
+});
+
+// ── Flash toast (a one-shot cookie set by the server on a redirect) ─────────
+(function showFlashToast() {
+  const flashMatch = document.cookie.match(/(?:^|; )flash=([^;]*)/);
+  if (!flashMatch) return;
+  const typeMatch = document.cookie.match(/(?:^|; )flash_type=([^;]*)/);
+
+  document.cookie = "flash=; Max-Age=0; path=/";
+  document.cookie = "flash_type=; Max-Age=0; path=/";
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast--${typeMatch ? typeMatch[1] : "success"}`;
+  toast.setAttribute("role", "status");
+  toast.textContent = decodeURIComponent(flashMatch[1]);
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("is-visible"));
+  setTimeout(() => {
+    toast.classList.remove("is-visible");
+    setTimeout(() => toast.remove(), 250);
+  }, 3200);
+})();
+
 // ── No browser autofill inside modals ────────────────────────────────────────
 // Chrome's autofill dropdown (previously-typed values) is noise on fields
 // like these — every value here is meant to be typed fresh, not recalled.

@@ -20,7 +20,7 @@
   <div class="spacer"></div>
   <a class="btn act edit" href="#" data-modal-open="edit-prebuilt" title="Edit template" aria-label="Edit template">{{ icon_pencil() }}</a>
   <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
-        onsubmit="return confirm('Delete this template?');">
+        data-confirm="Delete this template?">
     <button class="btn act remove" type="submit" title="Delete template" aria-label="Delete template">{{ icon_trash() }}</button>
   </form>
 </div>
@@ -82,7 +82,7 @@
     <div class="spacer"></div>
     <span class="save-state" data-reorder-state></span>
     <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/sections/{{ section.id }}/delete"
-          {% if section.steps %}onsubmit="return confirm('Remove this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
+          {% if section.steps %}data-confirm="Remove this {{ section.label }} block and its {{ section.steps | length }} step(s)?"{% endif %}>
       <button class="btn act remove" type="submit" title="Remove section" aria-label="Remove {{ section.label }} section">{{ icon_trash() }}</button>
     </form>
   </div>
