@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, CurlAttachType, CurlCollection, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseStatus, TestCaseStep
+from app.models import Bug, BugSeverity, BugStatus, CurlAttachType, CurlCollection, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -96,11 +96,14 @@ def test_testcase_step_ordering(db_session):
     tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k16")
     db_session.add(tc)
     db_session.commit()
-    db_session.add(TestCaseStep(testcase_id=tc.id, section=StepSection.MAIN, step_no=2, step_text="second"))
-    db_session.add(TestCaseStep(testcase_id=tc.id, section=StepSection.MAIN, step_no=1, step_text="first"))
+    section = TestCaseSection(testcase_id=tc.id, kind=StepSection.MAIN, position=0)
+    db_session.add(section)
+    db_session.commit()
+    db_session.add(TestCaseStep(section_id=section.id, step_no=2, step_text="second"))
+    db_session.add(TestCaseStep(section_id=section.id, step_no=1, step_text="first"))
     db_session.commit()
     db_session.refresh(tc)
-    main_steps = [s for s in tc.steps if s.section == StepSection.MAIN]
+    main_steps = [s for s in tc.all_steps if s.section.kind == StepSection.MAIN]
     assert [s.step_no for s in main_steps] == [1, 2]
 
 

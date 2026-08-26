@@ -75,14 +75,20 @@ def export_images(request: Request, testcase_id: int, db: Session = Depends(get_
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
 
-    steps_by_section: dict[str, list] = {name: [] for name in SECTION_ORDER}
-    for step in testcase.steps:
-        steps_by_section[step.section.value].append(step)
+    # A kind can appear several times, so the second PRE/MAIN/POST block and
+    # onwards carry an occurrence number ("MAIN", then "MAIN2") to keep entry
+    # names unique. A kind used once keeps its plain name.
+    seen: dict[str, int] = {}
+    section_names: list[tuple[str, object]] = []
+    for section in testcase.sections:
+        kind = section.kind.value
+        seen[kind] = seen.get(kind, 0) + 1
+        section_names.append((kind if seen[kind] == 1 else f"{kind}{seen[kind]}", section))
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for section_name in SECTION_ORDER:
-            for step in sorted(steps_by_section[section_name], key=lambda s: s.step_no):
+        for section_name, section in section_names:
+            for step in section.steps:
                 step_name = _safe_filename(step.step_text, fallback="step")
                 stem = f"{section_name}.{step.step_no}_{step_name}"
                 for index, screenshot in enumerate(step.screenshots):

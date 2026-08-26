@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import deletion
 from app.database import get_db
-from app.models import Subtask, TestCase, generate_internal_key
+from app.models import DEFAULT_SECTION_KINDS, Subtask, TestCase, TestCaseSection, generate_internal_key
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -50,6 +50,11 @@ def create_testcase(
         )
     testcase = TestCase(subtask_id=subtask_id, display_code=display_code, title=title, internal_key=generate_internal_key())
     db.add(testcase)
+    db.flush()
+    # Start with one of each section, in the usual order. More can be added,
+    # removed or repeated on the execution page.
+    for position, kind in enumerate(DEFAULT_SECTION_KINDS):
+        db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
     db.commit()
     return RedirectResponse(url=f"/subtasks/{subtask_id}", status_code=303)
 

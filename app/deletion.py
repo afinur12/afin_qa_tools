@@ -26,9 +26,15 @@ def delete_step(db: Session, step) -> None:
     db.delete(step)
 
 
-def delete_testcase(db: Session, testcase) -> None:
-    for step in list(testcase.steps):
+def delete_section(db: Session, section) -> None:
+    for step in list(section.steps):
         delete_step(db, step)
+    db.delete(section)
+
+
+def delete_testcase(db: Session, testcase) -> None:
+    for section in list(testcase.sections):
+        delete_section(db, section)
     db.delete(testcase)
 
 

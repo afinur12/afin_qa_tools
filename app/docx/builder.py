@@ -9,6 +9,8 @@ from docx.oxml.ns import qn
 from docx.shared import Cm
 from docx.table import Table
 
+from app.models import StepSection
+
 TEMPLATE_PATH = Path(__file__).parent / "Template_Artifact_V1.docx"
 
 HEADER_FIELD_ORDER = [
@@ -19,6 +21,14 @@ HEADER_FIELD_ORDER = [
 ]
 
 SECTION_ORDER = ["PRECONDITION", "MAIN", "POSTCONDITION"]
+
+# Heading text the template carries for each section kind. Used both to find
+# the stencil headings and to label the clones.
+SECTION_HEADINGS = {
+    StepSection.PRECONDITION: "PRE CONDITION",
+    StepSection.MAIN: "MAIN TEST",
+    StepSection.POSTCONDITION: "POST CONDITION",
+}
 
 # Fields rendered as a bulleted list rather than a single run of text.
 BULLET_FIELDS = {"data_test"}
@@ -113,6 +123,100 @@ def _prevent_row_splits(table: Table) -> None:
         tr_pr = row._tr.get_or_add_trPr()
         if tr_pr.find(qn("w:cantSplit")) is None:
             tr_pr.append(OxmlElement("w:cantSplit"))
+
+
+def _paragraph_text(element) -> str:
+    return "".join(node.text or "" for node in element.iter(qn("w:t"))).strip()
+
+
+def _set_paragraph_text(element, text: str) -> None:
+    """Overwrite a paragraph's text, keeping its first run's formatting."""
+    runs = element.findall(qn("w:r"))
+    for run in runs[1:]:
+        element.remove(run)
+    if not runs:
+        return
+    first = runs[0]
+    for node in first.findall(qn("w:t")):
+        first.remove(node)
+    text_node = OxmlElement("w:t")
+    text_node.text = text
+    text_node.set(qn("xml:space"), "preserve")
+    first.append(text_node)
+
+
+def _rebuild_sections(doc: Document, sections) -> None:
+    """Lay out the document's section blocks from the test case's own list.
+
+    The template ships one heading + step table per kind, in a fixed
+    PRE/MAIN/POST order. A test case now carries an ordered list of sections
+    where a kind may repeat, so the template's blocks are used as stencils:
+    everything from the first heading through the last step table is removed
+    and rebuilt, cloning a heading and a step table per section.
+
+    Word numbers the Heading1 style automatically, so cloned headings letter
+    themselves (A, B, C, D...) however many there are.
+    """
+    body = doc.element.body
+    children = list(body)
+
+    heading_stencils = {}
+    first_index = None
+    last_index = None
+    step_table_stencil = None
+
+    for index, element in enumerate(children):
+        if element.tag == qn("w:p"):
+            text = _paragraph_text(element)
+            for kind, heading_text in SECTION_HEADINGS.items():
+                if text == heading_text:
+                    heading_stencils[kind] = copy.deepcopy(element)
+                    first_index = index if first_index is None else first_index
+        elif element.tag == qn("w:tbl") and first_index is not None:
+            # Tables after the first heading are the step-block stencils; the
+            # header table sits above it and must not be touched.
+            if step_table_stencil is None:
+                step_table_stencil = copy.deepcopy(element)
+            last_index = index
+
+    if first_index is None or last_index is None or step_table_stencil is None:
+        raise RuntimeError("template is missing its section headings or step tables")
+
+    parent = doc.tables[-1]._parent
+    for element in children[first_index : last_index + 1]:
+        body.remove(element)
+
+    position = first_index
+
+    def insert(element):
+        nonlocal position
+        body.insert(position, element)
+        position += 1
+        return element
+
+    for section in sections:
+        heading = copy.deepcopy(heading_stencils[section.kind])
+        _set_paragraph_text(heading, SECTION_HEADINGS[section.kind])
+        insert(heading)
+        insert(OxmlElement("w:p"))
+
+        steps = list(section.steps)
+        if not steps:
+            table_element = insert(copy.deepcopy(step_table_stencil))
+            _fill_step_block(Table(table_element, parent), "", "", "", "")
+            insert(OxmlElement("w:p"))
+            continue
+
+        for step in steps:
+            table_element = insert(copy.deepcopy(step_table_stencil))
+            table = Table(table_element, parent)
+            _fill_step_block(table, step.step_no, step.step_text, step.expected_result, step.actual_result)
+
+            from app.routers.screenshots import UPLOADS_DIR
+
+            _insert_screenshots(table, [str(UPLOADS_DIR / shot.file_path) for shot in step.screenshots])
+            _prevent_row_splits(table)
+            insert(OxmlElement("w:p"))
 
 
 def _format_test_date(value: str) -> str:
@@ -237,43 +341,7 @@ def build_docx(testcase, output_path: str) -> str:
     }
     _fill_header(doc, fields)
 
-    steps_by_section = {"PRECONDITION": [], "MAIN": [], "POSTCONDITION": []}
-    for step in testcase.steps:
-        steps_by_section[step.section.value].append(step)
-
-    # Capture all base tables BEFORE any cloning — cloning shifts doc.tables indices.
-    section_base_tables = {
-        "PRECONDITION": doc.tables[1],
-        "MAIN": doc.tables[2],
-        "POSTCONDITION": doc.tables[3],
-    }
-
-    for section_name in SECTION_ORDER:
-        steps = sorted(steps_by_section[section_name], key=lambda s: s.step_no)
-        base_table = section_base_tables[section_name]
-        if not steps:
-            _fill_step_block(base_table, "", "", "", "")
-            continue
-        # Snapshot the base table's XML BEFORE any fill/insert happens for this
-        # section, so every clone is deep-copied from a pristine table rather
-        # than from a table that already has content (e.g. inserted screenshot
-        # runs, which are appends, not replacements — cloning from an
-        # already-filled table would carry those images forward into every
-        # subsequent step's table).
-        pristine_tbl_xml = copy.deepcopy(base_table._tbl)
-        current_table = base_table
-        # Element each new block is inserted after — advances to the spacer
-        # paragraph trailing the step we just wrote.
-        anchor = base_table._tbl
-        for i, step in enumerate(steps):
-            if i > 0:
-                current_table, anchor = _clone_table(pristine_tbl_xml, anchor, base_table._parent)
-            _fill_step_block(current_table, step.step_no, step.step_text, step.expected_result, step.actual_result)
-            from app.routers.screenshots import UPLOADS_DIR
-
-            _insert_screenshots(current_table, [str(UPLOADS_DIR / s.file_path) for s in step.screenshots])
-            _prevent_row_splits(current_table)
-            anchor = _append_spacer(anchor)
+    _rebuild_sections(doc, testcase.sections)
 
     doc.save(output_path)
     return output_path

@@ -61,7 +61,11 @@ def test_delete_testcase_cascades_to_its_steps(client):
     override = fastapi_app.dependency_overrides[get_db]
     gen = override()
     db = next(gen)
-    db.add(m.TestCaseStep(testcase_id=int(testcase_id), section=m.StepSection.MAIN, step_no=1, step_text="x"))
+    section = m.TestCaseSection(testcase_id=int(testcase_id), kind=m.StepSection.MAIN, position=0)
+    db.add(section)
+    db.commit()
+    section_id = section.id
+    db.add(m.TestCaseStep(section_id=section_id, step_no=1, step_text="x"))
     db.commit()
     gen.close()
 
@@ -72,5 +76,6 @@ def test_delete_testcase_cascades_to_its_steps(client):
 
     gen = override()
     db = next(gen)
-    assert db.query(m.TestCaseStep).filter_by(testcase_id=int(testcase_id)).count() == 0
+    assert db.query(m.TestCaseSection).filter_by(testcase_id=int(testcase_id)).count() == 0
+    assert db.query(m.TestCaseStep).filter_by(section_id=section_id).count() == 0
     gen.close()

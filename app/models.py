@@ -131,24 +131,70 @@ class TestCase(Base):
     data_test: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
-    steps: Mapped[list["TestCaseStep"]] = relationship(
-        "TestCaseStep", back_populates="testcase", order_by="TestCaseStep.step_no"
+    sections: Mapped[list["TestCaseSection"]] = relationship(
+        "TestCaseSection", back_populates="testcase", order_by="TestCaseSection.position"
     )
+
+    @property
+    def all_steps(self) -> list["TestCaseStep"]:
+        """Every step across every section, in document order."""
+        return [step for section in self.sections for step in section.steps]
+
+
+SECTION_LABELS = {
+    StepSection.PRECONDITION: "Pre Condition",
+    StepSection.MAIN: "Main Test",
+    StepSection.POSTCONDITION: "Post Condition",
+}
+
+# Sections a new test case starts with, in order.
+DEFAULT_SECTION_KINDS = [StepSection.PRECONDITION, StepSection.MAIN, StepSection.POSTCONDITION]
+
+
+class TestCaseSection(Base):
+    """One PRE/MAIN/POST block on a test case.
+
+    A test case holds an ordered list of these rather than one block per
+    kind, so a run like PRE -> MAIN -> POST -> MAIN -> POST can be recorded
+    as it actually happened. ``position`` is the order within the test case;
+    ``kind`` may repeat.
+    """
+
+    __tablename__ = "testcase_sections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    testcase_id: Mapped[int] = mapped_column(ForeignKey("testcases.id"), nullable=False)
+    kind: Mapped[StepSection] = mapped_column(SAEnum(StepSection), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    testcase: Mapped["TestCase"] = relationship("TestCase", back_populates="sections")
+    steps: Mapped[list["TestCaseStep"]] = relationship(
+        "TestCaseStep", back_populates="section", order_by="TestCaseStep.step_no"
+    )
+
+    @property
+    def label(self) -> str:
+        return SECTION_LABELS[self.kind]
 
 
 class TestCaseStep(Base):
     __tablename__ = "testcase_steps"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    testcase_id: Mapped[int] = mapped_column(ForeignKey("testcases.id"), nullable=False)
-    section: Mapped[StepSection] = mapped_column(SAEnum(StepSection), nullable=False)
+    section_id: Mapped[int] = mapped_column(ForeignKey("testcase_sections.id"), nullable=False)
     step_no: Mapped[int] = mapped_column(Integer, nullable=False)
     step_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     expected_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
     actual_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    testcase: Mapped["TestCase"] = relationship("TestCase", back_populates="steps")
-    screenshots: Mapped[list["Screenshot"]] = relationship("Screenshot", back_populates="step")
+    section: Mapped["TestCaseSection"] = relationship("TestCaseSection", back_populates="steps")
+    screenshots: Mapped[list["Screenshot"]] = relationship(
+        "Screenshot", back_populates="step", order_by="Screenshot.id"
+    )
+
+    @property
+    def testcase_id(self) -> int:
+        return self.section.testcase_id
 
 
 class Screenshot(Base):

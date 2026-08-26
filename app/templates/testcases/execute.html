@@ -24,7 +24,7 @@
         onsubmit="return confirm('Delete this test case and all of its steps?');">
     <button class="btn danger" type="submit">Delete</button>
   </form>
-  {% if testcase.steps | map(attribute='screenshots') | select | first is defined %}
+  {% if testcase.all_steps | map(attribute='screenshots') | select | first is defined %}
   <a class="btn secondary" href="/testcases/{{ testcase.id }}/export-images">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
     Download all Images
@@ -167,21 +167,42 @@
 </div>
 {% endmacro %}
 
-{% for section_key, section_label in [("PRECONDITION", "2. Pre Condition"), ("MAIN", "3. Main Test"), ("POSTCONDITION", "4. Post Condition")] %}
+{% for section in testcase.sections %}
 <div class="card">
   <div class="card-head">
-    <div class="card-title">{{ section_label }}</div>
-    <div class="card-sub">{{ steps[section_key] | length }} step{{ '' if steps[section_key] | length == 1 else 's' }}</div>
+    <div class="card-title">{{ loop.index + 1 }}. {{ section.label }}</div>
+    <div class="card-sub">{{ section.steps | length }} step{{ '' if section.steps | length == 1 else 's' }}</div>
+    <div class="spacer"></div>
+    <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/delete"
+          {% if section.steps %}onsubmit="return confirm('Delete this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
+      <button class="btn danger sm" type="submit">Remove section</button>
+    </form>
   </div>
 
-  {% for step in steps[section_key] %}{{ step_block(step) }}{% endfor %}
+  {% for step in section.steps %}{{ step_block(step) }}{% endfor %}
 
-  <form method="post" action="/testcases/{{ testcase.id }}/steps">
-    <input type="hidden" name="section" value="{{ section_key }}">
+  <form method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/steps">
     <button class="btn secondary sm" type="submit">+ Add Step</button>
   </form>
 </div>
 {% endfor %}
+
+<div class="card">
+  <div class="card-head" style="margin-bottom:12px;">
+    <div>
+      <div class="card-title">Add a section</div>
+      <div class="card-sub">Blocks run in the order you add them, and a kind can repeat &mdash; Pre &rarr; Main &rarr; Post &rarr; Main &rarr; Post</div>
+    </div>
+  </div>
+  <form method="post" action="/testcases/{{ testcase.id }}/sections" class="row">
+    <div class="field" style="margin-bottom:0; min-width:220px;">
+      <select name="kind">
+        {% for kind in section_kinds %}<option value="{{ kind.value }}">{{ section_labels[kind] }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn secondary" type="submit">+ Add Section</button>
+  </form>
+</div>
 
 {% endblock %}
 

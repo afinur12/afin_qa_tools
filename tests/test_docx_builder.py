@@ -23,6 +23,23 @@ class _Enum:
         self.value = value
 
 
+class _Section:
+    def __init__(self, kind, steps):
+        self.kind = kind
+        self.steps = steps
+
+
+def _sections_from(steps):
+    """Group flat steps into sections, preserving first-seen order."""
+    order, grouped = [], {}
+    for step in steps:
+        if step.section not in grouped:
+            grouped[step.section] = []
+            order.append(step.section)
+        grouped[step.section].append(step)
+    return [_Section(kind, sorted(grouped[kind], key=lambda s: s.step_no)) for kind in order]
+
+
 class _Phase:
     def __init__(self, story, type_value):
         self.story = story
@@ -59,6 +76,15 @@ class _TestCase:
         self.remark = ""
         self.data_test = "msisdn: 62812"
         self.status = _Enum("PASS")
+
+    # The builder reads `sections`; tests still assign a flat `steps` list.
+    @property
+    def steps(self):
+        return [step for section in self.sections for step in section.steps]
+
+    @steps.setter
+    def steps(self, value):
+        self.sections = _sections_from(value)
 
 
 def _make_testcase(steps):
@@ -107,7 +133,10 @@ def test_build_docx_clones_tables_for_multiple_steps(tmp_path):
     build_docx(tc, output_path)
 
     doc = Document(output_path)
-    assert len(doc.tables) == 6  # header + 3 MAIN blocks + empty PRE + empty POST
+    # Sections are explicit now: these steps define a single MAIN section, so
+    # the export carries the header table plus one block per step and nothing
+    # for kinds the test case does not have.
+    assert len(doc.tables) == 4  # header + 3 MAIN blocks
     main_texts = [t.cell(0, 5).text for t in doc.tables if len(t.rows) == 4 and t.cell(0, 5).text.startswith("step")]
     assert main_texts == ["step one", "step two", "step three"]
 
