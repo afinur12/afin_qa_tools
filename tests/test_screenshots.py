@@ -25,6 +25,20 @@ def _create_testcase(client, code):
     return tc_resp.headers["location"].rstrip("/").split("/")[-1]
 
 
+def _uploaded_path(page_html):
+    """Resolve the exact file the app just stored, from the rendered page.
+
+    Globbing the uploads tree is unreliable: it is the real directory shared
+    by every test (and by real app use), and each test gets a fresh database
+    whose ids restart at 1, so paths collide across tests.
+    """
+    import re
+
+    match = re.search(r'/uploads/(screenshots/[^"\']+)', page_html)
+    assert match, "no screenshot rendered on the page"
+    return Path("app/uploads") / match.group(1)
+
+
 def test_upload_and_delete_screenshot(client):
     testcase_id = _create_testcase(client, "EX-500")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s", "expected_result": "e", "actual_result": "a"})
@@ -42,7 +56,7 @@ def test_upload_and_delete_screenshot(client):
 
     import re
     screenshot_id = re.search(r"/screenshots/(\d+)/delete", page2.text).group(1)
-    disk_path = next(Path("app/uploads/screenshots").rglob("*.png"))
+    disk_path = _uploaded_path(page2.text)
     assert disk_path.exists()
 
     delete = client.post(f"/screenshots/{screenshot_id}/delete", follow_redirects=False)
@@ -59,7 +73,7 @@ def test_deleting_step_removes_screenshot_file(client):
         f"/testcases/{testcase_id}/steps/{step_id}/screenshot",
         files={"file": ("paste.png", PNG_BYTES, "image/png")},
     )
-    disk_path = next(Path("app/uploads/screenshots").rglob("*.png"))
+    disk_path = _uploaded_path(client.get(f"/testcases/{testcase_id}/execute").text)
     assert disk_path.exists()
 
     client.post(f"/testcases/{testcase_id}/steps/{step_id}/delete")

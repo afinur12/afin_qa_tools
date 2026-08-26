@@ -70,19 +70,48 @@ def _unwrap_content_controls(doc: Document) -> None:
             parent.remove(sdt)
 
 
-def _clone_table(pristine_tbl_xml, after_table: Table) -> Table:
+def _clone_table(pristine_tbl_xml, after_element, parent):
     """Clone a pristine (never filled/inserted-into) table XML snapshot and
-    insert it into the document immediately after `after_table`.
+    insert it immediately after ``after_element``.
 
     Callers must always pass a deepcopy of an UNTOUCHED template table as
     `pristine_tbl_xml` — never the XML of a table that has already gone
     through `_fill_step_block`/`_insert_screenshots` — otherwise content
     (in particular, appended screenshot image runs) accumulates across
     clones instead of each clone starting empty.
+
+    ``after_element`` is the element the clone follows, which is the spacer
+    paragraph trailing the previous step rather than that step's table, so
+    the blocks stay separated in document order.
     """
     new_tbl = copy.deepcopy(pristine_tbl_xml)
-    after_table._tbl.addnext(new_tbl)
-    return Table(new_tbl, after_table._parent)
+    after_element.addnext(new_tbl)
+    return Table(new_tbl, parent), new_tbl
+
+
+def _append_spacer(after_element):
+    """Put an empty paragraph after ``after_element`` and return it.
+
+    Word merges tables that sit directly against each other into a single
+    table, which ran consecutive step blocks together. A paragraph between
+    them keeps each step its own table.
+    """
+    spacer = OxmlElement("w:p")
+    after_element.addnext(spacer)
+    return spacer
+
+
+def _prevent_row_splits(table: Table) -> None:
+    """Mark every row as non-splitting.
+
+    A row that no longer fits on the current page then moves to the next page
+    whole instead of being sliced across the break — which is what keeps an
+    18cm screenshot and its labels together.
+    """
+    for row in table.rows:
+        tr_pr = row._tr.get_or_add_trPr()
+        if tr_pr.find(qn("w:cantSplit")) is None:
+            tr_pr.append(OxmlElement("w:cantSplit"))
 
 
 def _apply_bullet(paragraph) -> None:
@@ -169,8 +198,10 @@ def build_docx(testcase, output_path: str) -> str:
 
     story = testcase.subtask.phase.story
     fields = {
-        "project": story.title,
-        "scenario": testcase.subtask.title,
+        # Project identifies the task (story); Scenario identifies the test
+        # case itself, each as "<code> - <title>".
+        "project": f"{story.display_code} - {story.title}",
+        "scenario": f"{testcase.display_code} - {testcase.title}",
         "tester": testcase.tester,
         "test_date": testcase.test_date,
         "environment": testcase.subtask.phase.type.value,
@@ -212,13 +243,18 @@ def build_docx(testcase, output_path: str) -> str:
         # subsequent step's table).
         pristine_tbl_xml = copy.deepcopy(base_table._tbl)
         current_table = base_table
+        # Element each new block is inserted after — advances to the spacer
+        # paragraph trailing the step we just wrote.
+        anchor = base_table._tbl
         for i, step in enumerate(steps):
             if i > 0:
-                current_table = _clone_table(pristine_tbl_xml, current_table)
+                current_table, anchor = _clone_table(pristine_tbl_xml, anchor, base_table._parent)
             _fill_step_block(current_table, step.step_no, step.step_text, step.expected_result, step.actual_result)
             from app.routers.screenshots import UPLOADS_DIR
 
             _insert_screenshots(current_table, [str(UPLOADS_DIR / s.file_path) for s in step.screenshots])
+            _prevent_row_splits(current_table)
+            anchor = _append_spacer(anchor)
 
     doc.save(output_path)
     return output_path

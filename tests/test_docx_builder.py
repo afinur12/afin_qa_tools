@@ -36,14 +36,17 @@ class _Subtask:
 
 
 class _Story:
-    def __init__(self, title):
+    def __init__(self, title, display_code="EX-142"):
         self.title = title
+        self.display_code = display_code
 
 
 class _TestCase:
     def __init__(self, subtask, steps):
         self.subtask = subtask
         self.steps = steps
+        self.display_code = "TC-1"
+        self.title = "Verify top-up RO balance"
         self.tester = "Andri Firman Nurvianto"
         self.test_date = "2026-08-26"
         self.test_priority = "High"
@@ -79,8 +82,9 @@ def test_build_docx_header_and_single_step(tmp_path):
     doc = Document(output_path)
     # Use ground-truth row-scoped access (immune to flat-index bugs) for key header fields
     header_table = doc.tables[0]
-    assert header_table.rows[0].cells[3].text == "Payments"  # project (row 0)
-    assert header_table.rows[1].cells[3].text == "SIT Login Flow"  # scenario (row 1)
+    # Project identifies the task (story), Scenario the test case itself.
+    assert header_table.rows[0].cells[3].text == "EX-142 - Payments"  # project (row 0)
+    assert header_table.rows[1].cells[3].text == "TC-1 - Verify top-up RO balance"  # scenario (row 1)
     assert header_table.rows[4].cells[3].text == "SIT"  # environment (row 4, affected by flat-index bug if using .cell())
     assert header_table.rows[8].cells[3].text == "1"  # iteration (row 8, affected by flat-index bug)
     assert header_table.rows[13].cells[3].text == ""  # remark (row 13, affected by flat-index bug)
