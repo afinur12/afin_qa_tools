@@ -414,7 +414,7 @@ function initSectionReorder(container) {
 // "Blank" is pinned — always visible, never paginated or filtered away.
 // Everything else is filtered by search/service/test-type, then sliced into
 // pages of PREBUILT_PAGE_SIZE so a large template library stays scannable.
-const PREBUILT_PAGE_SIZE = 8;
+const PREBUILT_PAGE_SIZE = 6;
 
 function prebuiltRealOptions(field) {
   return Array.from(field.querySelectorAll("[data-prebuilt-option]")).filter((o) => o.dataset.name !== "");
