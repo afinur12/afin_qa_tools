@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, "Segoe UI", sans-serif; background: #f6f7f9; color: #1b2027; }
+    .btn { background: #3454d1; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn.secondary { background: #fff; color: #1b2027; border: 1px solid #d5d9e0; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: #626b79; margin-bottom: 4px; }
+    .field input { width: 100%; padding: 9px 10px; border: 1px solid #d5d9e0; border-radius: 6px; font-size: 14px; font-family: inherit; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eceef1; font-size: 14px; }
+    th { font-size: 11px; text-transform: uppercase; color: #8a93a1; }
+  </style>
+</helmet>
+
+<div style="position:relative; min-height:100%; background:#f6f7f9;">
+  <div style="padding:28px 32px; max-width:900px; filter:blur(1.5px); opacity:0.5;">
+    <div style="display:flex; align-items:center; margin-bottom:16px;">
+      <h2 style="margin:0; font-size:19px;">Stories</h2>
+      <div style="flex-grow:1;"></div>
+      <button class="btn" type="button">+ New Story</button>
+    </div>
+    <div style="background:#fff; border:1px solid #e3e6ea; border-radius:8px; padding:20px;">
+      <table>
+        <thead><tr><th>Code</th><th>Title</th><th>Created</th></tr></thead>
+        <tbody>
+          <tr><td>EX-142</td><td>OWS-W2W (Top-up RO Balance)</td><td>2026-08-26</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="position:absolute; inset:0; background:rgba(17,20,28,0.45); display:flex; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; box-shadow:0 20px 60px rgba(15,20,35,0.28); width:440px; padding:28px;">
+      <div style="display:flex; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0; font-size:18px;">New Story</h2>
+        <div style="flex-grow:1;"></div>
+        <button type="button" style="border:none; background:transparent; color:#8a93a1; cursor:pointer; padding:4px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="field"><label>Code</label><input placeholder="e.g. EX-142"></div>
+      <div class="field"><label>Title</label><input placeholder="e.g. OWS-W2W (Top-up RO Balance)"></div>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn secondary" type="button">Cancel</button>
+        <button class="btn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

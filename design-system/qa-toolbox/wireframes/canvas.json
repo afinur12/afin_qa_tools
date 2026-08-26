@@ -1,0 +1,15 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1520, "h": 2700, "title": "Test Case Execution" },
+    { "file": "SubtaskDetail.dc.html", "x": 1640, "y": 0, "w": 1520, "h": 1250, "title": "Subtask Detail + Curl Collections" },
+    { "file": "NewSubtaskModal.dc.html", "x": 3280, "y": 0, "w": 1200, "h": 820, "title": "New Subtask (modal)" },
+    { "file": "NewStoryModal.dc.html", "x": 4600, "y": 0, "w": 1200, "h": 820, "title": "New Story (modal)" }
+  ],
+  "annotations": [
+    { "id": "note-main", "x": 0, "y": -90, "w": 500, "text": "Sidebar nav + flexible repeatable sections (Pre/Main/Post can repeat in any order) + dropdowns + date picker + autosave, no Save buttons" },
+    { "id": "note-subtask", "x": 1640, "y": -90, "w": 500, "text": "Curl Collections as a dark code snippet with syntax highlight + Copy button" },
+    { "id": "note-subtask-modal", "x": 3280, "y": -90, "w": 400, "text": "Only Code + Task Title -- display title auto-generated as <PHASE> <task title>, no type picker" },
+    { "id": "note-story-modal", "x": 4600, "y": -90, "w": 400, "text": "Centered modal instead of full-page navigation" }
+  ],
+  "launch": { "view": "canvas" }
+}
