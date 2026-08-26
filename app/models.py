@@ -266,3 +266,60 @@ class CurlCollection(Base):
     headers: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class PrebuiltTestCase(Base):
+    """A reusable skeleton of sections and steps.
+
+    Kept separate from TestCase rather than flagged on it: a real test case
+    must belong to a subtask and carries execution data (status, tester,
+    balances, screenshots), none of which a template has. Creating a case
+    from one copies its sections and steps; screenshots are never part of a
+    template.
+    """
+
+    __tablename__ = "prebuilt_testcases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+    sections: Mapped[list["PrebuiltSection"]] = relationship(
+        "PrebuiltSection", back_populates="prebuilt", order_by="PrebuiltSection.position"
+    )
+
+    @property
+    def step_count(self) -> int:
+        return sum(len(section.steps) for section in self.sections)
+
+
+class PrebuiltSection(Base):
+    __tablename__ = "prebuilt_sections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prebuilt_id: Mapped[int] = mapped_column(ForeignKey("prebuilt_testcases.id"), nullable=False)
+    kind: Mapped[StepSection] = mapped_column(SAEnum(StepSection), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    prebuilt: Mapped["PrebuiltTestCase"] = relationship("PrebuiltTestCase", back_populates="sections")
+    steps: Mapped[list["PrebuiltStep"]] = relationship(
+        "PrebuiltStep", back_populates="section", order_by="PrebuiltStep.step_no"
+    )
+
+    @property
+    def label(self) -> str:
+        return SECTION_LABELS[self.kind]
+
+
+class PrebuiltStep(Base):
+    __tablename__ = "prebuilt_steps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    section_id: Mapped[int] = mapped_column(ForeignKey("prebuilt_sections.id"), nullable=False)
+    step_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    step_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    expected_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    actual_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    section: Mapped["PrebuiltSection"] = relationship("PrebuiltSection", back_populates="steps")

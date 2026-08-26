@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app import deletion
 from app.database import get_db
 from app.templating import templates
-from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Subtask, SubtaskType, generate_internal_key
+from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, generate_internal_key
 
 router = APIRouter()
 
@@ -93,7 +93,14 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
     curls = db.query(CurlCollection).filter(
         CurlCollection.attach_type == CurlAttachType.SUBTASK, CurlCollection.attach_id == subtask_id
     ).all()
-    return templates.TemplateResponse(request, "subtasks/detail.html", {"subtask": subtask, "error": None, "curls": curls})
+    return templates.TemplateResponse(
+        request,
+        "subtasks/detail.html",
+        {
+            "subtask": subtask, "error": None, "curls": curls,
+            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
+        },
+    )
 
 
 @router.get("/subtasks/{subtask_id}/edit")

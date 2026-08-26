@@ -5,11 +5,13 @@ from pathlib import Path
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml.ns import qn
 from docx.shared import Cm
 from docx.table import Table
 
 from app.models import StepSection
+from app.templating import tracker_url
 
 TEMPLATE_PATH = Path(__file__).parent / "Template_Artifact_V1.docx"
 
@@ -35,6 +37,9 @@ SECTION_FILE_LABELS = {kind: heading.replace(" ", "-") for kind, heading in SECT
 
 # Fields rendered as a bulleted list rather than a single run of text.
 BULLET_FIELDS = {"data_test"}
+
+# Fields written as "<code> - <title>" where the code links to the tracker.
+LINKED_FIELDS = {"project", "scenario"}
 
 # Screenshots are sized to the template's usable content width (A4 minus the
 # 1.27cm margins is 18.46cm, and the step tables are 18.44cm wide), so 18cm
@@ -253,6 +258,47 @@ def _apply_bullet(paragraph) -> None:
     p_pr.append(num_pr)
 
 
+def _add_hyperlink(paragraph, text: str, url: str) -> None:
+    """Append a real Word hyperlink run to a paragraph.
+
+    python-docx has no API for this, so the relationship and the
+    ``<w:hyperlink>`` wrapper are built by hand.
+    """
+    r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), r_id)
+
+    run = OxmlElement("w:r")
+    run_pr = OxmlElement("w:rPr")
+    colour = OxmlElement("w:color")
+    colour.set(qn("w:val"), "0563C1")
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    run_pr.append(colour)
+    run_pr.append(underline)
+    run.append(run_pr)
+
+    text_node = OxmlElement("w:t")
+    text_node.text = text
+    text_node.set(qn("xml:space"), "preserve")
+    run.append(text_node)
+
+    link.append(run)
+    paragraph._p.append(link)
+
+
+def _write_linked_cell(cell, code: str, title: str, url: str) -> None:
+    """Write "<code> - <title>" with the code as a clickable link."""
+    cell.text = ""
+    paragraph = cell.paragraphs[0]
+    if not code:
+        paragraph.add_run(title or "")
+        return
+    _add_hyperlink(paragraph, code, url)
+    if title:
+        paragraph.add_run(f" - {title}")
+
+
 def _write_cell(cell, text: str, bullet: bool = False) -> None:
     """Replace a cell's contents with ``text``.
 
@@ -287,12 +333,16 @@ def _write_cell(cell, text: str, bullet: bool = False) -> None:
 def _fill_header(doc: Document, fields: dict) -> None:
     table = doc.tables[0]
     for row_index, field_name in enumerate(HEADER_FIELD_ORDER):
-        value_text = str(fields.get(field_name, "") or "")
         row_cells = table.rows[row_index].cells
         # Every header row has its own value cell at index 3 once the
         # template's content controls have been unwrapped.
         target = row_cells[3] if len(row_cells) > 3 else row_cells[-1]
-        _write_cell(target, value_text, bullet=field_name in BULLET_FIELDS)
+
+        value = fields.get(field_name, "")
+        if field_name in LINKED_FIELDS and isinstance(value, dict):
+            _write_linked_cell(target, value.get("code", ""), value.get("title", ""), value.get("url", ""))
+            continue
+        _write_cell(target, str(value or ""), bullet=field_name in BULLET_FIELDS)
 
 
 def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actual: str) -> None:
@@ -325,9 +375,16 @@ def build_docx(testcase, output_path: str) -> str:
     story = testcase.subtask.phase.story
     fields = {
         # Project identifies the task (story); Scenario identifies the test
-        # case itself, each as "<code> - <title>".
-        "project": f"{story.display_code} - {story.title}",
-        "scenario": f"{testcase.display_code} - {testcase.title}",
+        # case itself. Each renders as "<code> - <title>" with the code
+        # linking back to the ticket in the tracker.
+        "project": {
+            "code": story.display_code, "title": story.title,
+            "url": tracker_url(story.display_code),
+        },
+        "scenario": {
+            "code": testcase.display_code, "title": testcase.title,
+            "url": tracker_url(testcase.display_code),
+        },
         "tester": testcase.tester,
         "test_date": _format_test_date(testcase.test_date),
         "environment": testcase.subtask.phase.type.value,

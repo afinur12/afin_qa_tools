@@ -27,3 +27,14 @@ def static_url(path: str) -> str:
 
 
 templates.env.globals["static_url"] = static_url
+
+# Issue tracker a display code belongs to. Codes are entered by hand to match
+# the real ticket, so a code is all that's needed to link back to it.
+TRACKER_BASE_URL = "https://collabs.xlsmart.co.id/browse"
+
+
+def tracker_url(display_code: str) -> str:
+    return f"{TRACKER_BASE_URL}/{(display_code or '').strip()}"
+
+
+templates.env.globals["tracker_url"] = tracker_url

@@ -346,3 +346,35 @@ def test_build_docx_screenshots_are_18cm_wide_and_centered(tmp_path):
     step_table = next(t for t in doc.tables if len(t.rows) == 4 and t.cell(0, 5).text == "step")
     shot_cell = step_table.cell(3, 0)
     assert shot_cell.paragraphs[0].alignment == WD_ALIGN_PARAGRAPH.CENTER
+
+
+def test_project_and_scenario_codes_are_tracker_hyperlinks(tmp_path):
+    """The code half of Project/Scenario links back to the ticket."""
+    import zipfile
+
+    import lxml.etree as ET
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    output_path = str(tmp_path / "out_links.docx")
+    build_docx(tc, output_path)
+
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    rel_ns = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+    archive = zipfile.ZipFile(output_path)
+    root = ET.fromstring(archive.read("word/document.xml"))
+    rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(archive.read("word/_rels/document.xml.rels"))}
+
+    links = {
+        "".join(t.text or "" for t in link.iter(ns + "t")): rels.get(link.get(rel_ns + "id"))
+        for link in root.findall(".//" + ns + "hyperlink")
+    }
+    assert links == {
+        "EX-142": "https://collabs.xlsmart.co.id/browse/EX-142",
+        "TC-1": "https://collabs.xlsmart.co.id/browse/TC-1",
+    }
+
+    # The visible text is still "<code> - <title>".
+    header = Document(output_path).tables[0]
+    assert header.rows[0].cells[3].text == "EX-142 - Payments"
+    assert header.rows[1].cells[3].text == "TC-1 - Verify top-up RO balance"

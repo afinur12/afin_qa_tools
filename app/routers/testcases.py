@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 from app import deletion
 from app.database import get_db
 from app.templating import templates
-from app.models import DEFAULT_SECTION_KINDS, Subtask, TestCase, TestCaseSection, generate_internal_key
+from app.models import (
+    DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
+    generate_internal_key,
+)
 
 router = APIRouter()
 
@@ -18,7 +21,11 @@ def new_testcase_form(request: Request, subtask_id: int, db: Session = Depends(g
     return templates.TemplateResponse(
         request,
         "testcases/form.html",
-        {"testcase": None, "subtask": subtask, "error": None, "values": {"display_code": "", "title": ""}},
+        {
+            "testcase": None, "subtask": subtask, "error": None,
+            "values": {"display_code": "", "title": ""},
+            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
+        },
     )
 
 
@@ -28,6 +35,7 @@ def create_testcase(
     subtask_id: int,
     display_code: str = Form(...),
     title: str = Form(...),
+    prebuilt_id: str = Form(""),
     db: Session = Depends(get_db),
 ):
     subtask = db.get(Subtask, subtask_id)
@@ -44,16 +52,33 @@ def create_testcase(
                 "subtask": subtask,
                 "error": f'Code "{display_code}" is already used in this subtask.',
                 "values": {"display_code": display_code, "title": title},
+                "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
             },
             status_code=422,
         )
     testcase = TestCase(subtask_id=subtask_id, display_code=display_code, title=title, internal_key=generate_internal_key())
     db.add(testcase)
     db.flush()
-    # Start with one of each section, in the usual order. More can be added,
-    # removed or repeated on the execution page.
-    for position, kind in enumerate(DEFAULT_SECTION_KINDS):
-        db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
+
+    prebuilt = db.get(PrebuiltTestCase, int(prebuilt_id)) if prebuilt_id.strip().isdigit() else None
+    if prebuilt is not None:
+        # Copy the template's structure and step text. Screenshots are never
+        # part of a template, so the new case starts with none.
+        for source in prebuilt.sections:
+            section = TestCaseSection(testcase_id=testcase.id, kind=source.kind, position=source.position)
+            db.add(section)
+            db.flush()
+            for step in source.steps:
+                db.add(
+                    TestCaseStep(
+                        section_id=section.id, step_no=step.step_no, step_text=step.step_text,
+                        expected_result=step.expected_result, actual_result=step.actual_result,
+                    )
+                )
+    else:
+        # Blank case: one of each section, in the usual order, with no steps.
+        for position, kind in enumerate(DEFAULT_SECTION_KINDS):
+            db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
     db.commit()
     return RedirectResponse(url=f"/subtasks/{subtask_id}", status_code=303)
 

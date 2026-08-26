@@ -319,3 +319,32 @@ document.addEventListener("submit", (event) => {
     persist(moved);
   });
 })();
+
+// ── Collapsible sidebar ─────────────────────────────────────────────────────
+// The choice is applied before paint by an inline script in <head>, so the
+// rail never flashes open on navigation; this only handles the toggle.
+(function initSidebarToggle() {
+  const KEY = "qa-toolbox:sidebar-collapsed";
+  const toggle = document.querySelector("[data-sidebar-toggle]");
+  if (!toggle) return;
+
+  function sync() {
+    const collapsed = document.body.classList.contains("is-collapsed");
+    const text = collapsed ? "Expand sidebar" : "Collapse sidebar";
+    toggle.title = text;
+    toggle.setAttribute("aria-label", text);
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+  }
+
+  toggle.addEventListener("click", () => {
+    const collapsed = document.body.classList.toggle("is-collapsed");
+    try {
+      localStorage.setItem(KEY, collapsed ? "1" : "0");
+    } catch {
+      /* storage unavailable — the choice just won't persist */
+    }
+    sync();
+  });
+
+  sync();
+})();

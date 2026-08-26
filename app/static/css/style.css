@@ -158,6 +158,36 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 }
 .main-inner { max-width: 1180px; margin: 0 auto; }
 
+/* Collapsed rail: icons only. The toggle writes .is-collapsed on <body> and
+   remembers the choice, so it survives navigation. */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: auto;
+  padding: 9px 11px;
+  border: none;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--sidebar-ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.sidebar-toggle:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
+.sidebar-toggle svg { flex-shrink: 0; transition: transform 160ms ease; }
+
+body.is-collapsed .sidebar { width: 68px; padding-left: 10px; padding-right: 10px; }
+body.is-collapsed .brand { justify-content: center; padding: 4px 0 22px; }
+body.is-collapsed .brand-text,
+body.is-collapsed .nav-label,
+body.is-collapsed .nav-link span,
+body.is-collapsed .sidebar-toggle span { display: none; }
+body.is-collapsed .nav-link { justify-content: center; padding: 10px 0; }
+body.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+
 /* ── Page header ─────────────────────────────────────────────────────────── */
 
 .eyebrow {
@@ -341,6 +371,8 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 .btn.act.remove:hover  { background: #f7d6d2;     color: var(--fail); }
 .btn.act.export  { background: var(--warn-bg);    color: var(--warn); }
 .btn.act.export:hover  { background: #f8e6bf;     color: var(--warn); }
+.btn.act.docx    { background: var(--ink);        color: #fff; }
+.btn.act.docx:hover    { background: #000;        color: #fff; }
 
 /* A clickable row that also carries its own actions: the link fills the row,
    the buttons sit outside it (a form cannot be nested inside an anchor). */
@@ -505,6 +537,31 @@ tbody tr:hover { background: var(--surface-sunk); }
   font-size: 13.5px;
   font-weight: 500;
 }
+
+/* Read-only value shown as text (so a code inside it can be a link, which an
+   <input> cannot contain). */
+.readonly-field {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  font-size: 14px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.link-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--indigo-ink);
+}
+.link-code:hover { color: var(--indigo); text-decoration: underline; }
+.link-code svg { opacity: 0.6; }
 
 /* ── Tabs (phases) ───────────────────────────────────────────────────────── */
 
@@ -764,3 +821,22 @@ tbody tr:hover { background: var(--surface-sunk); }
   .grid-2 { grid-template-columns: 1fr; }
   .page-title { font-size: 24px; }
 }
+
+/* Radio choice rows (e.g. picking a prebuilt template) */
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--ink);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.choice:hover { border-color: var(--line-strong); background: var(--surface-sunk); }
+.choice input { width: auto; margin-top: 2px; flex-shrink: 0; accent-color: var(--indigo); }
+.choice:has(input:checked) { border-color: var(--indigo); background: var(--indigo-soft); }

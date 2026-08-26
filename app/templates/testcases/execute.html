@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link with context %}
 {% block content %}
 
 {% set story = testcase.subtask.phase.story %}
@@ -19,21 +19,22 @@
     <h1 class="page-title">{{ testcase.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/testcases/{{ testcase.id }}/edit" data-modal-open="edit-testcase">Edit</a>
+  <a class="btn act edit" href="/testcases/{{ testcase.id }}/edit" data-modal-open="edit-testcase"
+     title="Edit test case" aria-label="Edit test case">{{ icon_pencil() }}</a>
+  <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/save-as-prebuilt">
+    <button class="btn act add" type="submit" title="Save as prebuilt test case"
+            aria-label="Save as prebuilt test case">{{ icon_plus() }}</button>
+  </form>
   <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/delete"
         onsubmit="return confirm('Delete this test case and all of its steps?');">
-    <button class="btn danger" type="submit">Delete</button>
+    <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case">{{ icon_trash() }}</button>
   </form>
   {% if testcase.all_steps | map(attribute='screenshots') | select | first is defined %}
-  <a class="btn secondary" href="/testcases/{{ testcase.id }}/export-images">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-    Download all Images
-  </a>
+  <a class="btn act export" href="/testcases/{{ testcase.id }}/export-images"
+     title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
   {% endif %}
-  <a class="btn" href="/testcases/{{ testcase.id }}/export-docx">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-    Export .docx
-  </a>
+  <a class="btn act docx" href="/testcases/{{ testcase.id }}/export-docx"
+     title="Export .docx" aria-label="Export as Word document">{{ icon_doc() }}</a>
 </div>
 
 {% call modal('edit-testcase', 'Edit Test Case', '/testcases/' ~ testcase.id ~ '/edit') %}
@@ -60,8 +61,22 @@
 
   <form method="post" action="/testcases/{{ testcase.id }}/section1" data-autosave>
     <div class="grid-2">
-      <div class="field"><label>Project</label><input value="{{ story.display_code }} - {{ story.title }}" disabled></div>
-      <div class="field"><label>Scenario</label><input value="{{ testcase.display_code }} - {{ testcase.title }}" disabled></div>
+      <div class="field">
+        <label>Project</label>
+        <div class="readonly-field">
+          <a href="{{ tracker_url(story.display_code) }}" target="_blank" rel="noopener"
+             class="mono link-code" title="Open {{ story.display_code }} in the tracker">{{ story.display_code }}{{ icon_link() }}</a>
+          <span class="muted">&mdash;</span> {{ story.title }}
+        </div>
+      </div>
+      <div class="field">
+        <label>Scenario</label>
+        <div class="readonly-field">
+          <a href="{{ tracker_url(testcase.display_code) }}" target="_blank" rel="noopener"
+             class="mono link-code" title="Open {{ testcase.display_code }} in the tracker">{{ testcase.display_code }}{{ icon_link() }}</a>
+          <span class="muted">&mdash;</span> {{ testcase.title }}
+        </div>
+      </div>
 
       <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
       <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>

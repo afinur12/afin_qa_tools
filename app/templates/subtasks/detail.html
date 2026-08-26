@@ -70,6 +70,25 @@
       <label>Title</label>
       <input name="title" placeholder="What does this case verify?" required>
     </div>
+    <div class="field">
+      <label>Start from</label>
+      <label class="choice">
+        <input type="radio" name="prebuilt_id" value="" checked>
+        <span><strong>Blank</strong> &mdash; Pre Condition, Main Test and Post Condition with no steps</span>
+      </label>
+      {% for prebuilt in prebuilts %}
+      <label class="choice">
+        <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}">
+        <span><strong>{{ prebuilt.name }}</strong>
+          <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
+          {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}</span>
+        </span>
+      </label>
+      {% endfor %}
+      {% if not prebuilts %}
+      <div class="hint" style="margin:6px 0 0;">No templates yet &mdash; build one under <a href="/prebuilt">Prebuilt</a>.</div>
+      {% endif %}
+    </div>
     <div class="form-actions" style="justify-content:flex-end;">
       <button class="btn secondary" type="button" data-modal-close>Cancel</button>
       <button class="btn" type="submit">Save</button>

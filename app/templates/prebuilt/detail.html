@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil with context %}
+{% block content %}
+
+<div class="crumbs"><a href="/prebuilt">Prebuilt</a><span class="sep">/</span>{{ prebuilt.name }}</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ prebuilt.name }}</h1>
+    {% if prebuilt.description %}<div class="page-sub">{{ prebuilt.description }}</div>{% endif %}
+  </div>
+  <div class="spacer"></div>
+  <a class="btn act edit" href="#" data-modal-open="edit-prebuilt" title="Edit template" aria-label="Edit template">{{ icon_pencil() }}</a>
+  <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
+        onsubmit="return confirm('Delete this template?');">
+    <button class="btn act remove" type="submit" title="Delete template" aria-label="Delete template">{{ icon_trash() }}</button>
+  </form>
+</div>
+
+{% call modal('edit-prebuilt', 'Edit Template', '/prebuilt/' ~ prebuilt.id ~ '/edit') %}
+  <div class="field">
+    <label>Name</label>
+    <input name="name" value="{{ prebuilt.name }}" required>
+  </div>
+  <div class="field">
+    <label>Description</label>
+    <textarea name="description" rows="3">{{ prebuilt.description or '' }}</textarea>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
+
+{% for section in prebuilt.sections %}
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">{{ loop.index }}. {{ section.label }}</div>
+    <div class="card-sub">{{ section.steps | length }} step{{ '' if section.steps | length == 1 else 's' }}</div>
+    <div class="spacer"></div>
+    <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/sections/{{ section.id }}/delete"
+          {% if section.steps %}onsubmit="return confirm('Remove this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
+      <button class="btn act remove" type="submit" title="Remove section" aria-label="Remove {{ section.label }} section">{{ icon_trash() }}</button>
+    </form>
+  </div>
+
+  {% for step in section.steps %}
+  <div class="step">
+    <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/edit" data-autosave>
+      <div class="step-head">
+        <span class="step-no">{{ step.step_no }}</span>
+        <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
+        <span class="save-state" data-save-state></span>
+      </div>
+      <div class="grid-2" style="gap:2px 16px;">
+        <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
+        <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result or 'Same as expected' }}</textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary sm" type="submit" data-manual-save>Save Step</button>
+      </div>
+    </form>
+    <div class="form-actions" style="margin-top:10px;">
+      <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/delete">
+        <button class="btn act remove" type="submit" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash() }}</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+  <form method="post" action="/prebuilt/{{ prebuilt.id }}/sections/{{ section.id }}/steps">
+    <button class="btn secondary sm" type="submit">+ Add Step</button>
+  </form>
+</div>
+{% endfor %}
+
+<div class="card">
+  <div class="card-head" style="margin-bottom:12px;">
+    <div>
+      <div class="card-title">Add a section</div>
+      <div class="card-sub">Blocks run in the order you add them, and a kind can repeat</div>
+    </div>
+  </div>
+  <form method="post" action="/prebuilt/{{ prebuilt.id }}/sections" class="row">
+    <div class="field" style="margin-bottom:0; min-width:220px;">
+      <select name="kind">
+        {% for kind in section_kinds %}<option value="{{ kind.value }}">{{ section_labels[kind] }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn secondary" type="submit">+ Add Section</button>
+  </form>
+</div>
+{% endblock %}
