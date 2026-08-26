@@ -794,7 +794,6 @@ tbody tr:hover { background: var(--surface-sunk); }
   border-radius: var(--r-ctl);
   padding: 12px;
   min-height: 220px;
-  max-height: 340px;
   overflow-y: auto;
   font-size: 13px;
 }

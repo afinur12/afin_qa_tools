@@ -22,8 +22,8 @@
       <input name="title" value="{{ values.title }}" placeholder="What does this case verify?" required>
     </div>
     {% else %}
-    <div class="grid-2" style="gap:20px; align-items:start;">
-      <div>
+    <div class="grid-2" style="gap:20px;">
+      <div style="display:flex; flex-direction:column; height:100%;">
         <div class="field">
           <label>Code</label>
           <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. TC-1" autocomplete="off" required>
@@ -32,9 +32,9 @@
           <label>Title</label>
           <input name="title" value="{{ values.title }}" placeholder="What does this case verify?" required>
         </div>
-        <div class="field">
+        <div class="field" style="flex:1; display:flex; flex-direction:column;">
           <label>Preview</label>
-          <div class="prebuilt-preview" data-prebuilt-preview-target>
+          <div class="prebuilt-preview" data-prebuilt-preview-target style="flex:1;">
             <div class="muted">Select a template to preview its sections and steps.</div>
           </div>
         </div>
