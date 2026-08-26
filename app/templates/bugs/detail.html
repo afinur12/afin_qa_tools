@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import modal with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -16,11 +17,44 @@
     <h1 class="page-title">{{ bug.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/bugs/{{ bug.id }}/edit">Edit</a>
+  <a class="btn secondary" href="/bugs/{{ bug.id }}/edit" data-modal-open="edit-bug">Edit</a>
   <form class="inline-form" method="post" action="/bugs/{{ bug.id }}/delete">
     <button class="btn danger" type="submit">Delete</button>
   </form>
 </div>
+
+{% call modal('edit-bug', 'Edit Bug', '/bugs/' ~ bug.id ~ '/edit') %}
+  <div class="field">
+    <label>Code</label>
+    <input name="display_code" value="{{ bug.display_code }}" required>
+  </div>
+  <div class="field">
+    <label>Title</label>
+    <input name="title" value="{{ bug.title }}" required>
+  </div>
+  <div class="field">
+    <label>Description</label>
+    <textarea name="description" rows="4">{{ bug.description or '' }}</textarea>
+  </div>
+  <div class="grid-2">
+    <div class="field">
+      <label>Severity</label>
+      <select name="severity">
+        {% for s in severities %}<option value="{{ s.value }}" {% if s == bug.severity %}selected{% endif %}>{{ s.value }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s.value }}" {% if s == bug.status %}selected{% endif %}>{{ s.value.replace('_', ' ') | title }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
 
 <div class="card">
   <div class="card-head" style="margin-bottom:10px;"><div class="card-title">Description</div></div>

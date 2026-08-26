@@ -51,7 +51,7 @@ def test_staging_after_rollback_restricts_to_single_execution_subtask(client):
     assert second.status_code == 422
 
 
-def test_delete_subtask_blocked_when_testcase_exists(client):
+def test_delete_subtask_cascades_to_testcases_and_bugs(client):
     create = client.post("/stories", data={"display_code": "EX-203", "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]
     client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
@@ -64,6 +64,11 @@ def test_delete_subtask_blocked_when_testcase_exists(client):
     )
     subtask_id = sub_resp.headers["location"].rstrip("/").split("/")[-1]
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
-    response = client.post(f"/subtasks/{subtask_id}/delete")
-    assert response.status_code == 422
-    assert "Delete" in response.text
+    client.post(f"/subtasks/{subtask_id}/bugs", data={"display_code": "B-1", "title": "[ISSUE] a"})
+
+    # Deleting a subtask takes its test cases and bugs with it.
+    response = client.post(f"/subtasks/{subtask_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert client.get(f"/subtasks/{subtask_id}").status_code == 404
+    assert "TC-1" not in client.get(f"/stories/{story_id}").text
+    assert "B-1" not in client.get("/bugs").text

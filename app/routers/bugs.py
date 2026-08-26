@@ -78,7 +78,11 @@ def bug_detail(request: Request, bug_id: int, db: Session = Depends(get_db)):
     bug = db.get(Bug, bug_id)
     if bug is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    return templates.TemplateResponse(request, "bugs/detail.html", {"bug": bug})
+    return templates.TemplateResponse(
+        request,
+        "bugs/detail.html",
+        {"bug": bug, "severities": list(BugSeverity), "statuses": list(BugStatus)},
+    )
 
 
 @router.get("/bugs/{bug_id}/edit")

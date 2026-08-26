@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime
 from pathlib import Path
 
 from docx import Document
@@ -114,6 +115,24 @@ def _prevent_row_splits(table: Table) -> None:
             tr_pr.append(OxmlElement("w:cantSplit"))
 
 
+def _format_test_date(value: str) -> str:
+    """Render the stored ISO date as "Wednesday, 26 August 2026".
+
+    The web form submits YYYY-MM-DD from a native date picker. Anything that
+    doesn't parse (legacy free-text entries) is passed through untouched
+    rather than dropped.
+    """
+    text = (value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        return text
+    # %-d / %#d are platform-specific, so strip the leading zero by hand.
+    return f"{parsed.strftime('%A')}, {parsed.day} {parsed.strftime('%B %Y')}"
+
+
 def _apply_bullet(paragraph) -> None:
     """Attach the template's native bullet numbering to a paragraph."""
     p_pr = paragraph._p.get_or_add_pPr()
@@ -203,7 +222,7 @@ def build_docx(testcase, output_path: str) -> str:
         "project": f"{story.display_code} - {story.title}",
         "scenario": f"{testcase.display_code} - {testcase.title}",
         "tester": testcase.tester,
-        "test_date": testcase.test_date,
+        "test_date": _format_test_date(testcase.test_date),
         "environment": testcase.subtask.phase.type.value,
         "test_priority": testcase.test_priority,
         "test_type": testcase.test_type,

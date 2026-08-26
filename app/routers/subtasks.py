@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app import deletion
 from app.database import get_db
 from app.models import CurlAttachType, CurlCollection, Phase, PhaseType, Subtask, SubtaskType, generate_internal_key
 
@@ -163,15 +164,9 @@ def delete_subtask(request: Request, subtask_id: int, db: Session = Depends(get_
     subtask = db.get(Subtask, subtask_id)
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    children = len(subtask.testcases) + len(subtask.bugs)
-    if children > 0:
-        return templates.TemplateResponse(
-            request,
-            "subtasks/detail.html",
-            {"subtask": subtask, "error": f"Delete {len(subtask.testcases)} testcase(s) and {len(subtask.bugs)} bug(s) first."},
-            status_code=422,
-        )
     story_id = subtask.phase.story_id
-    db.delete(subtask)
+    # Cascades to its test cases (and their steps/screenshots) and bugs, so
+    # the subtask can be removed without emptying it first.
+    deletion.delete_subtask(db, subtask)
     db.commit()
     return RedirectResponse(url=f"/stories/{story_id}", status_code=303)

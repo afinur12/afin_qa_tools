@@ -48,7 +48,7 @@ def test_edit_testcase_code_and_title(client):
     assert "New title" in detail.text
 
 
-def test_delete_testcase_blocked_when_steps_exist(client):
+def test_delete_testcase_cascades_to_its_steps(client):
     subtask_id = _create_execution_subtask(client, "EX-302")
     tc_resp = client.post(
         f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"}, follow_redirects=False
@@ -65,5 +65,12 @@ def test_delete_testcase_blocked_when_steps_exist(client):
     db.commit()
     gen.close()
 
-    response = client.post(f"/testcases/{testcase_id}/delete")
-    assert response.status_code == 422
+    # Deleting a case takes its steps with it -- no need to clear them first.
+    response = client.post(f"/testcases/{testcase_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert client.get(f"/testcases/{testcase_id}/execute").status_code == 404
+
+    gen = override()
+    db = next(gen)
+    assert db.query(m.TestCaseStep).filter_by(testcase_id=int(testcase_id)).count() == 0
+    gen.close()

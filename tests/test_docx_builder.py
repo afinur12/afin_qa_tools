@@ -266,12 +266,14 @@ def test_build_docx_unwraps_content_controls_and_writes_test_date_once(tmp_path)
     header = Document(output_path).tables[0]
     date_row = header.rows[3]
     assert len(date_row.cells) == 4, "Test Date row must expose its real value cell"
-    assert date_row.cells[3].text == "2026-08-26"
+    # Stored ISO date is rendered long-form for the artifact.
+    assert date_row.cells[3].text == "Wednesday, 26 August 2026"
     # The stale placeholder from the date picker must be gone, and the value
     # must not also appear in the narrow spacer cell.
     row_text = [c.text for c in date_row.cells]
-    assert row_text.count("2026-08-26") == 1
-    assert not any("August" in t for t in row_text)
+    assert row_text.count("Wednesday, 26 August 2026") == 1
+    # The date picker's own placeholder must not survive alongside it.
+    assert not any("11 August 2026" in t for t in row_text)
 
 
 def test_build_docx_renders_data_test_as_bullet_list(tmp_path):

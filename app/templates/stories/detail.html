@@ -12,11 +12,26 @@
     <h1 class="page-title">{{ story.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/stories/{{ story.id }}/edit">Edit</a>
+  <a class="btn secondary" href="/stories/{{ story.id }}/edit" data-modal-open="edit-story">Edit</a>
   <form class="inline-form" method="post" action="/stories/{{ story.id }}/delete">
     <button class="btn danger" type="submit">Delete</button>
   </form>
 </div>
+
+{% call modal('edit-story', 'Edit Story', '/stories/' ~ story.id ~ '/edit') %}
+  <div class="field">
+    <label>Code</label>
+    <input name="display_code" value="{{ story.display_code }}" required>
+  </div>
+  <div class="field">
+    <label>Title</label>
+    <input name="title" value="{{ story.title }}" required>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
 
 {% if story.phases %}
 <div class="tabs">
@@ -69,13 +84,15 @@
     </div>
     <div class="field">
       <label>Title</label>
-      <input name="title" placeholder="e.g. OWS-W2W (Top-up RO Balance)" required>
+      {# Prefilled as "<PHASE> - <task title>"; still editable. #}
+      <input name="title" value="{{ phase.type.value }} - {{ story.title }}" required>
     </div>
     <div class="field">
       <label>Type</label>
       <select name="subtask_type" required>
-        <option value="">Select&hellip;</option>
-        {% for t in phase.allowed_subtask_types %}<option value="{{ t.value }}">{{ t.value.replace('_', ' ') | title }}</option>{% endfor %}
+        {% for t in phase.allowed_subtask_types %}
+        <option value="{{ t.value }}" {% if t.value == 'EXECUTION' %}selected{% endif %}>{{ t.value.replace('_', ' ') | title }}</option>
+        {% endfor %}
       </select>
     </div>
     <div class="form-actions" style="justify-content:flex-end;">

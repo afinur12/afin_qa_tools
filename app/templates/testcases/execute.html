@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import modal with context %}
 {% block content %}
 
 {% set story = testcase.subtask.phase.story %}
@@ -18,7 +19,11 @@
     <h1 class="page-title">{{ testcase.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/testcases/{{ testcase.id }}/edit">Edit</a>
+  <a class="btn secondary" href="/testcases/{{ testcase.id }}/edit" data-modal-open="edit-testcase">Edit</a>
+  <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/delete"
+        onsubmit="return confirm('Delete this test case and all of its steps?');">
+    <button class="btn danger" type="submit">Delete</button>
+  </form>
   {% if testcase.steps | map(attribute='screenshots') | select | first is defined %}
   <a class="btn secondary" href="/testcases/{{ testcase.id }}/export-images">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -31,6 +36,21 @@
   </a>
 </div>
 
+{% call modal('edit-testcase', 'Edit Test Case', '/testcases/' ~ testcase.id ~ '/edit') %}
+  <div class="field">
+    <label>Code</label>
+    <input name="display_code" value="{{ testcase.display_code }}" required>
+  </div>
+  <div class="field">
+    <label>Title</label>
+    <input name="title" value="{{ testcase.title }}" required>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
+
 <div class="card">
   <div class="card-head">
     <div class="card-title">1. Description</div>
@@ -40,8 +60,8 @@
 
   <form method="post" action="/testcases/{{ testcase.id }}/section1" data-autosave>
     <div class="grid-2">
-      <div class="field"><label>Project</label><input value="{{ story.title }}" disabled></div>
-      <div class="field"><label>Scenario</label><input value="{{ testcase.subtask.title }}" disabled></div>
+      <div class="field"><label>Project</label><input value="{{ story.display_code }} - {{ story.title }}" disabled></div>
+      <div class="field"><label>Scenario</label><input value="{{ testcase.display_code }} - {{ testcase.title }}" disabled></div>
 
       <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
       <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>

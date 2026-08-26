@@ -94,3 +94,35 @@ def test_export_docx_filename_is_code_and_title(client):
     assert response.status_code == 200
     # Starlette emits the RFC 5987 percent-encoded form.
     assert "TC-9 - Top-up flow.docx" in unquote(response.headers["content-disposition"])
+
+
+def test_delete_testcase_removes_screenshot_files_from_disk(client):
+    from pathlib import Path
+    import re
+
+    testcase_id = _create_testcase(client, "EX-903", tc_code="TC-3", tc_title="Cascade")
+    _add_step_with_shot(client, testcase_id, "MAIN", "Check Balance")
+
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    match = re.search(r'/uploads/(screenshots/[^"\']+)', page.text)
+    disk_path = Path("app/uploads") / match.group(1)
+    assert disk_path.exists()
+
+    client.post(f"/testcases/{testcase_id}/delete")
+    assert not disk_path.exists(), "cascading delete must remove the file, not just the row"
+
+
+def test_delete_subtask_removes_screenshot_files_from_disk(client):
+    from pathlib import Path
+    import re
+
+    testcase_id = _create_testcase(client, "EX-904", tc_code="TC-4", tc_title="Cascade2")
+    _add_step_with_shot(client, testcase_id, "MAIN", "Check Balance")
+
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    disk_path = Path("app/uploads") / re.search(r'/uploads/(screenshots/[^"\']+)', page.text).group(1)
+    subtask_id = re.search(r'/subtasks/(\d+)', page.text).group(1)
+    assert disk_path.exists()
+
+    client.post(f"/subtasks/{subtask_id}/delete")
+    assert not disk_path.exists()

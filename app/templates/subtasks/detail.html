@@ -17,11 +17,30 @@
     <h1 class="page-title">{{ subtask.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/subtasks/{{ subtask.id }}/edit">Edit</a>
+  <a class="btn secondary" href="/subtasks/{{ subtask.id }}/edit" data-modal-open="edit-subtask">Edit</a>
   <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/delete">
     <button class="btn danger" type="submit">Delete</button>
   </form>
 </div>
+
+{% call modal('edit-subtask', 'Edit Subtask', '/subtasks/' ~ subtask.id ~ '/edit') %}
+  <div class="field">
+    <label>Code</label>
+    <input name="display_code" value="{{ subtask.display_code }}" required>
+  </div>
+  <div class="field">
+    <label>Title</label>
+    <input name="title" value="{{ subtask.title }}" required>
+  </div>
+  <div class="field">
+    <label>Notes</label>
+    <textarea name="notes" rows="4" placeholder="Optional context for this subtask">{{ subtask.notes or '' }}</textarea>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
 
 {% if subtask.notes %}
 <div class="card">

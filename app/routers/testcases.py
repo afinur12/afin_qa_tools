@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app import deletion
 from app.database import get_db
 from app.models import Subtask, TestCase, generate_internal_key
 
@@ -111,19 +112,9 @@ def delete_testcase(request: Request, testcase_id: int, db: Session = Depends(ge
     testcase = db.get(TestCase, testcase_id)
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    if len(testcase.steps) > 0:
-        return templates.TemplateResponse(
-            request,
-            "testcases/form.html",
-            {
-                "testcase": testcase,
-                "subtask": testcase.subtask,
-                "error": f"Delete {len(testcase.steps)} step(s) first.",
-                "values": {"display_code": testcase.display_code, "title": testcase.title},
-            },
-            status_code=422,
-        )
     subtask_id = testcase.subtask_id
-    db.delete(testcase)
+    # Cascades to its steps, their screenshots, and those files on disk, so
+    # the case can be removed without clearing its steps out first.
+    deletion.delete_testcase(db, testcase)
     db.commit()
     return RedirectResponse(url=f"/subtasks/{subtask_id}", status_code=303)
