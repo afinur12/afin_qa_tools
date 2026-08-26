@@ -120,5 +120,5 @@ def test_image_zip_disambiguates_repeated_section_kinds(client):
         )
 
     names = zipfile.ZipFile(io.BytesIO(client.get(f"/testcases/{testcase_id}/export-images").content)).namelist()
-    # The second MAIN block is suffixed so entries stay unique.
-    assert names == ["MAIN.1_Check A.png", "MAIN2.1_Check B.png"]
+    # Each block's own heading letter keeps repeated kinds apart.
+    assert names == ["B.MAIN-TEST_1.Check A.png", "D.MAIN-TEST_1.Check B.png"]

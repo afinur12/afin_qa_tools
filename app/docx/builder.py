@@ -30,6 +30,9 @@ SECTION_HEADINGS = {
     StepSection.POSTCONDITION: "POST CONDITION",
 }
 
+# Same headings, hyphenated for use inside filenames.
+SECTION_FILE_LABELS = {kind: heading.replace(" ", "-") for kind, heading in SECTION_HEADINGS.items()}
+
 # Fields rendered as a bulleted list rather than a single run of text.
 BULLET_FIELDS = {"data_test"}
 

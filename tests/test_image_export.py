@@ -65,8 +65,8 @@ def test_export_images_zip_names_entries_by_section_step_and_name(client):
     assert "TC-1 - Verify top-up.zip" in unquote(response.headers["content-disposition"])
 
     names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
-    # Ordered by section (PRECONDITION before MAIN), then step number.
-    assert names == ["PRECONDITION.1_Open app.png", "MAIN.1_Check Balance.png"]
+    # Ordered by section, each entry led by that section's heading letter.
+    assert names == ["A.PRE-CONDITION_1.Open app.png", "B.MAIN-TEST_1.Check Balance.png"]
 
 
 def test_export_images_zip_disambiguates_multiple_shots_on_one_step(client):
@@ -79,7 +79,7 @@ def test_export_images_zip_disambiguates_multiple_shots_on_one_step(client):
 
     response = client.get(f"/testcases/{testcase_id}/export-images")
     names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
-    assert names == ["MAIN.1_Check Balance.png", "MAIN.1_Check Balance_2.png"]
+    assert names == ["B.MAIN-TEST_1.Check Balance.png", "B.MAIN-TEST_1.Check Balance_2.png"]
 
 
 def test_export_images_404_for_missing_testcase(client):

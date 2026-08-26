@@ -11,7 +11,7 @@ from starlette.requests import Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.docx.builder import SECTION_ORDER, build_docx
+from app.docx.builder import SECTION_FILE_LABELS, build_docx
 from app.models import TestCase
 
 router = APIRouter()
@@ -23,6 +23,16 @@ EXPORTS_DIR = Path("app/uploads/exports")
 # accept in a name. Spaces, hyphens and parentheses are kept so the exported
 # name reads the way the user asked for it: "<code> - <title>".
 _ILLEGAL_FILENAME_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
+
+
+def _section_letter(index: int) -> str:
+    """A, B, ... Z, AA, AB — matching Word's Heading1 numbering."""
+    letters = ""
+    index += 1
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
 
 
 def _safe_filename(text: str, fallback: str = "export") -> str:
@@ -65,9 +75,11 @@ def export_docx(request: Request, testcase_id: int, db: Session = Depends(get_db
 def export_images(request: Request, testcase_id: int, db: Session = Depends(get_db)):
     """Every screenshot on the test case, zipped.
 
-    Entries are named "<SECTION>.<step number>_<step name><ext>", ordered by
-    section then step number. A step carrying several screenshots gets an
-    index suffix so no entry is overwritten.
+    Entries are named "<letter>.<SECTION>_<step number>.<step name><ext>" --
+    e.g. "A.PRE-CONDITION_1.check.png" -- ordered by section then step. The
+    leading letter is the section's heading letter in the exported document.
+    A step carrying several screenshots gets an index suffix so no entry is
+    overwritten.
     """
     from app.routers.screenshots import UPLOADS_DIR
 
@@ -75,28 +87,22 @@ def export_images(request: Request, testcase_id: int, db: Session = Depends(get_
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
 
-    # A kind can appear several times, so the second PRE/MAIN/POST block and
-    # onwards carry an occurrence number ("MAIN", then "MAIN2") to keep entry
-    # names unique. A kind used once keeps its plain name.
-    seen: dict[str, int] = {}
-    section_names: list[tuple[str, object]] = []
-    for section in testcase.sections:
-        kind = section.kind.value
-        seen[kind] = seen.get(kind, 0) + 1
-        section_names.append((kind if seen[kind] == 1 else f"{kind}{seen[kind]}", section))
-
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for section_name, section in section_names:
+        for section_index, section in enumerate(testcase.sections):
+            # Entries lead with the section's heading letter, matching the
+            # A/B/C/D Word gives the headings in the exported document. That
+            # also keeps repeated kinds apart without a separate counter.
+            section_name = f"{_section_letter(section_index)}.{SECTION_FILE_LABELS[section.kind]}"
             for step in section.steps:
                 step_name = _safe_filename(step.step_text, fallback="step")
-                stem = f"{section_name}.{step.step_no}_{step_name}"
-                for index, screenshot in enumerate(step.screenshots):
+                stem = f"{section_name}_{step.step_no}.{step_name}"
+                for shot_index, screenshot in enumerate(step.screenshots):
                     source = UPLOADS_DIR / screenshot.file_path
                     if not source.exists():
                         continue
                     suffix = source.suffix or ".png"
-                    entry = stem if index == 0 else f"{stem}_{index + 1}"
+                    entry = stem if shot_index == 0 else f"{stem}_{shot_index + 1}"
                     archive.write(source, f"{entry}{suffix}")
 
     buffer.seek(0)
