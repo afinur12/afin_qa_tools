@@ -8,10 +8,11 @@
   <div>
     <h1 class="page-title">{{ prebuilt.name }}</h1>
     {% if prebuilt.description %}<div class="page-sub">{{ prebuilt.description }}</div>{% endif %}
-    {% if prebuilt.service_name or prebuilt.test_type or prebuilt.remark %}
+    {% if prebuilt.service_name or prebuilt.test_type or prebuilt.simulate or prebuilt.remark %}
     <div class="page-sub" style="margin-top:6px;">
       {% if prebuilt.service_name %}<span class="badge">{{ prebuilt.service_name }}</span>{% endif %}
       {% if prebuilt.test_type %}<span class="badge">{{ prebuilt.test_type }}</span>{% endif %}
+      {% if prebuilt.simulate %}<span class="badge">{{ prebuilt.simulate }}</span>{% endif %}
       {% if prebuilt.remark %}<span class="muted">{{ prebuilt.remark }}</span>{% endif %}
     </div>
     {% endif %}
@@ -33,7 +34,7 @@
     <label>Description</label>
     <textarea name="description" rows="3">{{ prebuilt.description or '' }}</textarea>
   </div>
-  <div class="grid-2" style="gap:2px 16px;">
+  <div class="grid-3">
     <div class="field">
       <label>Service Name</label>
       <input name="service_name" value="{{ prebuilt.service_name or '' }}" placeholder="e.g. auth-service, payment-service">
@@ -48,6 +49,16 @@
         {% endif %}
       </select>
     </div>
+    <div class="field">
+      <label>Simulate</label>
+      <select name="simulate">
+        <option value="">&mdash;</option>
+        {% for o in ['E2E', 'API Testing'] %}<option value="{{ o }}" {% if prebuilt.simulate == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        {% if prebuilt.simulate and prebuilt.simulate not in ['E2E', 'API Testing'] %}
+        <option value="{{ prebuilt.simulate }}" selected>{{ prebuilt.simulate }}</option>
+        {% endif %}
+      </select>
+    </div>
   </div>
   <div class="field">
     <label>Remark</label>
@@ -59,12 +70,17 @@
   </div>
 {% endcall %}
 
+<div data-sections data-reorder-action="/prebuilt/{{ prebuilt.id }}/sections/reorder">
 {% for section in prebuilt.sections %}
-<div class="card">
+<div class="card section-card" data-section-id="{{ section.id }}">
   <div class="card-head">
-    <div class="card-title">{{ loop.index }}. {{ section.label }}</div>
+    <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+    </span>
+    <div class="card-title"><span data-section-index>{{ loop.index }}</span>. {{ section.label }}</div>
     <div class="card-sub">{{ section.steps | length }} step{{ '' if section.steps | length == 1 else 's' }}</div>
     <div class="spacer"></div>
+    <span class="save-state" data-reorder-state></span>
     <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/sections/{{ section.id }}/delete"
           {% if section.steps %}onsubmit="return confirm('Remove this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
       <button class="btn act remove" type="submit" title="Remove section" aria-label="Remove {{ section.label }} section">{{ icon_trash() }}</button>
@@ -100,6 +116,7 @@
   </form>
 </div>
 {% endfor %}
+</div>
 
 <div class="card">
   <div class="card-head" style="margin-bottom:12px;">

@@ -7,7 +7,9 @@ from app.database import Base, backfill_column, engine, ensure_columns
 from app.routers import bugs, prebuilt, curls, dashboard, docx_export, execution, screenshots, stories, subtasks, testcases
 
 Base.metadata.create_all(bind=engine)
-ensure_columns("prebuilt_testcases", {"service_name": "VARCHAR(64)", "test_type": "VARCHAR(64)", "remark": "TEXT"})
+ensure_columns("prebuilt_testcases", {
+    "service_name": "VARCHAR(64)", "test_type": "VARCHAR(64)", "simulate": "VARCHAR(32)", "remark": "TEXT",
+})
 # service_name was briefly named "category"; carry over any values already saved under that name.
 backfill_column("prebuilt_testcases", dest="service_name", src="category")
 

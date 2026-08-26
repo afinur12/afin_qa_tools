@@ -62,16 +62,22 @@
        title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
   </div>
 
-  {% call modal('new-testcase', 'New Test Case', '/subtasks/' ~ subtask.id ~ '/testcases') %}
-    <div class="field">
-      <label>Code</label>
-      <input name="display_code" placeholder="e.g. TC-1" autocomplete="off" required>
+  {% call modal('new-testcase', 'New Test Case', '/subtasks/' ~ subtask.id ~ '/testcases', wide=True) %}
+    <div class="grid-2" style="gap:20px; align-items:start;">
+      <div>
+        <div class="field">
+          <label>Code</label>
+          <input name="display_code" placeholder="e.g. TC-1" autocomplete="off" required>
+        </div>
+        <div class="field">
+          <label>Title</label>
+          <input name="title" placeholder="What does this case verify?" required>
+        </div>
+      </div>
+      <div>
+        {% include "testcases/_prebuilt_picker.html" %}
+      </div>
     </div>
-    <div class="field">
-      <label>Title</label>
-      <input name="title" placeholder="What does this case verify?" required>
-    </div>
-    {% include "testcases/_prebuilt_picker.html" %}
     <div class="form-actions" style="justify-content:flex-end;">
       <button class="btn secondary" type="button" data-modal-close>Cancel</button>
       <button class="btn" type="submit">Save</button>

@@ -10,8 +10,9 @@
   <h1 class="page-title">{% if testcase %}Edit test case{% else %}New test case{% endif %}</h1>
 </div>
 
-<div class="card" style="max-width:520px;">
+<div class="card" style="max-width:{{ '860px' if not testcase else '520px' }};">
   <form method="post" action="{% if testcase %}/testcases/{{ testcase.id }}/edit{% else %}/subtasks/{{ subtask.id }}/testcases{% endif %}">
+    {% if testcase %}
     <div class="field">
       <label>Code</label>
       <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. TC-1" autocomplete="off" required>
@@ -20,8 +21,22 @@
       <label>Title</label>
       <input name="title" value="{{ values.title }}" placeholder="What does this case verify?" required>
     </div>
-    {% if not testcase %}
-    {% include "testcases/_prebuilt_picker.html" %}
+    {% else %}
+    <div class="grid-2" style="gap:20px; align-items:start;">
+      <div>
+        <div class="field">
+          <label>Code</label>
+          <input name="display_code" value="{{ values.display_code }}" placeholder="e.g. TC-1" autocomplete="off" required>
+        </div>
+        <div class="field">
+          <label>Title</label>
+          <input name="title" value="{{ values.title }}" placeholder="What does this case verify?" required>
+        </div>
+      </div>
+      <div>
+        {% include "testcases/_prebuilt_picker.html" %}
+      </div>
+    </div>
     {% endif %}
     <div class="form-actions">
       <button class="btn" type="submit">Save</button>

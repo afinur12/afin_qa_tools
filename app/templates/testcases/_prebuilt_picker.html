@@ -1,17 +1,18 @@
-{# Shared "Start from" picker: search + service/test-type filters over prebuilt templates. #}
+{# Shared "Start from" picker: search + service/test-type filters, paginated,
+   over prebuilt templates. #}
 <div class="field">
   <label>Start from</label>
 
   {% if prebuilts %}
+  <input type="text" placeholder="Search templates…" data-prebuilt-search style="margin-bottom:8px;">
   <div class="row" style="gap:8px; margin-bottom:8px;">
-    <input type="text" placeholder="Search templates…" data-prebuilt-search style="flex:1; min-width:120px;">
-    <select data-prebuilt-filter="service_name">
+    <select data-prebuilt-filter="service_name" style="flex:1;">
       <option value="">All services</option>
       {% for s in prebuilts | map(attribute='service_name') | select | unique | sort %}
       <option value="{{ s }}">{{ s }}</option>
       {% endfor %}
     </select>
-    <select data-prebuilt-filter="test_type">
+    <select data-prebuilt-filter="test_type" style="flex:1;">
       <option value="">All test types</option>
       {% for t in prebuilts | map(attribute='test_type') | select | unique | sort %}
       <option value="{{ t }}">{{ t }}</option>
@@ -20,21 +21,32 @@
   </div>
   {% endif %}
 
-  <label class="choice" data-prebuilt-option data-name="">
-    <input type="radio" name="prebuilt_id" value="" checked>
-    <span><strong>Blank</strong> &mdash; Pre Condition, Main Test and Post Condition with no steps</span>
-  </label>
-  {% for prebuilt in prebuilts %}
-  <label class="choice" data-prebuilt-option data-name="{{ prebuilt.name | lower }}"
-         data-service_name="{{ prebuilt.service_name or '' }}" data-test_type="{{ prebuilt.test_type or '' }}">
-    <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}" data-prebuilt-name="{{ prebuilt.name }}">
-    <span><strong>{{ prebuilt.name }}</strong>
-      <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
-      {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service_name %} &middot; {{ prebuilt.service_name }}{% endif %}{% if prebuilt.test_type %} &middot; {{ prebuilt.test_type }}{% endif %}</span>
-    </span>
-  </label>
-  {% endfor %}
-  <div class="empty" data-prebuilt-empty hidden>No templates match your search.</div>
+  <div class="prebuilt-list" data-prebuilt-list>
+    <label class="choice" data-prebuilt-option data-name="">
+      <input type="radio" name="prebuilt_id" value="" checked>
+      <span><strong>Blank</strong> &mdash; Pre Condition, Main Test and Post Condition with no steps</span>
+    </label>
+    {% for prebuilt in prebuilts %}
+    <label class="choice" data-prebuilt-option data-name="{{ prebuilt.name | lower }}"
+           data-service_name="{{ prebuilt.service_name or '' }}" data-test_type="{{ prebuilt.test_type or '' }}">
+      <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}" data-prebuilt-name="{{ prebuilt.name }}">
+      <span><strong>{{ prebuilt.name }}</strong>
+        <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
+        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service_name %} &middot; {{ prebuilt.service_name }}{% endif %}{% if prebuilt.test_type %} &middot; {{ prebuilt.test_type }}{% endif %}</span>
+      </span>
+    </label>
+    {% endfor %}
+    <div class="empty" data-prebuilt-empty hidden>No templates match your search.</div>
+  </div>
+
+  {% if prebuilts %}
+  <div class="prebuilt-pager" data-prebuilt-pager hidden>
+    <button type="button" class="btn secondary sm" data-prebuilt-prev>&larr; Prev</button>
+    <span class="muted" data-prebuilt-page-label></span>
+    <button type="button" class="btn secondary sm" data-prebuilt-next>Next &rarr;</button>
+  </div>
+  {% endif %}
+
   {% if not prebuilts %}
   <div class="hint" style="margin:6px 0 0;">No templates yet &mdash; build one under <a href="/prebuilt">Prebuilt</a>.</div>
   {% endif %}

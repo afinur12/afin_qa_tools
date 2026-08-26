@@ -46,6 +46,7 @@ def create_prebuilt(
     description: str = Form(""),
     service_name: str = Form(""),
     test_type: str = Form(""),
+    simulate: str = Form(""),
     remark: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -54,6 +55,7 @@ def create_prebuilt(
         description=description.strip() or None,
         service_name=service_name.strip() or None,
         test_type=test_type.strip() or None,
+        simulate=simulate.strip() or None,
         remark=remark.strip() or None,
     )
     db.add(prebuilt)
@@ -81,6 +83,7 @@ def update_prebuilt(
     description: str = Form(""),
     service_name: str = Form(""),
     test_type: str = Form(""),
+    simulate: str = Form(""),
     remark: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -91,6 +94,7 @@ def update_prebuilt(
     prebuilt.description = description.strip() or None
     prebuilt.service_name = service_name.strip() or None
     prebuilt.test_type = test_type.strip() or None
+    prebuilt.simulate = simulate.strip() or None
     prebuilt.remark = remark.strip() or None
     db.commit()
     return RedirectResponse(url=f"/prebuilt/{prebuilt_id}", status_code=303)
@@ -108,6 +112,38 @@ def delete_prebuilt(request: Request, prebuilt_id: int, db: Session = Depends(ge
     db.delete(prebuilt)
     db.commit()
     return RedirectResponse(url="/prebuilt", status_code=303)
+
+
+@router.post("/prebuilt/{prebuilt_id}/sections/reorder")
+def reorder_sections(
+    request: Request,
+    prebuilt_id: int,
+    order: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Persist a new section order.
+
+    ``order`` is a comma-separated list of section ids in their new order.
+    Ids that don't belong to this template are rejected outright rather
+    than partially applied.
+    """
+    prebuilt = db.get(PrebuiltTestCase, prebuilt_id)
+    if prebuilt is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+
+    by_id = {section.id: section for section in prebuilt.sections}
+    try:
+        requested = [int(value) for value in order.split(",") if value.strip()]
+    except ValueError:
+        return _render_detail(request, prebuilt, error="Invalid section order.", status_code=422)
+
+    if sorted(requested) != sorted(by_id):
+        return _render_detail(request, prebuilt, error="Section order does not match this template.", status_code=422)
+
+    for position, section_id in enumerate(requested):
+        by_id[section_id].position = position
+    db.commit()
+    return RedirectResponse(url=f"/prebuilt/{prebuilt_id}", status_code=303)
 
 
 @router.post("/prebuilt/{prebuilt_id}/sections")

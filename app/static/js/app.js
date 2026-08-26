@@ -1,3 +1,12 @@
+// ── No browser autofill inside modals ────────────────────────────────────────
+// Chrome's autofill dropdown (previously-typed values) is noise on fields
+// like these — every value here is meant to be typed fresh, not recalled.
+document.querySelectorAll("[data-modal] input, [data-modal] select, [data-modal] textarea").forEach((field) => {
+  if (!field.hasAttribute("autocomplete") && field.type !== "radio" && field.type !== "checkbox") {
+    field.setAttribute("autocomplete", "off");
+  }
+});
+
 // ── Copy-to-clipboard for curl snippets ─────────────────────────────────────
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy]");
@@ -217,11 +226,15 @@ document.addEventListener("submit", (event) => {
 })();
 
 // ── Drag to reorder sections ────────────────────────────────────────────────
-(function initSectionReorder() {
-  const container = document.querySelector("[data-sections]");
-  if (!container) return;
+// Shared by the test case execution page and the prebuilt template editor.
+document.querySelectorAll("[data-sections]").forEach(initSectionReorder);
 
+function initSectionReorder(container) {
   const cards = () => Array.from(container.querySelectorAll(".section-card"));
+  // A test case page has a Description card above the section list, so its
+  // numbering starts at 2; a prebuilt template has no such card and starts
+  // at 1. data-index-offset lets each page say which.
+  const indexOffset = parseInt(container.dataset.indexOffset || "1", 10);
   let dragging = null;
 
   function setState(card, text, state) {
@@ -239,8 +252,7 @@ document.addEventListener("submit", (event) => {
   function renumber() {
     cards().forEach((card, index) => {
       const label = card.querySelector("[data-section-index]");
-      // Card 1 is the Description panel, so sections start at 2.
-      if (label) label.textContent = String(index + 2);
+      if (label) label.textContent = String(index + indexOffset);
     });
   }
 
@@ -318,11 +330,19 @@ document.addEventListener("submit", (event) => {
     renumber();
     persist(moved);
   });
-})();
+}
 
-// ── Prebuilt picker: search/filter and title autofill ───────────────────────
-function filterPrebuiltOptions(control) {
-  const field = control.closest(".field");
+// ── Prebuilt picker: search/filter, pagination, and title autofill ──────────
+// "Blank" is pinned — always visible, never paginated or filtered away.
+// Everything else is filtered by search/service/test-type, then sliced into
+// pages of PREBUILT_PAGE_SIZE so a large template library stays scannable.
+const PREBUILT_PAGE_SIZE = 8;
+
+function prebuiltRealOptions(field) {
+  return Array.from(field.querySelectorAll("[data-prebuilt-option]")).filter((o) => o.dataset.name !== "");
+}
+
+function applyPrebuiltView(field, resetPage) {
   if (!field) return;
   const search = (field.querySelector("[data-prebuilt-search]")?.value || "").trim().toLowerCase();
   const filters = {};
@@ -330,32 +350,70 @@ function filterPrebuiltOptions(control) {
     if (select.value) filters[select.dataset.prebuiltFilter] = select.value;
   });
 
-  let anyVisible = false;
-  field.querySelectorAll("[data-prebuilt-option]").forEach((option) => {
-    const isBlank = option.dataset.name === "";
-    const matchesSearch = isBlank || !search || option.dataset.name.includes(search);
-    const matchesFilters = isBlank || Object.entries(filters).every(([key, value]) => option.dataset[key] === value);
-    const visible = matchesSearch && matchesFilters;
-    option.hidden = !visible;
-    if (visible) anyVisible = true;
+  const matches = prebuiltRealOptions(field).filter((option) => {
+    const matchesSearch = !search || option.dataset.name.includes(search);
+    const matchesFilters = Object.entries(filters).every(([key, value]) => option.dataset[key] === value);
+    return matchesSearch && matchesFilters;
+  });
+
+  if (resetPage) field.dataset.prebuiltPage = "0";
+  const totalPages = Math.max(1, Math.ceil(matches.length / PREBUILT_PAGE_SIZE));
+  let page = parseInt(field.dataset.prebuiltPage || "0", 10);
+  page = Math.min(Math.max(page, 0), totalPages - 1);
+  field.dataset.prebuiltPage = String(page);
+
+  const start = page * PREBUILT_PAGE_SIZE;
+  const visible = new Set(matches.slice(start, start + PREBUILT_PAGE_SIZE));
+  prebuiltRealOptions(field).forEach((option) => {
+    option.hidden = !visible.has(option);
   });
 
   const empty = field.querySelector("[data-prebuilt-empty]");
-  if (empty) empty.hidden = anyVisible;
+  if (empty) empty.hidden = matches.length > 0;
+
+  const pager = field.querySelector("[data-prebuilt-pager]");
+  if (pager) {
+    pager.hidden = totalPages <= 1;
+    const label = pager.querySelector("[data-prebuilt-page-label]");
+    if (label) label.textContent = `Page ${page + 1} of ${totalPages}`;
+    const prev = pager.querySelector("[data-prebuilt-prev]");
+    const next = pager.querySelector("[data-prebuilt-next]");
+    if (prev) prev.disabled = page === 0;
+    if (next) next.disabled = page >= totalPages - 1;
+  }
 }
 
+// Paginate every picker on load, even before any search/filter interaction.
+document.querySelectorAll("[data-prebuilt-list]").forEach((list) => applyPrebuiltView(list.closest(".field"), true));
+
 document.addEventListener("input", (event) => {
-  if (event.target.matches("[data-prebuilt-search]")) filterPrebuiltOptions(event.target);
+  if (event.target.matches("[data-prebuilt-search]")) applyPrebuiltView(event.target.closest(".field"), true);
 });
 
 document.addEventListener("change", (event) => {
-  if (event.target.matches("[data-prebuilt-filter]")) filterPrebuiltOptions(event.target);
+  if (event.target.matches("[data-prebuilt-filter]")) applyPrebuiltView(event.target.closest(".field"), true);
 
   if (event.target.matches('input[name="prebuilt_id"]')) {
     const name = event.target.dataset.prebuiltName;
     if (!name) return; // "Blank" carries no name — leave whatever the user typed
     const title = event.target.closest("form")?.querySelector('input[name="title"]');
     if (title) title.value = name;
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const prev = event.target.closest("[data-prebuilt-prev]");
+  if (prev) {
+    const field = prev.closest(".field");
+    field.dataset.prebuiltPage = String(Math.max(0, parseInt(field.dataset.prebuiltPage || "0", 10) - 1));
+    applyPrebuiltView(field, false);
+    return;
+  }
+  const next = event.target.closest("[data-prebuilt-next]");
+  if (next) {
+    const field = next.closest(".field");
+    field.dataset.prebuiltPage = String(parseInt(field.dataset.prebuiltPage || "0", 10) + 1);
+    applyPrebuiltView(field, false);
   }
 });
 

@@ -182,7 +182,7 @@
 </div>
 {% endmacro %}
 
-<div data-sections data-reorder-action="/testcases/{{ testcase.id }}/sections/reorder">
+<div data-sections data-reorder-action="/testcases/{{ testcase.id }}/sections/reorder" data-index-offset="2">
 {% for section in testcase.sections %}
   <div class="card section-card" data-section-id="{{ section.id }}">
     <div class="card-head">

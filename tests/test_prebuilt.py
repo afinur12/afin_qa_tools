@@ -32,6 +32,33 @@ def test_new_prebuilt_starts_with_the_three_default_sections(client):
     assert len(_section_ids(client, prebuilt_id)) == 3
 
 
+def test_prebuilt_sections_can_be_reordered(client):
+    prebuilt_id = _make_prebuilt(client, "Reorder me")
+    pre, main, post = _section_ids(client, prebuilt_id)
+
+    response = client.post(
+        f"/prebuilt/{prebuilt_id}/sections/reorder",
+        data={"order": f"{post},{pre},{main}"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert _section_ids(client, prebuilt_id) == [post, pre, main]
+
+
+def test_prebuilt_reorder_rejects_ids_from_another_prebuilt(client):
+    first = _make_prebuilt(client, "First")
+    second = _make_prebuilt(client, "Second")
+    intruder = _section_ids(client, second)[0]
+    original = _section_ids(client, first)
+
+    response = client.post(
+        f"/prebuilt/{first}/sections/reorder",
+        data={"order": ",".join(original[:2] + [intruder])},
+    )
+    assert response.status_code == 422
+    assert _section_ids(client, first) == original
+
+
 def test_prebuilt_steps_can_be_added_and_listed(client):
     prebuilt_id = _make_prebuilt(client, "With steps")
     section = _section_ids(client, prebuilt_id)[1]
@@ -95,7 +122,10 @@ def test_editing_a_prebuilt_does_not_change_cases_already_created_from_it(client
 def test_prebuilt_service_name_test_type_and_remark_round_trip(client):
     resp = client.post(
         "/prebuilt",
-        data={"name": "Tagged", "description": "d", "service_name": "payment-service", "test_type": "NEGATIVE", "remark": "flaky on staging"},
+        data={
+            "name": "Tagged", "description": "d", "service_name": "payment-service",
+            "test_type": "NEGATIVE", "simulate": "API Testing", "remark": "flaky on staging",
+        },
         follow_redirects=False,
     )
     prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
@@ -103,11 +133,13 @@ def test_prebuilt_service_name_test_type_and_remark_round_trip(client):
     page = client.get(f"/prebuilt/{prebuilt_id}").text
     assert "payment-service" in page
     assert "NEGATIVE" in page
+    assert "API Testing" in page
     assert "flaky on staging" in page
 
     list_page = client.get("/prebuilt").text
     assert "payment-service" in list_page
     assert "NEGATIVE" in list_page
+    assert "API Testing" in list_page
 
 
 def test_creating_a_testcase_from_a_prebuilt_prefills_test_type_and_remark(client):

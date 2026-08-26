@@ -5,9 +5,9 @@
    standalone form page with its inline error, which also serves as the
    no-JS fallback: the "+ New ..." trigger keeps a real href.
 #}
-{% macro modal(id, title, action, hint=None) %}
+{% macro modal(id, title, action, hint=None, wide=False) %}
 <div class="modal-backdrop" id="{{ id }}" data-modal hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title">
+  <div class="modal{% if wide %} modal--wide{% endif %}" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title">
     <div class="modal-head">
       <div class="modal-title" id="{{ id }}-title">{{ title }}</div>
       <div class="spacer"></div>

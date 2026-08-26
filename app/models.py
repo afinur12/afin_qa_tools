@@ -285,6 +285,7 @@ class PrebuiltTestCase(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     service_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     test_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    simulate: Mapped[str | None] = mapped_column(String(32), nullable=True)
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 

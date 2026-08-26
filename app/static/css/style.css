@@ -520,6 +520,7 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 20px; }
 
 .form-actions {
   display: flex;
@@ -762,6 +763,9 @@ tbody tr:hover { background: var(--surface-sunk); }
   max-height: 90vh;
   overflow-y: auto;
 }
+.modal--wide { max-width: 860px; }
+.prebuilt-list { max-height: 340px; overflow-y: auto; padding-right: 4px; }
+.prebuilt-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
 .modal-head { display: flex; align-items: center; margin-bottom: 20px; }
 .modal-title { font-size: 18px; font-weight: 700; }
 
@@ -819,6 +823,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   .brand { padding: 0 14px 0 4px; }
   .main { padding: 22px 18px 48px; }
   .grid-2 { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr; }
   .page-title { font-size: 24px; }
 }
 
