@@ -90,11 +90,13 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy]");
   if (!button) return;
 
-  const block = button.closest(".code-block");
-  const body = block && block.querySelector(".code-body");
-  if (!body) return;
-
-  const text = body.textContent;
+  let text = button.dataset.copyText;
+  if (text === undefined) {
+    const block = button.closest(".code-block");
+    const body = block && block.querySelector(".code-body");
+    if (!body) return;
+    text = body.textContent;
+  }
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -576,12 +578,15 @@ function detectSnippetLanguage(text) {
   return "TEXT";
 }
 
-document.addEventListener("paste", (event) => {
-  if (!event.target.matches("[data-note-content]")) return;
-  const pasted = (event.clipboardData || window.clipboardData)?.getData("text");
-  if (!pasted) return;
-  const detected = detectSnippetLanguage(pasted);
-  if (!detected) return;
-  const languageSelect = event.target.closest("form")?.querySelector("[data-note-language]");
-  if (languageSelect) languageSelect.value = detected;
+// Detected at submit time, against whatever the field actually holds, rather
+// than at paste time against just the pasted text: the language field is
+// hidden (no dropdown to show a live guess to), so there's no reason to
+// commit to a guess before the user is done — typing after a paste, editing
+// a paste, or pasting more than once should all still land on the type that
+// matches what's actually being saved.
+document.addEventListener("submit", (event) => {
+  const contentField = event.target.querySelector("[data-note-content]");
+  const languageField = event.target.querySelector("[data-note-language]");
+  if (!contentField || !languageField) return;
+  languageField.value = detectSnippetLanguage(contentField.value) || "TEXT";
 });

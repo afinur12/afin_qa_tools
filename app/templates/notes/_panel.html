@@ -8,45 +8,46 @@
 
   {% for note in notes %}
   <div class="code-block">
-    <div class="code-bar">
-      <span class="code-method">{{ note.language }}</span>
-      {% if note.remark %}<span class="code-url">{{ note.remark }}</span>{% endif %}
-      <div class="spacer"></div>
-      <button class="copy-btn" type="button" data-copy>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        <span data-copy-label>Copy</span>
-      </button>
+    <div class="snippet-actions">
       <form class="inline-form" method="post" action="/notes/{{ note.id }}/delete">
         <input type="hidden" name="attach_type" value="{{ attach_type }}">
         <input type="hidden" name="attach_id" value="{{ attach_id }}">
-        <button class="copy-btn" type="submit" title="Remove">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <button class="snippet-icon-btn" type="submit" title="Remove">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </form>
+      <button class="snippet-icon-btn" type="button" data-copy data-copy-text="{{ note.content }}" title="Copy">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span class="sr-only" data-copy-label>Copy</span>
+      </button>
     </div>
-    <pre class="code-body">{{ note.content }}</pre>
+
+    <div class="snippet-header">
+      <div class="snippet-title">{{ note.language }}</div>
+      {% if note.remark %}<div class="snippet-remark">{{ note.remark }}</div>{% endif %}
+    </div>
+
+    <div class="snippet-code">
+      {% for line in note.content.split('\n') %}
+      <div class="snippet-line">
+        <span class="snippet-line-no">{{ loop.index }}</span>
+        <span class="snippet-line-text">{{ line }}</span>
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% endfor %}
 
   <form method="post" action="/notes">
     <input type="hidden" name="attach_type" value="{{ attach_type }}">
     <input type="hidden" name="attach_id" value="{{ attach_id }}">
-    <div class="grid-2" style="gap:2px 16px;">
-      <div class="field">
-        <label>Type</label>
-        <select name="language" data-note-language autocomplete="off">
-          {% for o in ['CURL', 'JSON', 'SQL', 'TEXT', 'YAML', 'XML', 'BASH', 'PYTHON', 'JAVASCRIPT'] %}
-          <option value="{{ o }}">{{ o }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>Remark</label>
-        <input name="remark" placeholder="Optional description" autocomplete="off">
-      </div>
+    <input type="hidden" name="language" value="TEXT" data-note-language>
+    <div class="field">
+      <label>Remark</label>
+      <input name="remark" placeholder="Optional description" autocomplete="off">
     </div>
     <div class="field">
-      <textarea name="content" rows="4" placeholder="Paste your snippet here&hellip;" data-note-content autocomplete="off" required></textarea>
+      <textarea name="content" rows="4" placeholder="Paste your snippet here&hellip; (type is detected automatically)" data-note-content autocomplete="off" required></textarea>
     </div>
     <button class="btn secondary" type="submit">+ Add Note</button>
   </form>
