@@ -7,3 +7,6 @@ app/uploads/exports/**
 !app/uploads/screenshots/.gitkeep
 !app/uploads/exports/.gitkeep
 .filesqa_toolbox.db.bak-*
+build/
+dist/
+*.spec
