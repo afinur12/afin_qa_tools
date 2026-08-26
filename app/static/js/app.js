@@ -175,3 +175,147 @@ document.querySelectorAll("form[data-autosave]").forEach((form) => {
     }
   });
 });
+
+// ── Keep the scroll position across full-page form posts ────────────────────
+// Adding a step or a section posts and redirects, which used to drop the
+// viewport back at the top of a long execution page. Stash the offset on
+// submit and put it back after the reload.
+const SCROLL_KEY = `qa-toolbox:scroll:${location.pathname}`;
+
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
+document.addEventListener("submit", (event) => {
+  // Autosave posts via fetch and never reloads, so it needs no stashing.
+  if (event.target.matches("form[data-autosave]")) return;
+  try {
+    sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+  } catch {
+    /* private mode or storage disabled — scroll just won't be restored */
+  }
+});
+
+(function restoreScroll() {
+  let saved = null;
+  try {
+    saved = sessionStorage.getItem(SCROLL_KEY);
+    if (saved !== null) sessionStorage.removeItem(SCROLL_KEY);
+  } catch {
+    return;
+  }
+  if (saved === null) return;
+
+  const target = parseInt(saved, 10);
+  if (Number.isNaN(target)) return;
+
+  // Run once now and once after load: images and fonts settling can change
+  // the document height between the two.
+  const apply = () => window.scrollTo(0, target);
+  requestAnimationFrame(apply);
+  window.addEventListener("load", () => requestAnimationFrame(apply), { once: true });
+})();
+
+// ── Drag to reorder sections ────────────────────────────────────────────────
+(function initSectionReorder() {
+  const container = document.querySelector("[data-sections]");
+  if (!container) return;
+
+  const cards = () => Array.from(container.querySelectorAll(".section-card"));
+  let dragging = null;
+
+  function setState(card, text, state) {
+    container.querySelectorAll("[data-reorder-state]").forEach((el) => {
+      el.textContent = "";
+      delete el.dataset.state;
+    });
+    const indicator = card && card.querySelector("[data-reorder-state]");
+    if (indicator) {
+      indicator.textContent = text;
+      indicator.dataset.state = state;
+    }
+  }
+
+  function renumber() {
+    cards().forEach((card, index) => {
+      const label = card.querySelector("[data-section-index]");
+      // Card 1 is the Description panel, so sections start at 2.
+      if (label) label.textContent = String(index + 2);
+    });
+  }
+
+  // `card` is passed in because dragend clears `dragging` synchronously,
+  // before this promise resolves — reading it after the await would leave the
+  // confirmation with nowhere to render.
+  async function persist(card) {
+    const order = cards().map((item) => item.dataset.sectionId).join(",");
+    const body = new FormData();
+    body.append("order", order);
+    setState(card, "Saving…", "saving");
+    try {
+      const response = await fetch(container.dataset.reorderAction, { method: "POST", body });
+      setState(card, response.ok ? "Order saved" : "Not saved", response.ok ? "saved" : "error");
+    } catch {
+      setState(card, "Not saved", "error");
+    }
+    setTimeout(() => setState(card, "", ""), 1600);
+  }
+
+  // A handle-only drag would use the handle as the drag image. Flipping the
+  // card's draggable flag on handle press makes the whole card the subject
+  // while still leaving text in the card selectable the rest of the time.
+  container.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest("[data-drag-handle]");
+    if (!handle) return;
+    const card = handle.closest(".section-card");
+    if (card) card.draggable = true;
+  });
+
+  document.addEventListener("pointerup", () => {
+    cards().forEach((card) => {
+      card.draggable = false;
+    });
+  });
+
+  container.addEventListener("dragstart", (event) => {
+    const card = event.target.closest(".section-card");
+    if (!card || !card.draggable) return;
+    dragging = card;
+    card.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    // Firefox needs data set for a drag to start at all.
+    event.dataTransfer.setData("text/plain", card.dataset.sectionId);
+  });
+
+  container.addEventListener("dragover", (event) => {
+    if (!dragging) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+
+    const after = cards().find((card) => {
+      if (card === dragging) return false;
+      const box = card.getBoundingClientRect();
+      return event.clientY < box.top + box.height / 2;
+    });
+
+    if (after) {
+      if (after !== dragging.nextElementSibling) container.insertBefore(dragging, after);
+    } else if (container.lastElementChild !== dragging) {
+      container.appendChild(dragging);
+    }
+  });
+
+  container.addEventListener("drop", (event) => {
+    if (dragging) event.preventDefault();
+  });
+
+  container.addEventListener("dragend", () => {
+    if (!dragging) return;
+    const moved = dragging;
+    dragging = null;
+    moved.classList.remove("is-dragging");
+    moved.draggable = false;
+    renumber();
+    persist(moved);
+  });
+})();

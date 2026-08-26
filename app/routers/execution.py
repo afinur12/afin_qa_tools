@@ -150,6 +150,38 @@ def create_section(
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
 
 
+@router.post("/testcases/{testcase_id}/sections/reorder")
+def reorder_sections(
+    request: Request,
+    testcase_id: int,
+    order: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Persist a new section order.
+
+    ``order`` is a comma-separated list of section ids in their new order.
+    Ids that don't belong to this test case are rejected outright rather than
+    partially applied.
+    """
+    testcase = db.get(TestCase, testcase_id)
+    if testcase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+
+    by_id = {section.id: section for section in testcase.sections}
+    try:
+        requested = [int(value) for value in order.split(",") if value.strip()]
+    except ValueError:
+        return _render_execute(request, testcase, error="Invalid section order.", status_code=422)
+
+    if sorted(requested) != sorted(by_id):
+        return _render_execute(request, testcase, error="Section order does not match this test case.", status_code=422)
+
+    for position, section_id in enumerate(requested):
+        by_id[section_id].position = position
+    db.commit()
+    return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
+
+
 @router.post("/testcases/{testcase_id}/sections/{section_id}/delete")
 def delete_section(request: Request, testcase_id: int, section_id: int, db: Session = Depends(get_db)):
     from app import deletion

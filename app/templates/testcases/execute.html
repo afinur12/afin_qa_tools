@@ -167,25 +167,31 @@
 </div>
 {% endmacro %}
 
+<div data-sections data-reorder-action="/testcases/{{ testcase.id }}/sections/reorder">
 {% for section in testcase.sections %}
-<div class="card">
-  <div class="card-head">
-    <div class="card-title">{{ loop.index + 1 }}. {{ section.label }}</div>
-    <div class="card-sub">{{ section.steps | length }} step{{ '' if section.steps | length == 1 else 's' }}</div>
-    <div class="spacer"></div>
-    <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/delete"
-          {% if section.steps %}onsubmit="return confirm('Delete this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
-      <button class="btn danger sm" type="submit">Remove section</button>
+  <div class="card section-card" data-section-id="{{ section.id }}">
+    <div class="card-head">
+      <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+      </span>
+      <div class="card-title"><span data-section-index>{{ loop.index + 1 }}</span>. {{ section.label }}</div>
+      <div class="card-sub">{{ section.steps | length }} step{{ '' if section.steps | length == 1 else 's' }}</div>
+      <div class="spacer"></div>
+      <span class="save-state" data-reorder-state></span>
+      <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/delete"
+            {% if section.steps %}onsubmit="return confirm('Delete this {{ section.label }} block and its {{ section.steps | length }} step(s)?');"{% endif %}>
+        <button class="btn danger sm" type="submit">Remove section</button>
+      </form>
+    </div>
+
+    {% for step in section.steps %}{{ step_block(step) }}{% endfor %}
+
+    <form method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/steps">
+      <button class="btn secondary sm" type="submit">+ Add Step</button>
     </form>
   </div>
-
-  {% for step in section.steps %}{{ step_block(step) }}{% endfor %}
-
-  <form method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/steps">
-    <button class="btn secondary sm" type="submit">+ Add Step</button>
-  </form>
-</div>
 {% endfor %}
+</div>
 
 <div class="card">
   <div class="card-head" style="margin-bottom:12px;">

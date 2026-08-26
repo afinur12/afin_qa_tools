@@ -25,10 +25,10 @@ def _section_ids(client, testcase_id):
 
 
 def _section_labels(client, testcase_id):
+    """Section names in rendered order. Only section cards carry the index
+    span, so the Description panel is excluded automatically."""
     page = client.get(f"/testcases/{testcase_id}/execute")
-    titles = re.findall(r'class="card-title">\d+\. ([^<]+)</div>', page.text)
-    # Card 1 is the Description panel, not a step section.
-    return [t for t in titles if t != "Description"]
+    return re.findall(r"<span data-section-index>\d+</span>\. ([^<]+)</div>", page.text)
 
 
 def test_new_testcase_starts_with_the_three_default_sections(client):
@@ -122,3 +122,48 @@ def test_image_zip_disambiguates_repeated_section_kinds(client):
     names = zipfile.ZipFile(io.BytesIO(client.get(f"/testcases/{testcase_id}/export-images").content)).namelist()
     # Each block's own heading letter keeps repeated kinds apart.
     assert names == ["B.MAIN-TEST_1.Check A.png", "D.MAIN-TEST_1.Check B.png"]
+
+
+def test_sections_can_be_reordered(client):
+    testcase_id = _make_testcase(client, "EX-706")
+    pre, main, post = _section_ids(client, testcase_id)
+
+    # Drag Post Condition to the front.
+    response = client.post(
+        f"/testcases/{testcase_id}/sections/reorder",
+        data={"order": f"{post},{pre},{main}"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert _section_labels(client, testcase_id) == ["Post Condition", "Pre Condition", "Main Test"]
+    assert _section_ids(client, testcase_id) == [post, pre, main]
+
+
+def test_reorder_rejects_ids_from_another_testcase(client):
+    first = _make_testcase(client, "EX-707")
+    second = _make_testcase(client, "EX-708")
+    intruder = _section_ids(client, second)[0]
+    original = _section_ids(client, first)
+
+    response = client.post(
+        f"/testcases/{first}/sections/reorder",
+        data={"order": ",".join(original[:2] + [intruder])},
+    )
+    assert response.status_code == 422
+    # Nothing was applied.
+    assert _section_ids(client, first) == original
+
+
+def test_reorder_survives_in_the_export(client, tmp_path):
+    from docx import Document
+
+    testcase_id = _make_testcase(client, "EX-709")
+    pre, main, post = _section_ids(client, testcase_id)
+    client.post(f"/testcases/{testcase_id}/sections/reorder", data={"order": f"{main},{post},{pre}"})
+
+    response = client.get(f"/testcases/{testcase_id}/export-docx")
+    out = tmp_path / "reordered.docx"
+    out.write_bytes(response.content)
+    doc = Document(str(out))
+    headings = [p.text.strip() for p in doc.paragraphs if p.style.name == "Heading 1" and p.text.strip()]
+    assert headings == ["MAIN TEST", "POST CONDITION", "PRE CONDITION"]
