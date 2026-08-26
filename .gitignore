@@ -10,3 +10,6 @@ app/uploads/exports/**
 build/
 dist/
 *.spec
+*.exe
+.venv/
+backups/
