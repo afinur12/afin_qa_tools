@@ -5,6 +5,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 import zipfile
 from datetime import datetime
@@ -46,6 +47,47 @@ def get_python():
     if not getattr(sys, "frozen", False):
         return sys.executable
     return None
+
+
+def _find_stray_server_pids():
+    """PIDs of any python process serving this app's uvicorn — including
+    ones this launcher didn't start itself (e.g. a terminal-started dev
+    server). Only self.proc is tracked normally, which misses those and
+    leaves qa_toolbox.db locked out from under Reset/Import."""
+    try:
+        result = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                "Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" "
+                "| Where-Object { $_.CommandLine -like '*app.main:app*' } "
+                "| Select-Object -ExpandProperty ProcessId",
+            ],
+            capture_output=True, text=True, creationflags=NO_WINDOW, timeout=10,
+        )
+        return [int(pid) for pid in result.stdout.split() if pid.strip().isdigit()]
+    except Exception:
+        return []
+
+
+def _kill_stray_servers():
+    for pid in _find_stray_server_pids():
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            creationflags=NO_WINDOW, capture_output=True,
+        )
+
+
+def _retry(action, attempts=10, delay=0.3):
+    """Run `action`, retrying on OSError (e.g. WinError 32 - file still in
+    use for a moment after the process holding it was just killed)."""
+    last_err = None
+    for _ in range(attempts):
+        try:
+            return action()
+        except OSError as e:
+            last_err = e
+            time.sleep(delay)
+    raise last_err
 
 
 def _clear_uploads():
@@ -308,12 +350,17 @@ class LauncherApp:
         was_running = self.proc is not None
         if was_running:
             self.stop()
+        _kill_stray_servers()
         try:
             if os.path.exists(DB_PATH):
-                os.remove(DB_PATH)
+                _retry(lambda: os.remove(DB_PATH))
             _clear_uploads()
         except Exception as e:
-            messagebox.showerror("Reset failed", str(e))
+            messagebox.showerror(
+                "Reset failed",
+                f"{e}\n\nAnother program may still have qa_toolbox.db open "
+                "(e.g. a database viewer, or a server started outside this launcher).",
+            )
             return
         messagebox.showinfo("Reset complete", "All data cleared. Database and uploads are empty.")
         if was_running:
@@ -340,12 +387,15 @@ class LauncherApp:
         was_running = self.proc is not None
         if was_running:
             self.stop()
+        _kill_stray_servers()
         try:
             with zipfile.ZipFile(path) as zf:
                 names = zf.namelist()
                 if "qa_toolbox.db" not in names:
                     raise RuntimeError("Not a QA Toolbox backup (missing qa_toolbox.db).")
                 _clear_uploads()
+                if os.path.exists(DB_PATH):
+                    _retry(lambda: os.remove(DB_PATH))
                 with zf.open("qa_toolbox.db") as src, open(DB_PATH, "wb") as dst:
                     shutil.copyfileobj(src, dst)
                 for name in names:
@@ -356,7 +406,11 @@ class LauncherApp:
                     with zf.open(name) as src, open(dest, "wb") as dst:
                         shutil.copyfileobj(src, dst)
         except Exception as e:
-            messagebox.showerror("Import failed", str(e))
+            messagebox.showerror(
+                "Import failed",
+                f"{e}\n\nAnother program may still have qa_toolbox.db open "
+                "(e.g. a database viewer, or a server started outside this launcher).",
+            )
             return
         messagebox.showinfo("Import complete", "Backup restored.")
         if was_running:
