@@ -444,6 +444,10 @@ body.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 
+/* Lets a wide table scroll horizontally inside its card instead of being
+   clipped by .card.flush's overflow:hidden on narrow (phone) viewports. */
+.table-scroll { overflow-x: auto; }
+
 table { width: 100%; border-collapse: collapse; }
 
 th {
@@ -890,6 +894,17 @@ tbody tr:hover { background: var(--surface-sunk); }
   .grid-2 { grid-template-columns: 1fr; }
   .grid-3 { grid-template-columns: 1fr; }
   .page-title { font-size: 24px; }
+
+  /* The desktop "collapse rail" preference is remembered per-browser and
+     otherwise outranks the rules above (two classes beat one), squeezing
+     the mobile top bar into a 68px icon-only strip. Collapsing only makes
+     sense for the side-rail layout, so undo it here. */
+  body.is-collapsed .sidebar { width: 100%; padding-left: 14px; padding-right: 14px; }
+  body.is-collapsed .brand { justify-content: flex-start; padding: 0 14px 0 4px; }
+  body.is-collapsed .brand-text,
+  body.is-collapsed .nav-link span,
+  body.is-collapsed .sidebar-toggle span { display: inline; }
+  body.is-collapsed .nav-link { justify-content: flex-start; padding: 9px 11px; }
 }
 
 /* Radio choice rows (e.g. picking a prebuilt template) */
