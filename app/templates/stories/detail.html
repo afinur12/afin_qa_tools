@@ -1,8 +1,18 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron, icon_download, icon_doc with context %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
+
+{% set ns = namespace(has_testcases=false, has_images=false) %}
+{% for phase in story.phases %}
+  {% for subtask in phase.subtasks %}
+    {% if subtask.testcases %}{% set ns.has_testcases = true %}{% endif %}
+    {% for tc in subtask.testcases %}
+      {% if tc.all_steps | map(attribute='screenshots') | select | first is defined %}{% set ns.has_images = true %}{% endif %}
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
 
 <div class="page-head">
   <div>
@@ -16,6 +26,14 @@
   <form class="inline-form" method="post" action="/stories/{{ story.id }}/delete">
     <button class="btn danger" type="submit">Delete</button>
   </form>
+  {% if ns.has_testcases %}
+  {% if ns.has_images %}
+  <a class="btn act export" href="/stories/{{ story.id }}/export-images"
+     title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
+  {% endif %}
+  <a class="btn act docx" href="/stories/{{ story.id }}/export-docx"
+     title="Download all docx (.zip)" aria-label="Download all docx as a zip">{{ icon_doc() }}</a>
+  {% endif %}
 </div>
 
 {% call modal('edit-story', 'Edit Story', '/stories/' ~ story.id ~ '/edit') %}

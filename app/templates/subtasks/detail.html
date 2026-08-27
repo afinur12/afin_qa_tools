@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -7,6 +7,11 @@
   <a href="/stories/{{ subtask.phase.story.id }}">{{ subtask.phase.story.display_code }}</a><span class="sep">/</span>
   {{ subtask.display_code }}
 </div>
+
+{% set ns = namespace(has_images=false) %}
+{% for tc in subtask.testcases %}
+  {% if tc.all_steps | map(attribute='screenshots') | select | first is defined %}{% set ns.has_images = true %}{% endif %}
+{% endfor %}
 
 <div class="page-head">
   <div>
@@ -22,6 +27,14 @@
         data-confirm="Delete this subtask, and all of its test cases and bugs?">
     <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask">{{ icon_trash() }}</button>
   </form>
+  {% if subtask.testcases %}
+  {% if ns.has_images %}
+  <a class="btn act export" href="/subtasks/{{ subtask.id }}/export-images"
+     title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
+  {% endif %}
+  <a class="btn act docx" href="/subtasks/{{ subtask.id }}/export-docx"
+     title="Download all docx (.zip)" aria-label="Download all docx as a zip">{{ icon_doc() }}</a>
+  {% endif %}
 </div>
 
 {% call modal('edit-subtask', 'Edit Subtask', '/subtasks/' ~ subtask.id ~ '/edit') %}

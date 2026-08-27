@@ -1089,6 +1089,9 @@ tbody tr:hover { background: var(--surface-sunk); }
 .pdf-editor-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .pdf-editor-toolbar .btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
 
+.pdf-zoom-controls { display: flex; align-items: center; gap: 8px; }
+.pdf-zoom-controls span { font-size: 13px; font-weight: 600; color: var(--ink-2); min-width: 42px; text-align: center; }
+
 .pdf-editor-layout {
   display: grid;
   grid-template-columns: 160px 1fr;
@@ -1153,7 +1156,12 @@ tbody tr:hover { background: var(--surface-sunk); }
   overflow: auto;
 }
 .pdf-editor-canvas-wrap canvas { display: block; box-shadow: 0 1px 3px rgba(27, 27, 25, 0.15); }
-.pdf-annot-layer { position: absolute; top: 12px; left: 12px; }
+/* pointer-events:none so clicks in empty space fall through to the canvas
+   below (needed for click-to-edit-existing-text); individual boxes opt back
+   into being interactive. */
+.pdf-annot-layer { position: absolute; top: 12px; left: 12px; pointer-events: none; }
+
+.pdf-editor-canvas-wrap canvas { cursor: text; }
 
 .pdf-annot {
   position: absolute;
@@ -1162,8 +1170,11 @@ tbody tr:hover { background: var(--surface-sunk); }
   flex-direction: column;
   min-width: 40px;
   min-height: 24px;
+  pointer-events: auto;
 }
-.pdf-annot.cover { background: #fff; }
+/* cover annotations get their background set inline, sampled from the page
+   pixels behind them, so the patch blends with a shaded cell instead of
+   punching a plain white rectangle through it */
 .pdf-annot-grip {
   height: 16px;
   background: var(--indigo);
@@ -1214,6 +1225,62 @@ tbody tr:hover { background: var(--surface-sunk); }
   border-radius: 3px;
   background: var(--indigo);
   cursor: nwse-resize;
+}
+
+/* Highlights the text run under the cursor before it's clicked, so it's
+   obvious what "click to edit" is about to grab — mirrors Sejda's hover cue. */
+.pdf-text-hover {
+  position: absolute;
+  background: rgba(91, 87, 232, 0.16);
+  border: 1px solid rgba(91, 87, 232, 0.4);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* Small floating toolbar above the active annotation box — font size and
+   color, editable after placement (not just at creation time). */
+.pdf-annot-toolbar {
+  position: absolute;
+  left: 0;
+  top: -34px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--ink);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: var(--shadow-pop);
+  white-space: nowrap;
+  z-index: 2;
+}
+.pdf-annot-toolbar button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.pdf-annot-toolbar button:hover { background: rgba(255, 255, 255, 0.16); }
+.pdf-annot-toolbar span {
+  color: #fff;
+  font-size: 11px;
+  min-width: 18px;
+  text-align: center;
+}
+.pdf-annot-toolbar input[type="color"] {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
 }
 
 .signature-pad-canvas {
