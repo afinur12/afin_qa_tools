@@ -17,7 +17,7 @@
 </head>
 <body>
 <script>if (document.documentElement.classList.contains('preload-collapsed')) document.body.classList.add('is-collapsed');</script>
-{% from "macros.html" import icon_template with context %}
+{% from "macros.html" import icon_template, icon_wrench with context %}
 {% set path = request.url.path %}
 <div class="app">
 
@@ -45,6 +45,12 @@
     <a class="nav-link {% if path.startswith('/prebuilt') %}active{% endif %}" href="/prebuilt" title="Prebuilt Test Cases">
       {{ icon_template() }}
       <span>Prebuilt</span>
+    </a>
+
+    <div class="nav-label">Utility</div>
+    <a class="nav-link {% if path.startswith('/utility') %}active{% endif %}" href="/utility" title="Utility Tools">
+      {{ icon_wrench() }}
+      <span>Tools</span>
     </a>
 
     <button class="sidebar-toggle" type="button" data-sidebar-toggle

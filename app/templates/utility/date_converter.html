@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="grid-2">
+    <div class="field" style="margin-bottom:0;">
+      <label>Date, ISO string, or Unix timestamp (s or ms)</label>
+      <input type="text" id="dt-input" class="mono" placeholder="e.g. 2026-08-27T10:00:00Z, 1756289000, or now">
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Show local time in timezone</label>
+      <select id="dt-timezone"></select>
+    </div>
+  </div>
+  <div class="form-actions" style="margin-top:14px;">
+    <button class="btn secondary" id="dt-now" type="button">Use current time</button>
+  </div>
+
+  <div id="dt-error" class="error" hidden style="margin-top:14px;"></div>
+
+  <div class="dt-grid" id="dt-output" style="margin-top:18px;"></div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/utility/date_converter.js') }}"></script>
+{% endblock %}

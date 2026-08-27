@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_copy with context %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tool-toolbar">
+    <button class="btn" id="json-prettify" type="button">Prettify</button>
+    <button class="btn secondary" id="json-minify" type="button">Minify</button>
+    <div class="field" style="margin-bottom:0; width:150px;">
+      <select id="json-indent">
+        <option value="2">2 spaces</option>
+        <option value="4">4 spaces</option>
+        <option value="tab">Tab</option>
+      </select>
+    </div>
+    <label class="row" style="gap:6px; font-size:13.5px; font-weight:500;">
+      <input type="checkbox" id="json-sort-keys" style="width:auto;"> Sort keys
+    </label>
+    <div class="spacer"></div>
+    <button class="btn secondary" id="json-copy" type="button" data-copy>
+      {{ icon_copy() }} <span data-copy-label>Copy output</span>
+    </button>
+  </div>
+
+  <div id="json-error" class="error" hidden></div>
+
+  <div class="tool-split">
+    <div>
+      <div class="tool-label">Input JSON</div>
+      <textarea class="tool-textarea" id="json-input" spellcheck="false" placeholder="Paste JSON here&hellip;">{&#10;  &quot;foo&quot;: {&#10;    &quot;bar&quot;: &quot;baz&quot;&#10;  }&#10;}</textarea>
+    </div>
+    <div>
+      <div class="tool-label">Output</div>
+      <pre class="tool-output" id="json-output"></pre>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/utility/json_formatter.js') }}"></script>
+{% endblock %}

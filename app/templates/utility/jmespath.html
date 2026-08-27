@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_copy with context %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tool-label">Expression</div>
+  <input type="text" class="tool-textarea" id="jp-expression" style="min-height:auto; font-size:14px;"
+         spellcheck="false" value="foo.bar">
+
+  <div id="jp-error" class="error" hidden style="margin-top:14px;"></div>
+
+  <div class="tool-split" style="margin-top:14px;">
+    <div>
+      <div class="tool-label">Input JSON</div>
+      <textarea class="tool-textarea" id="jp-input" spellcheck="false">{&#10;  &quot;foo&quot;: {&#10;    &quot;bar&quot;: &quot;baz&quot;&#10;  }&#10;}</textarea>
+    </div>
+    <div>
+      <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+        <div class="tool-label" style="margin-bottom:0;">Result</div>
+        <button class="btn secondary sm" id="jp-copy" type="button" data-copy>
+          {{ icon_copy(13) }} <span data-copy-label>Copy</span>
+        </button>
+      </div>
+      <pre class="tool-output" id="jp-result"></pre>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/vendor/jmespath/jmespath.js') }}"></script>
+<script src="{{ static_url('js/utility/jmespath_tool.js') }}"></script>
+{% endblock %}

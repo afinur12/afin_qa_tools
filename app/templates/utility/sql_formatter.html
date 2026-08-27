@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_copy with context %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tool-toolbar">
+    <div class="field" style="margin-bottom:0; width:170px;">
+      <select id="sql-dialect">
+        <option value="sql">Standard SQL</option>
+        <option value="mysql">MySQL</option>
+        <option value="mariadb">MariaDB</option>
+        <option value="postgresql">PostgreSQL</option>
+        <option value="sqlite">SQLite</option>
+        <option value="transactsql">T-SQL (SQL Server)</option>
+        <option value="plsql">PL/SQL (Oracle)</option>
+        <option value="bigquery">BigQuery</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:0; width:150px;">
+      <select id="sql-keyword-case">
+        <option value="upper">UPPERCASE keywords</option>
+        <option value="lower">lowercase keywords</option>
+        <option value="preserve">Preserve case</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:0; width:110px;">
+      <select id="sql-indent">
+        <option value="2">2 spaces</option>
+        <option value="4">4 spaces</option>
+      </select>
+    </div>
+    <button class="btn" id="sql-format" type="button">Format</button>
+    <div class="spacer"></div>
+    <button class="btn secondary" id="sql-copy" type="button" data-copy>
+      {{ icon_copy() }} <span data-copy-label>Copy output</span>
+    </button>
+  </div>
+
+  <div id="sql-error" class="error" hidden></div>
+
+  <div class="tool-split">
+    <div>
+      <div class="tool-label">Input SQL</div>
+      <textarea class="tool-textarea" id="sql-input" spellcheck="false" placeholder="Paste SQL here&hellip;">select id, name, created_at from users where status = 'active' and created_at > '2026-01-01' order by created_at desc;</textarea>
+    </div>
+    <div>
+      <div class="tool-label">Output</div>
+      <pre class="tool-output" id="sql-output"></pre>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/vendor/sql-formatter/sql-formatter.min.js') }}"></script>
+<script src="{{ static_url('js/utility/sql_formatter.js') }}"></script>
+{% endblock %}

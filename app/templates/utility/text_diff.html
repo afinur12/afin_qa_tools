@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tool-split">
+    <div>
+      <div class="tool-label">Original</div>
+      <textarea class="tool-textarea" id="diff-original" spellcheck="false" placeholder="Paste the original text&hellip;"></textarea>
+    </div>
+    <div>
+      <div class="tool-label">Changed</div>
+      <textarea class="tool-textarea" id="diff-changed" spellcheck="false" placeholder="Paste the changed text&hellip;"></textarea>
+    </div>
+  </div>
+
+  <div class="tool-toolbar" style="margin-top:14px;">
+    <div class="field" style="margin-bottom:0; width:150px;">
+      <select id="diff-mode">
+        <option value="lines">Line by line</option>
+        <option value="words">Word by word</option>
+        <option value="chars">Character by character</option>
+      </select>
+    </div>
+    <button class="btn" id="diff-compare" type="button">Compare</button>
+    <div class="spacer"></div>
+    <span class="muted" style="font-size:12.5px;">
+      <span style="color:#16794a; font-weight:650;">&#9608;</span> added &nbsp;
+      <span style="color:#b4342b; font-weight:650;">&#9608;</span> removed
+    </span>
+  </div>
+
+  <div class="tool-label">Result</div>
+  <div class="diff-view" id="diff-result"></div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/vendor/diff/diff.js') }}"></script>
+<script src="{{ static_url('js/utility/text_diff.js') }}"></script>
+{% endblock %}
