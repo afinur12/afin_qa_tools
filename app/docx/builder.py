@@ -9,6 +9,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml.ns import qn
 from docx.shared import Cm
 from docx.table import Table
+from docx.text.paragraph import Paragraph
 
 from app.models import StepSection
 from app.templating import tracker_url
@@ -202,10 +203,15 @@ def _rebuild_sections(doc: Document, sections) -> None:
         position += 1
         return element
 
-    for section in sections:
+    for section_index, section in enumerate(sections):
         heading = copy.deepcopy(heading_stencils[section.kind])
         _set_paragraph_text(heading, SECTION_HEADINGS[section.kind])
         insert(heading)
+        if section_index > 0:
+            # Each Heading 1 after the first starts on its own page — the
+            # first section already starts fresh right below the header
+            # table, so it gets no break of its own.
+            Paragraph(heading, parent).paragraph_format.page_break_before = True
         insert(OxmlElement("w:p"))
 
         steps = list(section.steps)
