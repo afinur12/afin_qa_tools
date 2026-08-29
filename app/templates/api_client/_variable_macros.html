@@ -1,0 +1,64 @@
+{# Shared by builder.html (the quick Variables panel) and
+   builtin_variables.html (the dedicated CRUD page) — kept in its own
+   extends-free partial because importing a macro `with context` from a
+   template that itself extends a base template evaluates that whole
+   template (including its block content), which blows up on any variable
+   the importing page doesn't happen to define (e.g. `current`). #}
+{% from "macros.html" import icon_pencil, icon_trash, icon_lock with context %}
+
+{% macro variable_row(v) %}
+<div class="ac-var-row">
+  <div class="ac-var-row-head">
+    <span class="ac-var-name"><span class="ac-brace">{{ '{{' }}</span>{{ v.key }}<span class="ac-brace">{{ '}}' }}</span></span>
+    <span class="muted" style="font-size: 12px;">{{ v.description or '' }}</span>
+    <span class="spacer"></span>
+    {% if v.is_sensitive %}<span class="btn act edit" style="background: var(--warn-bg); color: var(--warn); pointer-events: none;">{{ icon_lock(11) }}</span>{% endif %}
+    <a class="btn act edit" href="#" data-modal-open="edit-variable-{{ v.id }}" title="Edit" aria-label="Edit {{ v.key }}">{{ icon_pencil(11) }}</a>
+    <form class="inline-form" method="post" action="/api-client/variables/{{ v.id }}/delete" data-confirm="Delete {{ '{{' }}{{ v.key }}{{ '}}' }}?">
+      <button class="btn act remove" type="submit" title="Delete" aria-label="Delete {{ v.key }}">{{ icon_trash(11) }}</button>
+    </form>
+  </div>
+  {% if v.kind.value == "SCRIPT" %}
+  <div class="ac-preview-code">script &mdash; runs fresh on every send</div>
+  {% else %}
+  <div class="ac-preview-code">{{ v.value }}</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro variable_form_fields(v=None, default_kind='VALUE') %}
+  {% set kind = v.kind.value if v else default_kind %}
+  <div class="field"><label>Name</label><input name="key" value="{{ v.key if v else '' }}" placeholder="e.g. base_url" required></div>
+  <div class="field">
+    <label>Kind</label>
+    <select name="kind" data-ac-var-kind-select>
+      <option value="VALUE" {% if kind == 'VALUE' %}selected{% endif %}>Value</option>
+      <option value="SCRIPT" {% if kind == 'SCRIPT' %}selected{% endif %}>Script (Python)</option>
+    </select>
+  </div>
+  <div class="field" data-ac-var-value-field {% if kind == 'SCRIPT' %}hidden{% endif %}>
+    <label>Value</label>
+    <input name="value" value="{{ v.value if v and v.value else '' }}" placeholder="a plain string">
+  </div>
+  <div class="field" data-ac-var-script-field {% if kind != 'SCRIPT' %}hidden{% endif %}>
+    <label>Script &mdash; the body of an implicit function; use <code>return ...</code></label>
+    <div class="code-block ac-code-editor">
+      <div class="snippet-code ac-code-scroll">
+        <div class="snippet-gutter" data-ac-script-gutter><span>1</span></div>
+        <div class="ac-code-editor-inner">
+          <pre class="snippet-pre ac-code-overlay" data-ac-script-overlay aria-hidden="true"><code class="hljs"></code></pre>
+          <textarea name="script" class="ac-code-textarea" data-ac-script-editor spellcheck="false">{{ v.script if v and v.script else 'return str(uuid.uuid4())' }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="field"><label>Description</label><input name="description" value="{{ v.description if v and v.description else '' }}"></div>
+  <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 16px;">
+    <input type="checkbox" name="is_sensitive" value="1" {% if v and v.is_sensitive %}checked{% endif %}>
+    Sensitive &mdash; mask this value in exported images
+  </label>
+  <div class="form-actions" style="justify-content: flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endmacro %}

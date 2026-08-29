@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_trash, icon_chevron with context %}
+{% block title %}History detail - QA Toolbox{% endblock %}
+{% block content %}
+
+<div class="crumbs"><a href="/api-client/history">History</a> <span class="sep">/</span> <span class="cur">{{ row.method }} {{ row.url[:60] }}</span></div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title" style="font-family: var(--font-mono); font-size: 17px;">
+      <span class="ac-method-badge m-{{ row.method.lower() }}">{{ row.method }}</span> {{ row.url }}
+    </h1>
+    <div class="page-sub">Sent {{ row.sent_at.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn secondary" href="/api-client?restore_history_id={{ row.id }}">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+    Restore to Builder
+  </a>
+  <form method="post" action="/api-client/history/{{ row.id }}/delete" data-confirm="Remove this from history?">
+    <button class="btn danger" type="submit">{{ icon_trash() }} Delete</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title" style="margin-bottom: 10px;">Request Headers</div>
+  {% for k, v in headers %}
+  <div class="ac-kv-row"><span class="ac-kv-key muted" style="font-family: var(--font-mono); font-size: 12px;">{{ k }}</span><span style="font-family: var(--font-mono); font-size: 12px;">{{ v }}</span></div>
+  {% else %}
+  <p class="muted">No headers.</p>
+  {% endfor %}
+  {% if row.request_body %}
+  <div class="card-title" style="margin: 16px 0 10px;">Request Body</div>
+  <div class="code-block">
+    <div class="snippet-code">
+      <div class="snippet-gutter">{% for _ in row.request_body.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}</div>
+      <pre class="snippet-pre"><code data-snippet-code="TEXT">{{ row.request_body }}</code></pre>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="ac-resp-status-row">
+    {% if row.error %}
+    <span class="ac-status-pill is-fail">Request failed</span>
+    {% else %}
+    <span class="ac-status-pill {% if not row.response_status or row.response_status >= 400 %}is-fail{% endif %}">{{ row.response_status }}</span>
+    <span class="ac-stat-chip">{{ row.duration_ms }} ms</span>
+    <span class="ac-stat-chip">{{ row.response_size_bytes }} B</span>
+    {% endif %}
+  </div>
+  {% if row.error %}
+  <p class="muted" style="font-family: var(--font-mono); font-size: 12.5px;">{{ row.error }}</p>
+  {% else %}
+  <div class="card-title" style="margin-bottom: 10px;">Response Body</div>
+  <div class="code-block">
+    <div class="snippet-code">
+      <div class="snippet-gutter">{% for _ in row.response_body.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}</div>
+      <pre class="snippet-pre"><code data-snippet-code="JSON">{{ row.response_body }}</code></pre>
+    </div>
+  </div>
+  <details class="ac-collapsible" style="margin-top: 16px;">
+    <summary class="card-title ac-collapsible-summary"><span class="ac-chev">{{ icon_chevron(13) }}</span>Response Headers</summary>
+    {% for k, v in response_headers %}
+    <div class="ac-kv-row"><span class="ac-kv-key muted" style="font-family: var(--font-mono); font-size: 12px;">{{ k }}</span><span style="font-family: var(--font-mono); font-size: 12px;">{{ v }}</span></div>
+    {% else %}
+    <p class="muted">No headers.</p>
+    {% endfor %}
+  </details>
+  {% endif %}
+</div>
+
+{% endblock %}

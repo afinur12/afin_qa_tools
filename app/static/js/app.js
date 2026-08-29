@@ -125,23 +125,27 @@ document.addEventListener("click", async (event) => {
 // ── Modals ──────────────────────────────────────────────────────────────────
 // Triggers keep a real href to the standalone page, so the flow still works
 // with JS disabled and when the server re-renders that page on a 422.
-let lastTrigger = null;
+// A stack (not just "the one open modal") because a modal can itself hold
+// triggers for another one (e.g. the Collections drawer's "New Collection"
+// button) — Escape/Tab-trap need to act on whichever opened last, not
+// whichever happens to sit first in the DOM.
+let modalStack = [];
 
 function openModal(modal, trigger) {
-  lastTrigger = trigger || null;
   modal.hidden = false;
   document.body.style.overflow = "hidden";
+  modalStack.push({ modal, trigger: trigger || null });
   const field = modal.querySelector("input, select, textarea");
   if (field) field.focus();
 }
 
 function closeModal(modal) {
   modal.hidden = true;
-  document.body.style.overflow = "";
-  if (lastTrigger) {
-    lastTrigger.focus();
-    lastTrigger = null;
-  }
+  const index = modalStack.findIndex((entry) => entry.modal === modal);
+  const trigger = index === -1 ? null : modalStack[index].trigger;
+  if (index !== -1) modalStack.splice(index, 1);
+  if (!modalStack.length) document.body.style.overflow = "";
+  if (trigger) trigger.focus();
 }
 
 document.addEventListener("click", (event) => {
@@ -168,14 +172,15 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  const open = document.querySelector("[data-modal]:not([hidden])");
-  if (open) closeModal(open);
+  const top = modalStack[modalStack.length - 1];
+  if (top) closeModal(top.modal);
 });
 
-// Keep focus inside an open dialog.
+// Keep focus inside the topmost open dialog.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Tab") return;
-  const modal = document.querySelector("[data-modal]:not([hidden])");
+  const top = modalStack[modalStack.length - 1];
+  const modal = top ? top.modal : null;
   if (!modal) return;
 
   const focusable = modal.querySelectorAll(

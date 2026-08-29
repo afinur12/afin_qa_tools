@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil with context %}
+{% from "api_client/_variable_macros.html" import variable_form_fields with context %}
+{% block title %}Built-in Variables - QA Toolbox{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">Built-in Variables</h1>
+    <div class="page-sub">System-wide {{ '{{variables}}' }} usable in any request, in any collection &mdash; ships with 5 defaults, fully yours to edit.</div>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn act add" href="#" data-modal-open="new-builtin-variable" title="New built-in variable" aria-label="New built-in variable">{{ icon_plus() }}</a>
+</div>
+
+<div class="tabs" style="margin-bottom: 20px;">
+  <a class="tab" href="/api-client">Builder</a>
+  <a class="tab" href="/api-client/history">History</a>
+  <a class="tab active" href="/api-client/variables/builtin">Built-in Variables</a>
+</div>
+
+<div class="card flush">
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Name</th><th>Kind</th><th>Preview</th><th>Description</th><th></th></tr></thead>
+    <tbody>
+      {% for v in variables %}
+      <tr>
+        <td><span class="badge code">{{ '{{' }}{{ v.key }}{{ '}}' }}</span></td>
+        <td><span class="badge">{{ v.kind.value | lower }}</span></td>
+        <td class="muted" style="font-family: var(--font-mono); font-size: 12.5px;">
+          {% if v.kind.value == "SCRIPT" %}script{% else %}{{ v.value }}{% endif %}
+        </td>
+        <td class="muted">{{ v.description or '' }}</td>
+        <td style="width: 1%; white-space: nowrap;">
+          <a class="btn act edit" href="#" data-modal-open="edit-builtin-{{ v.id }}" title="Edit" aria-label="Edit {{ v.key }}">{{ icon_pencil() }}</a>
+          <form class="inline-form" method="post" action="/api-client/variables/{{ v.id }}/delete" data-confirm="Delete {{ '{{' }}{{ v.key }}{{ '}}' }}?">
+            <button class="btn act remove" type="submit" title="Delete" aria-label="Delete {{ v.key }}">{{ icon_trash() }}</button>
+          </form>
+        </td>
+      </tr>
+      {% call modal('edit-builtin-' ~ v.id, 'Edit ' ~ '{{' ~ v.key ~ '}}', '/api-client/variables/' ~ v.id ~ '/edit') %}
+        {{ variable_form_fields(v) }}
+      {% endcall %}
+      {% else %}
+      <tr><td colspan="5" class="empty">No built-in variables.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% call modal('new-builtin-variable', 'New Built-in Variable', '/api-client/variables/builtin') %}
+  {{ variable_form_fields(default_kind='SCRIPT') }}
+{% endcall %}
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/api_client.js') }}"></script>
+{% endblock %}

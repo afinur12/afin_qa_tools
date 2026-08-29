@@ -156,7 +156,7 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
   min-width: 0;
   padding: 30px 34px 64px;
 }
-.main-inner { max-width: 1180px; margin: 0 auto; }
+.main-inner { max-width: 1640px; margin: 0 auto; }
 
 /* Collapsed rail: icons only. The toggle writes .is-collapsed on <body> and
    remembers the choice, so it survives navigation. */
@@ -314,6 +314,7 @@ body.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
+.btn[hidden] { display: none; }
 .btn {
   display: inline-flex;
   align-items: center;
@@ -677,6 +678,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   padding: 0 !important;
   color: #d5d2e0;
 }
+.snippet-pre.is-wrapped, .snippet-pre.is-wrapped code.hljs { white-space: pre-wrap; word-break: break-word; }
 
 /* ── Steps + screenshots ─────────────────────────────────────────────────── */
 
@@ -1292,3 +1294,280 @@ tbody tr:hover { background: var(--surface-sunk); }
   touch-action: none;
   cursor: crosshair;
 }
+
+/* ── API Client ──────────────────────────────────────────────────────────── */
+
+.ac-layout { display: flex; align-items: flex-start; gap: 20px; }
+.ac-main { flex-grow: 1; min-width: 0; }
+
+.btn.ac-collections-trigger { background: var(--indigo-soft); border-color: var(--indigo-soft); color: var(--indigo-ink); font-size: 12.5px; padding: 8px 14px; }
+.btn.ac-collections-trigger:hover { background: #e2e0fb; border-color: #e2e0fb; opacity: 1; color: var(--indigo-ink); }
+
+/* Collections drawer — a modal-backdrop variant pinned to the right edge,
+   full height, no dimming (just a shadow) so it reads as a slide-in panel
+   on top of the page rather than a takeover dialog. */
+.modal-backdrop.is-drawer { justify-content: flex-end; align-items: stretch; padding: 0; background: transparent; }
+.modal--drawer {
+  width: 340px; max-width: 88vw; max-height: 100vh; height: 100%;
+  border-radius: 0; box-shadow: -14px 0 34px rgba(27, 27, 25, 0.14);
+  display: flex; flex-direction: column; padding: 22px 16px;
+}
+.ac-tree-scroll { flex-grow: 1; overflow-y: auto; margin: 0 -8px; padding: 0 8px; }
+
+.ac-tree-search { position: relative; margin: 0 8px 10px; }
+.ac-tree-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
+.ac-tree-search input { padding-left: 34px; width: 100%; padding-top: 9px; padding-bottom: 9px; padding-right: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); font-size: 13px; }
+
+.ac-tree-row {
+  display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px;
+  border-radius: 8px; font-size: 12.5px; color: var(--ink); text-decoration: none;
+}
+.ac-tree-row:hover { background: var(--surface-sunk); }
+.ac-tree-row.is-request { color: var(--ink-2); }
+.ac-tree-row.is-active { background: var(--indigo-soft); color: var(--indigo-ink); font-weight: 600; }
+.ac-tree-row .ac-chev { flex-shrink: 0; color: var(--ink-3); background: none; border: none; padding: 2px; cursor: pointer; display: flex; }
+.ac-tree-row .ac-chev svg { transition: transform 120ms ease; }
+.ac-tree-row.is-collapsed > .ac-chev svg { transform: rotate(-90deg); }
+.ac-tree-row .ac-folder-icon { flex-shrink: 0; color: var(--ink-3); }
+.ac-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+.ac-tree-row.is-collection .ac-tree-name { font-weight: 700; }
+.ac-tree-row.is-folder .ac-tree-name { font-weight: 600; }
+.ac-tree-actions { margin-left: auto; display: none; gap: 3px; flex-shrink: 0; }
+.ac-tree-row:hover .ac-tree-actions { display: flex; }
+.ac-tree-children.is-collapsed { display: none; }
+.ac-depth-1 { padding-left: 22px; }
+.ac-depth-2 { padding-left: 40px; }
+.ac-depth-3 { padding-left: 58px; }
+
+.ac-method-badge {
+  display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  padding: 2px 6px; border-radius: 5px; white-space: nowrap; font-family: var(--font-mono); flex-shrink: 0;
+}
+.ac-method-badge.m-get { background: var(--indigo-soft); color: var(--indigo-ink); }
+.ac-method-badge.m-post { background: var(--pass-bg); color: var(--pass); }
+.ac-method-badge.m-put, .ac-method-badge.m-patch { background: var(--warn-bg); color: var(--warn); }
+.ac-method-badge.m-delete { background: var(--fail-bg); color: var(--fail); }
+
+.ac-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.ac-panel-top .ac-tools { display: flex; align-items: center; gap: 8px; }
+
+.ac-layout-toggle { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.ac-layout-toggle button {
+  width: 30px; height: 26px; display: grid; place-items: center; color: var(--ink-2);
+  background: var(--surface); border: none; cursor: pointer;
+}
+.ac-layout-toggle button + button { border-left: 1px solid var(--line-strong); }
+.ac-layout-toggle button.is-active { background: var(--ink); color: #fff; }
+
+.ac-req-bar { display: flex; align-items: center; gap: 10px; }
+.ac-method-select {
+  width: 118px; flex-shrink: 0; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
+  font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); color: var(--pass); background: var(--surface);
+}
+.ac-url-input {
+  flex-grow: 1; min-width: 0; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
+  font-size: 13.5px; font-family: var(--font-mono); color: var(--ink); background: var(--surface);
+}
+.ac-hint { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 11.5px; color: var(--ink-3); }
+
+.ac-request-response.ac-split { display: flex; align-items: stretch; gap: 18px; }
+.ac-request-response.ac-split > * { flex: 1 1 0; min-width: 0; margin-bottom: 0; }
+
+.ac-kv-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ac-kv-row input {
+  flex: 1 1 0; min-width: 0; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 8px;
+  font-size: 12.5px; font-family: var(--font-mono); color: var(--ink); background: var(--surface);
+}
+.ac-kv-row input.ac-kv-key { flex: 0 0 200px; color: var(--indigo-ink); }
+.ac-kv-row .ac-sensitive-flag { flex-shrink: 0; }
+/* .btn.act.edit (3 classes) outranks a plain .ac-sensitive-flag.is-on (2)
+   on specificity alone regardless of source order — repeat .btn.act.edit
+   here so the "on" state actually wins. */
+.btn.act.edit.ac-sensitive-flag.is-on { background: var(--warn-bg); color: var(--warn); }
+
+.ac-response-empty { border: 1.5px dashed var(--line-strong); border-radius: var(--r-card); padding: 46px 20px; text-align: center; color: var(--ink-3); }
+.ac-response-empty svg { margin-bottom: 10px; }
+
+/* ── API Client request/response layout — Params/Headers/Body always shown
+   at once (no tabs), request+response side by side. Same look as the rest
+   of the app: .card, .badge, .ac-status-pill/.ac-stat-chip are all reused
+   as-is, not reinvented. ───────────────────────────────────────────────── */
+.ac-report-topbar { margin-bottom: 18px; }
+.ac-report-topbar .ac-hint { margin-top: 8px; }
+
+.ac-report-section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin: 4px 0 16px;
+}
+
+.ac-report-subhead { font-weight: 700; font-size: 13.5px; color: var(--ink); margin: 18px 0 8px; }
+.ac-report-section-head + .ac-report-subhead { margin-top: 0; }
+.ac-report-subhead-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ac-report-subhead-title { font-weight: 700; font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Params/Headers/Response Headers tables — plain native <table> styling
+   (th/td/hover already come from the app's global table rules); the only
+   additions are a scroll cap, a fixed first-column width so header names
+   don't wrap mid-word, and input styling since these cells are editable. */
+.ac-report-table-wrap { max-height: 220px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.ac-report-table { table-layout: fixed; }
+.ac-report-table td { word-break: break-word; }
+.ac-report-table th { position: sticky; top: 0; background: var(--surface-sunk); }
+.ac-report-table th.ac-th-actions, .ac-report-table td.ac-kv-actions { width: 76px; }
+.ac-report-table th:first-child, .ac-report-table td:first-child { width: 190px; }
+.ac-report-table td input {
+  display: block; width: 100%; border: none; background: transparent; font: inherit;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); padding: 10px 14px; border-radius: 0;
+}
+.ac-report-table td input:focus { outline: 2px solid var(--indigo); outline-offset: -2px; background: var(--indigo-soft); }
+.ac-report-table td { padding: 0; }
+.ac-report-table td.ac-kv-actions { white-space: nowrap; text-align: center; padding: 6px; }
+
+/* Collapsible sections (Response Headers, everywhere it appears: the live
+   builder, the exported image — it's just a snapshot of the builder's DOM
+   — and the History detail page) — a native <details>/<summary>, closed by
+   default, so no JS is needed to make it work on a plain server-rendered
+   page. */
+.ac-report-table-wrap[hidden] { display: none; }
+.ac-collapsible summary { list-style: none; }
+.ac-collapsible summary::-webkit-details-marker { display: none; }
+.ac-collapsible-summary {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; width: fit-content;
+  border: none; background: none; padding: 0; font: inherit; color: inherit;
+}
+.ac-collapsible-summary:hover { color: var(--indigo-ink); }
+.ac-collapsible-summary .ac-chev { color: var(--ink-3); flex-shrink: 0; transition: transform 120ms ease; }
+.ac-collapsible-summary .ac-chev svg { display: block; }
+/* Two mechanisms share this look: a native <details>[open] (server-rendered
+   pages, no JS needed) and a JS-toggled .is-open + [hidden] (the builder's
+   dynamic response panel, so html2canvas — which doesn't special-case
+   <details> — correctly excludes the section from an export while it's
+   collapsed, instead of painting it anyway). */
+.ac-collapsible[open] > .ac-collapsible-summary .ac-chev,
+.ac-collapsible.is-open > .ac-collapsible-summary .ac-chev { transform: rotate(90deg); }
+.ac-collapsible-summary + * { margin-top: 10px; }
+
+.ac-resp-status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.ac-status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 6px 13px; border-radius: var(--r-pill); background: var(--pass-bg); color: var(--pass); }
+.ac-status-pill.is-fail { background: var(--fail-bg); color: var(--fail); }
+.ac-stat-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: var(--r-pill); background: var(--surface-sunk); color: var(--ink-2); border: 1px solid var(--line); }
+
+.ac-var-row { border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 12px; margin-bottom: 10px; }
+.ac-var-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; flex-wrap: wrap; }
+.ac-var-name {
+  display: flex; align-items: center; gap: 2px; font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+  color: var(--indigo-ink); background: var(--indigo-soft); border-radius: 7px; padding: 5px 9px;
+}
+.ac-var-name .ac-brace { color: var(--indigo); opacity: 0.6; }
+.ac-var-name input { border: none; background: transparent; font: inherit; color: inherit; font-weight: 700; width: 110px; padding: 0; }
+.ac-var-sensitive-label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); margin-left: auto; }
+
+.ac-preview-code { font-family: var(--font-mono); font-size: 11px; color: var(--pass); background: var(--pass-bg); padding: 4px 9px; border-radius: 6px; }
+
+.ac-masked {
+  display: inline-flex; align-items: center; gap: 5px; border-radius: 4px; padding: 1px 7px;
+  background: repeating-linear-gradient(45deg, #2b2b2f, #2b2b2f 4px, #38383e 4px, #38383e 8px); color: #cfcfd6;
+}
+
+.ac-varsuggest {
+  position: absolute; z-index: 60; max-height: 240px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
+  box-shadow: var(--shadow-pop); padding: 4px;
+}
+.ac-varsuggest-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; cursor: pointer; }
+.ac-varsuggest-item.is-active, .ac-varsuggest-item:hover { background: var(--surface-sunk); }
+.ac-varsuggest-name { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--indigo-ink); background: var(--indigo-soft); padding: 1px 6px; border-radius: 5px; flex-shrink: 0; }
+.ac-varsuggest-scope { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); flex-shrink: 0; }
+.ac-varsuggest-desc { font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ac-resptabs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ac-resptabs-row .tabs { margin-bottom: 0 !important; }
+[data-ac-wrap-toggle] { margin-bottom: 12px; }
+/* .btn.act.edit's own indigo tint is already this button's resting
+   state, so the "on" state needs a visibly different color (and enough
+   specificity to actually win — see the sensitive-toggle fix above for
+   why a bare .is-active class alone isn't reliable here). */
+.btn.act.edit[data-ac-wrap-toggle].is-active { background: var(--lime); color: var(--ink); }
+
+.ac-save-state { font-size: 11px; color: var(--ink-3); }
+.ac-save-state[data-state="saving"] { color: var(--ink-2); }
+.ac-save-state[data-state="saved"] { color: var(--pass); }
+.ac-save-state[data-state="error"] { color: var(--fail); }
+
+/* {{variable}} highlighting overlay — see attachVariableHighlight() in
+   api_client.js for why this needs to be two stacked layers rather than
+   just styling the input directly. */
+.ac-highlight-wrap { position: relative; display: block; }
+.ac-highlight-field.ac-highlight-field {
+  position: relative; z-index: 1; background: transparent !important;
+  color: transparent !important; caret-color: var(--ink);
+}
+/* The global ::selection rule sets a real (dark) text color for selected
+   text app-wide — here that fights the transparent-text-over-colored-
+   overlay trick: selecting text would make this field's own glyphs
+   visible again, dark-on-lime, instead of leaving the overlay's syntax
+   colors showing through the highlight. Keep them transparent even
+   selected. */
+/* Semi-transparent, not solid var(--lime): the field's own text stays
+   transparent so the syntax-colored overlay underneath does the actual
+   rendering — a solid, opaque selection background would just black out
+   that color instead of tinting over it. */
+.ac-highlight-field.ac-highlight-field::selection { background: rgba(201, 242, 77, 0.4); color: transparent; }
+.ac-highlight-overlay {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  overflow: hidden; white-space: pre; color: var(--ink);
+}
+.ac-highlight-overlay.is-multiline { white-space: pre-wrap; word-break: break-word; overflow: auto; }
+.ac-var-token { background: var(--lime); color: var(--ink) !important; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+/* ── Request body: editable dark code-block (gutter + hljs + {{var}}) ──── */
+.ac-code-editor .snippet-code { align-items: stretch; }
+.ac-code-editor .snippet-gutter { padding-top: 14px; }
+/* align-self: flex-start, not the inherited align-items: stretch — with a
+   max-height + overflow-y: auto ancestor (.ac-code-scroll) in the chain,
+   Chromium's stretch calculation for this flex item resolves against that
+   ancestor's *capped* height instead of the textarea's real, auto-grown
+   one. For anything past a couple hundred lines that clips the syntax
+   overlay (whose own overflow: hidden then hides the rest of the text
+   entirely) partway down, well before the textarea itself runs out —
+   looks exactly like "the text is there but not showing", because it is:
+   it's just rendered outside its clipped box. flex-start makes this item
+   size to its own content instead of being stretched against that wrong
+   reference; the gutter beside it is unaffected and keeps stretching to
+   match. */
+.ac-code-editor-inner { position: relative; flex: 1 1 auto; min-width: 0; align-self: flex-start; }
+.ac-code-overlay {
+  position: absolute; inset: 0; margin: 0; padding: 14px 18px 14px 0;
+  pointer-events: none; overflow: hidden; white-space: pre-wrap; word-break: break-word;
+}
+.ac-code-textarea {
+  position: relative; z-index: 1; display: block; width: 100%; box-sizing: border-box;
+  min-height: 160px; margin: 0; padding: 14px 18px 14px 0; border: none; resize: none; overflow: hidden;
+  background: transparent !important; color: transparent !important; caret-color: #d5d2e0;
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
+  white-space: pre-wrap; word-break: break-word; outline: none;
+}
+.ac-code-textarea::placeholder { color: #6b6875; opacity: 1; }
+.ac-code-textarea::selection { background: rgba(201, 242, 77, 0.4); color: transparent; }
+
+/* Caps a long request body or response so it scrolls internally instead
+   of stretching the whole page — resize:none above hands textarea
+   height entirely to the auto-grow JS (see attachBodyCodeEditor /
+   syncTextareaHeight in api_client.js), which is what this then clips. */
+.ac-code-scroll { max-height: 560px; overflow-y: auto; }
+
+/* The exported image can be much taller than the modal — cap the modal
+   itself and let only the preview frame scroll, so the header and the
+   Close/Download buttons never get pushed out of view or need a second,
+   outer scroll to reach. */
+#export-image-preview .modal { display: flex; flex-direction: column; max-height: 85vh; overflow: hidden; }
+#export-image-preview .modal-head,
+#export-image-preview .hint,
+#export-image-preview .form-actions { flex-shrink: 0; }
+
+.ac-export-preview-frame {
+  flex: 1 1 auto; min-height: 120px; max-height: 60vh; overflow: auto;
+  border: 1px solid var(--line); border-radius: var(--r-ctl);
+  background: var(--surface-sunk); padding: 8px;
+}
+.ac-export-preview-frame img { display: block; width: 100%; height: auto; border-radius: 6px; }

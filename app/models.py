@@ -329,3 +329,130 @@ class PrebuiltStep(Base):
     actual_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     section: Mapped["PrebuiltSection"] = relationship("PrebuiltSection", back_populates="steps")
+
+
+# ── API Client ────────────────────────────────────────────────────────────
+
+class ApiCollection(Base):
+    __tablename__ = "api_collections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+    folders: Mapped[list["ApiFolder"]] = relationship(
+        "ApiFolder", back_populates="collection", order_by="ApiFolder.id"
+    )
+    requests: Mapped[list["ApiRequest"]] = relationship(
+        "ApiRequest", back_populates="collection", order_by="ApiRequest.id"
+    )
+    variables: Mapped[list["ApiVariable"]] = relationship(
+        "ApiVariable", back_populates="collection", order_by="ApiVariable.id"
+    )
+
+
+class ApiFolder(Base):
+    """A folder inside a collection. ``parent_folder_id`` is self-referencing
+    so folders can nest arbitrarily deep, same as a real Postman workspace."""
+
+    __tablename__ = "api_folders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("api_collections.id"), nullable=False)
+    parent_folder_id: Mapped[int | None] = mapped_column(ForeignKey("api_folders.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+    collection: Mapped["ApiCollection"] = relationship("ApiCollection", back_populates="folders")
+    parent: Mapped["ApiFolder | None"] = relationship("ApiFolder", remote_side=[id], back_populates="children")
+    children: Mapped[list["ApiFolder"]] = relationship(
+        "ApiFolder", back_populates="parent", order_by="ApiFolder.id"
+    )
+    requests: Mapped[list["ApiRequest"]] = relationship(
+        "ApiRequest", back_populates="folder", order_by="ApiRequest.id"
+    )
+
+
+class ApiRequest(Base):
+    """A saved request. Always belongs to a collection; ``folder_id`` is
+    null when it sits at the collection's root rather than in a folder.
+
+    Params has no field of its own — the query string lives directly in
+    ``url``, same as pasting a full URL anywhere else.
+    """
+
+    __tablename__ = "api_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("api_collections.id"), nullable=False)
+    folder_id: Mapped[int | None] = mapped_column(ForeignKey("api_folders.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    method: Mapped[str] = mapped_column(String(16), nullable=False, default="GET")
+    url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+    collection: Mapped["ApiCollection"] = relationship("ApiCollection", back_populates="requests")
+    folder: Mapped["ApiFolder | None"] = relationship("ApiFolder", back_populates="requests")
+
+
+class ApiVariableScope(str, enum.Enum):
+    BUILTIN = "BUILTIN"
+    GLOBAL = "GLOBAL"
+    COLLECTION = "COLLECTION"
+
+
+class ApiVariableKind(str, enum.Enum):
+    VALUE = "VALUE"
+    SCRIPT = "SCRIPT"
+
+
+class ApiVariable(Base):
+    """A ``{{key}}`` usable in a request's URL, headers, or body.
+
+    ``scope`` decides where it's visible from and where it's managed: a
+    COLLECTION variable only resolves for requests in that collection; a
+    GLOBAL one resolves everywhere; a BUILTIN one also resolves everywhere
+    but lives on its own page (see api_client router) rather than the quick
+    per-request Variables panel. Resolution precedence at send time is
+    COLLECTION > GLOBAL > BUILTIN. VALUE variables hold a plain string;
+    SCRIPT variables hold a Python snippet re-run fresh on every send.
+    """
+
+    __tablename__ = "api_variables"
+    __table_args__ = (UniqueConstraint("scope", "collection_id", "key", name="uq_api_variable_scope_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scope: Mapped[ApiVariableScope] = mapped_column(SAEnum(ApiVariableScope), nullable=False)
+    collection_id: Mapped[int | None] = mapped_column(ForeignKey("api_collections.id"), nullable=True)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    kind: Mapped[ApiVariableKind] = mapped_column(SAEnum(ApiVariableKind), nullable=False, default=ApiVariableKind.VALUE)
+    value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    script: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_sensitive: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+    collection: Mapped["ApiCollection | None"] = relationship("ApiCollection", back_populates="variables")
+
+
+class ApiHistory(Base):
+    """One row per /api-client/send call — request and response saved
+    together so a past hit can be reopened, restored, or re-exported
+    without having to re-run it."""
+
+    __tablename__ = "api_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_id: Mapped[int | None] = mapped_column(ForeignKey("api_requests.id"), nullable=True)
+    method: Mapped[str] = mapped_column(String(16), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    request_headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    request_body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    response_body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

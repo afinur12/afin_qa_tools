@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_trash with context %}
+{% block title %}History - QA Toolbox{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">History</h1>
+    <div class="page-sub">Every request you've sent &mdash; request and response saved together, local only, newest first.</div>
+  </div>
+  <div class="spacer"></div>
+  {% if rows %}
+  <form method="post" action="/api-client/history/clear" data-confirm="Clear all history? This can't be undone.">
+    <button class="btn secondary" type="submit">{{ icon_trash() }} Clear History</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="tabs" style="margin-bottom: 20px;">
+  <a class="tab" href="/api-client">Builder</a>
+  <a class="tab active" href="/api-client/history">History</a>
+  <a class="tab" href="/api-client/variables/builtin">Built-in Variables</a>
+</div>
+
+<div class="card flush">
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Method</th><th>URL</th><th>Status</th><th>Time</th><th>Sent</th><th></th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><span class="ac-method-badge m-{{ row.method.lower() }}">{{ row.method }}</span></td>
+        <td>
+          <a href="/api-client/history/{{ row.id }}" style="color: var(--ink); font-family: var(--font-mono); font-size: 12.5px;">
+            {{ row.url[:80] }}{% if row.url | length > 80 %}&hellip;{% endif %}
+          </a>
+        </td>
+        <td>
+          {% if row.error %}
+          <span class="ac-status-pill is-fail">Error</span>
+          {% else %}
+          <span class="ac-status-pill {% if not row.response_status or row.response_status >= 400 %}is-fail{% endif %}">{{ row.response_status }}</span>
+          {% endif %}
+        </td>
+        <td class="muted">{% if row.duration_ms %}{{ row.duration_ms }} ms{% endif %}</td>
+        <td class="muted">{{ row.sent_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td style="width: 1%; white-space: nowrap;">
+          <a class="btn act edit" href="/api-client?restore_history_id={{ row.id }}" title="Restore to Builder" aria-label="Restore to Builder">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+          </a>
+          <form class="inline-form" method="post" action="/api-client/history/{{ row.id }}/delete" data-confirm="Remove this from history?">
+            <button class="btn act remove" type="submit" title="Delete" aria-label="Delete">{{ icon_trash() }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">No requests sent yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

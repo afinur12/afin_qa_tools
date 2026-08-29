@@ -1,10 +1,16 @@
 # highlight.js (vendored)
 
 `highlight.bundle.js` is highlight.js 11.12.0 (BSD-3-Clause, see `LICENSE`),
-bundled with esbuild to include only the core plus 8 languages: bash, json,
-sql, xml, yaml, python, javascript, plaintext — everything the Note Section
-needs, nothing else. No CDN, no npm install at runtime; this file is the
-entire dependency.
+bundled with esbuild to include only the core plus 9 languages: bash, json,
+sql, xml, yaml, python, javascript, plaintext, graphql — everything the Note
+Section and the API Client's request/response body highlighting need,
+nothing else. No CDN, no npm install at runtime; this file is the entire
+dependency.
+
+xml doubles as the language for HTML bodies too (hljs's xml grammar handles
+both); x-www-form-urlencoded bodies use plaintext — there's no dedicated
+grammar for it and its key=value&key=value shape doesn't gain much from
+token coloring.
 
 Theme: `../../css/vendor/highlightjs/atom-one-dark.css` is highlight.js's
 stock `atom-one-dark` stylesheet, unmodified.
