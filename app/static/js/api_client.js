@@ -35,6 +35,28 @@
   // further down, never wiring it up.
   const SENSITIVE_HEADER_PATTERN = /authorization|cookie|api[-_]?key|token|secret|password/i;
 
+  // Same TDZ hazard again: attachCodeEditor (used for both the request
+  // body and every variable's Script field) is itself called unconditionally
+  // a few lines down, for the Built-in/standalone Variables page — which
+  // has no request body, so this is the only attachCodeEditor call that
+  // page ever makes, well before a `let` declared near attachCodeEditor's
+  // own definition further down would have run.
+  let codeWidthMirror = null;
+  function measureNaturalTextWidth(referenceField, text) {
+    if (!codeWidthMirror) {
+      codeWidthMirror = document.createElement("div");
+      codeWidthMirror.style.cssText = "position:absolute; visibility:hidden; left:-99999px; top:0; white-space:pre;";
+      document.body.appendChild(codeWidthMirror);
+    }
+    const cs = getComputedStyle(referenceField);
+    codeWidthMirror.style.fontFamily = cs.fontFamily;
+    codeWidthMirror.style.fontSize = cs.fontSize;
+    codeWidthMirror.style.fontWeight = cs.fontWeight;
+    codeWidthMirror.style.letterSpacing = cs.letterSpacing;
+    codeWidthMirror.textContent = text;
+    return codeWidthMirror.scrollWidth;
+  }
+
   // Registered unconditionally: the Variables modal's Value/Script toggle
   // is also used on the standalone Built-in Variables page, which has none
   // of the builder-only elements the early-return below guards.
@@ -73,6 +95,11 @@
   if (!root) return; // not on the API Client builder page
 
   const CURRENT = window.__AC_CURRENT__ || { id: null, method: "GET", url: "", headers: [], body: "", collection_id: null };
+  // Set while a tab switch is replaying its stored fields into the DOM, so
+  // the synthetic "input" events that replay fires (needed so highlight
+  // overlays / param sync stay correct) aren't mistaken for a real user
+  // edit by the autosave/tab-sync listeners below.
+  let applyingTab = false;
 
   // ── Toast (no full-page redirect here, so the flash-cookie mechanism the
   // rest of the app relies on doesn't apply — a minimal local version). ──
@@ -123,10 +150,66 @@
       const q = treeSearch.value.trim().toLowerCase();
       root.querySelectorAll(".ac-tree-row").forEach((row) => {
         const name = row.querySelector(".ac-tree-name").textContent.toLowerCase();
-        const matches = !q || name.includes(q);
-        row.closest("a, div").style.display = matches || !q ? "" : "none";
+        // Requests also carry their URL (data-ac-tree-url) — a saved curl
+        // command's identity lives in its URL as much as its name, so a
+        // search for a path segment or host should surface it too.
+        const url = (row.dataset.acTreeUrl || "").toLowerCase();
+        const matches = !q || name.includes(q) || url.includes(q);
+        row.closest("a, div").style.display = matches ? "" : "none";
       });
     });
+  }
+
+  // ── Collections drawer: resizable width ──────────────────────────────────
+  const DRAWER_WIDTH_KEY = "qa-toolbox:api-client-drawer-width";
+  const drawerPanel = document.querySelector(".modal--drawer");
+  const drawerHandle = document.querySelector("[data-ac-drawer-resize]");
+  if (drawerPanel && drawerHandle) {
+    try {
+      const savedWidth = localStorage.getItem(DRAWER_WIDTH_KEY);
+      if (savedWidth) drawerPanel.style.width = `${savedWidth}px`;
+    } catch {
+      /* storage unavailable — falls back to the CSS default width */
+    }
+
+    let dragStartX = 0;
+    let dragStartWidth = 0;
+
+    function onDragMove(event) {
+      const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+      // Anchored to the right edge, so dragging left (negative delta) grows it.
+      const next = dragStartWidth + (dragStartX - clientX);
+      const min = 280;
+      const max = Math.round(window.innerWidth * 0.88);
+      drawerPanel.style.width = `${Math.min(max, Math.max(min, next))}px`;
+    }
+
+    function onDragEnd() {
+      document.removeEventListener("mousemove", onDragMove);
+      document.removeEventListener("mouseup", onDragEnd);
+      document.removeEventListener("touchmove", onDragMove);
+      document.removeEventListener("touchend", onDragEnd);
+      document.body.classList.remove("is-resizing-drawer");
+      try {
+        localStorage.setItem(DRAWER_WIDTH_KEY, String(Math.round(drawerPanel.getBoundingClientRect().width)));
+      } catch {
+        /* storage unavailable — width just won't persist across reloads */
+      }
+    }
+
+    function onDragStart(event) {
+      event.preventDefault();
+      dragStartX = event.touches ? event.touches[0].clientX : event.clientX;
+      dragStartWidth = drawerPanel.getBoundingClientRect().width;
+      document.body.classList.add("is-resizing-drawer");
+      document.addEventListener("mousemove", onDragMove);
+      document.addEventListener("mouseup", onDragEnd);
+      document.addEventListener("touchmove", onDragMove, { passive: false });
+      document.addEventListener("touchend", onDragEnd);
+    }
+
+    drawerHandle.addEventListener("mousedown", onDragStart);
+    drawerHandle.addEventListener("touchstart", onDragStart, { passive: false });
   }
 
   // ── Layout toggle (stacked / split) ──────────────────────────────────────
@@ -342,6 +425,8 @@
     const container = textarea.closest(".ac-code-editor");
     const overlay = container?.querySelector(".ac-code-overlay code");
     const gutter = container?.querySelector(".snippet-gutter");
+    const inner = container?.querySelector(".ac-code-editor-inner");
+    const scroller = container?.querySelector(".snippet-code");
 
     function sync() {
       const text = textarea.value;
@@ -363,6 +448,21 @@
       // force a resync at the moment this actually becomes visible.
       textarea.style.height = "auto";
       textarea.style.height = `${textarea.scrollHeight}px`;
+
+      // Horizontal counterpart of the height auto-grow above: with wrap
+      // disabled (see .ac-code-textarea's own comment on why), nothing
+      // else makes this box — or the overlay stacked on top of it, sized
+      // to match via inset: 0 — wide enough for its longest line. A
+      // <textarea>'s own intrinsic width isn't driven by its content the
+      // way a block of text is, so it's measured here instead, the same
+      // "render off-screen and read scrollWidth" trick used for the
+      // {{var}}-drift + wrap-divergence diagnosis that found this bug.
+      if (inner && scroller) {
+        const natural = measureNaturalTextWidth(textarea, text) + 24; // headroom so the last glyph isn't flush against the scroll edge
+        const gutterWidth = gutter ? gutter.getBoundingClientRect().width : 0;
+        const available = scroller.getBoundingClientRect().width - gutterWidth;
+        inner.style.width = `${Math.max(natural, available)}px`;
+      }
     }
     textarea.addEventListener("input", sync);
     sync();
@@ -591,10 +691,12 @@
     const editForm = document.getElementById("ac-edit-form");
     if (!editForm) return;
 
+    // Visibility of the manual-save button / "Saved" label / "Save" (new)
+    // link is owned by applyTabToDom (see "Request tabs" below) — it's the
+    // one place that knows which tab is active, since that can now change
+    // without a page reload. This IIFE only wires up autosave's behavior.
     const manualSaveBtn = document.querySelector("[data-ac-manual-save]");
     const stateEl = document.querySelector("[data-ac-save-state]");
-    if (manualSaveBtn) manualSaveBtn.hidden = true;
-    if (stateEl) stateEl.hidden = false;
 
     const SAVE_LABELS = { editing: "Unsaved changes", saving: "Saving…", saved: "Saved", error: "Not saved — retry" };
     function setState(state) {
@@ -604,6 +706,7 @@
     }
 
     async function saveNow() {
+      if (!CURRENT.id) return; // active tab is an unsaved "New Request" — nothing to autosave to
       setState("saving");
       const payload = currentPayload();
       const body = new FormData();
@@ -622,6 +725,7 @@
 
     let timer;
     function scheduleSave() {
+      if (!CURRENT.id || applyingTab) return;
       setState("editing");
       clearTimeout(timer);
       timer = setTimeout(saveNow, 700);
@@ -1220,4 +1324,322 @@
       wrapper.remove();
     }
   });
+
+  // ── Request tabs ──────────────────────────────────────────────────────────
+  // Lets several requests stay open at once and switches between them
+  // entirely client-side (no reload), so in-progress edits in a tab you're
+  // not looking at aren't lost. The open set + which one's active persists
+  // in localStorage (the qa-toolbox: convention used elsewhere — see
+  // app.js's sidebar-collapsed key) so it survives navigating away to
+  // History/Variables and back.
+  //
+  // A tab isn't the same thing as a saved ApiRequest row: it's a snapshot
+  // of everything the request bar/panel would show (method, url, headers,
+  // body, last response), tied to a requestId only once that snapshot has
+  // actually been saved. Sending, and the server-side resolution of
+  // {{variables}}, are entirely unaffected — they already work off
+  // whatever's currently in the DOM (currentPayload()); tabs just decide
+  // what that DOM contains at any given moment.
+  (function initRequestTabs() {
+    const stripEl = document.querySelector("[data-ac-request-tabs]");
+    if (!stripEl) return; // not on the Builder page
+
+    const TABS_KEY = "qa-toolbox:api-client-tabs";
+    const SAVING_MARKER_KEY = "qa-toolbox:api-client-saving-tab";
+
+    function loadStore() {
+      try {
+        const raw = localStorage.getItem(TABS_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && Array.isArray(parsed.tabs)) return parsed;
+      } catch {
+        /* corrupt or storage unavailable — start fresh */
+      }
+      return { tabs: [], activeClientId: null };
+    }
+
+    const store = loadStore();
+    const tabs = store.tabs;
+    let activeClientId = store.activeClientId;
+
+    function persist() {
+      try {
+        localStorage.setItem(TABS_KEY, JSON.stringify({ tabs, activeClientId }));
+      } catch {
+        /* storage unavailable — tabs just won't survive navigating away */
+      }
+    }
+
+    function newClientId() {
+      return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function tabFromCurrent(current, lastResponse) {
+      return {
+        clientId: newClientId(),
+        requestId: current.id ?? null,
+        name: current.name || "New Request",
+        method: current.method || "GET",
+        url: current.url || "",
+        headers: current.headers || [],
+        body: current.body || "",
+        collectionId: current.collection_id ?? null,
+        lastResponse: lastResponse || null,
+      };
+    }
+
+    function blankTab() {
+      return tabFromCurrent({ id: null, name: "New Request", method: "GET", url: "", headers: [], body: "", collection_id: null });
+    }
+
+    function findByClientId(id) {
+      return tabs.find((t) => t.clientId === id);
+    }
+    function findByRequestId(id) {
+      return id ? tabs.find((t) => t.requestId === id) : undefined;
+    }
+    function activeTab() {
+      return findByClientId(activeClientId) || tabs[0] || null;
+    }
+
+    // ── DOM <-> tab state ─────────────────────────────────────────────────
+    function captureIntoActiveTab() {
+      const tab = activeTab();
+      if (!tab) return;
+      const payload = currentPayload();
+      tab.method = payload.method;
+      tab.url = payload.url;
+      tab.headers = payload.headers;
+      tab.body = payload.body;
+    }
+
+    function applyTabToDom(tab) {
+      applyingTab = true;
+      CURRENT.id = tab.requestId;
+      CURRENT.name = tab.name;
+      CURRENT.collection_id = tab.collectionId;
+
+      document.querySelector("[data-ac-method]").value = tab.method;
+      const urlField = document.querySelector("[data-ac-url]");
+      urlField.value = tab.url;
+      urlField.dispatchEvent(new Event("input", { bubbles: true }));
+
+      headersContainer.innerHTML = "";
+      tab.headers.forEach(([k, v]) => addHeaderRow(k, v));
+
+      const bodyField = document.querySelector("[data-ac-body]");
+      bodyField.value = tab.body;
+      bodyField.dispatchEvent(new Event("input", { bubbles: true }));
+      applyingTab = false;
+
+      const nameEl = document.querySelector("[data-ac-current-name]");
+      if (nameEl) nameEl.textContent = tab.name;
+
+      // Which "Save" affordance shows (new-request modal link vs. the
+      // already-saved autosave label) and where the hidden edit form
+      // actually posts both depend on whether THIS tab has a requestId —
+      // baked in once per page load before tabs existed, now decided here
+      // on every switch instead.
+      const editForm = document.getElementById("ac-edit-form");
+      const saveNewLink = document.querySelector("[data-ac-save-new]");
+      const manualSaveBtn = document.querySelector("[data-ac-manual-save]");
+      const stateEl = document.querySelector("[data-ac-save-state]");
+      if (tab.requestId) {
+        if (editForm) editForm.action = `/api-client/requests/${tab.requestId}/edit`;
+        if (saveNewLink) saveNewLink.hidden = true;
+        if (manualSaveBtn) manualSaveBtn.hidden = true;
+        if (stateEl) {
+          stateEl.hidden = false;
+          stateEl.textContent = "Saved";
+          stateEl.dataset.state = "saved";
+        }
+      } else {
+        if (editForm) editForm.action = "";
+        if (saveNewLink) saveNewLink.hidden = false;
+        if (manualSaveBtn) manualSaveBtn.hidden = true;
+        if (stateEl) stateEl.hidden = true;
+      }
+
+      if (tab.lastResponse) {
+        renderResponse(tab.lastResponse, true);
+      } else {
+        responseBox.hidden = true;
+        responseBox.innerHTML = "";
+        responseEmpty.hidden = false;
+      }
+    }
+
+    // ── Tab strip ─────────────────────────────────────────────────────────
+    function renderStrip() {
+      stripEl.innerHTML = "";
+      tabs.forEach((tab) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ac-request-tab" + (tab.clientId === activeClientId ? " is-active" : "");
+        btn.dataset.acTabId = tab.clientId;
+        btn.innerHTML = `
+          <span class="ac-method-badge m-${escapeAttr(tab.method.toLowerCase())}">${escapeHtml(tab.method)}</span>
+          <span class="ac-request-tab-name">${escapeHtml(tab.name)}</span>
+          <span class="ac-request-tab-close" data-ac-tab-close title="Close" aria-label="Close ${escapeHtml(tab.name)}">&times;</span>
+        `;
+        stripEl.appendChild(btn);
+      });
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "ac-request-tab-add";
+      addBtn.dataset.acTabAdd = "";
+      addBtn.title = "New tab";
+      addBtn.setAttribute("aria-label", "New tab");
+      addBtn.textContent = "+";
+      stripEl.appendChild(addBtn);
+    }
+
+    function switchTo(clientId) {
+      if (clientId === activeClientId) return;
+      captureIntoActiveTab();
+      activeClientId = clientId;
+      renderStrip();
+      applyTabToDom(activeTab());
+      persist();
+    }
+
+    // Keep the active tab's localStorage snapshot current as you type —
+    // not just at switch/close time — otherwise a plain page reload (e.g.
+    // re-opening the same ?request_id= link, or navigating away and back)
+    // would restore the stale snapshot from whenever a tab last changed
+    // focus and clobber whatever autosave had since persisted server-side.
+    let syncTimer;
+    function scheduleTabSync() {
+      if (applyingTab) return;
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => {
+        captureIntoActiveTab();
+        persist();
+      }, 400);
+    }
+    document.addEventListener("input", (event) => {
+      if (event.target.matches("[data-ac-method], [data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-body]")) {
+        scheduleTabSync();
+      }
+    });
+    document.addEventListener("change", (event) => {
+      if (event.target.matches("[data-ac-method]")) scheduleTabSync();
+    });
+    document.addEventListener("click", (event) => {
+      if (event.target.closest("[data-ac-add-header], [data-ac-remove-header], [data-ac-sensitive-toggle]")) {
+        scheduleTabSync();
+      }
+    });
+
+    stripEl.addEventListener("click", (event) => {
+      if (event.target.closest("[data-ac-tab-add]")) {
+        captureIntoActiveTab();
+        const tab = blankTab();
+        tabs.push(tab);
+        activeClientId = tab.clientId;
+        renderStrip();
+        applyTabToDom(tab);
+        persist();
+        document.querySelector("[data-ac-url]")?.focus();
+        return;
+      }
+      const closeBtn = event.target.closest("[data-ac-tab-close]");
+      if (closeBtn) {
+        event.stopPropagation();
+        const tabBtn = closeBtn.closest("[data-ac-tab-id]");
+        const clientId = tabBtn?.dataset.acTabId;
+        const index = tabs.findIndex((t) => t.clientId === clientId);
+        if (index === -1) return;
+        tabs.splice(index, 1);
+        if (!tabs.length) tabs.push(blankTab());
+        if (activeClientId === clientId) {
+          const next = tabs[Math.min(index, tabs.length - 1)];
+          activeClientId = next.clientId;
+          applyTabToDom(next);
+        }
+        renderStrip();
+        persist();
+        return;
+      }
+      const tabBtn = event.target.closest("[data-ac-tab-id]");
+      if (tabBtn) switchTo(tabBtn.dataset.acTabId);
+    });
+
+    // A save through the "Save Request" modal (POST /api-client/requests)
+    // is the one thing that still reloads the page: it needs a name and a
+    // collection chosen, nothing here to infer either from. Stash which tab
+    // was mid-save so the reload can update that same tab in place instead
+    // of opening a second, duplicate one for what's now the same request.
+    document.getElementById("save-request")?.addEventListener("submit", () => {
+      // Force the just-typed fields into this tab's localStorage snapshot
+      // right now, synchronously — the debounced sync (scheduleTabSync)
+      // might not have fired yet, and the page is about to navigate away
+      // to the newly-saved request. Without this, the reload could
+      // reconcile onto a stale (e.g. still-blank) snapshot, and the
+      // replay-triggered autosave 700ms later would then push that stale
+      // data back over the save that was just made.
+      captureIntoActiveTab();
+      persist();
+      try {
+        sessionStorage.setItem(SAVING_MARKER_KEY, activeClientId || "");
+      } catch {
+        /* storage unavailable — worst case, saving opens a second tab */
+      }
+    });
+
+    // Keep every tab's own memory of "what it last showed" in sync,
+    // whether that's a fresh Send or the page's initial replay of the last
+    // real hit — wrapping here covers both without duplicating the logic
+    // at each call site.
+    const originalRenderResponse = renderResponse;
+    renderResponse = function (data, fromHistory) {
+      originalRenderResponse(data, fromHistory);
+      const tab = activeTab();
+      if (tab) tab.lastResponse = data;
+    };
+
+    // ── Resolve this page load into a tab ──────────────────────────────────
+    const params = new URLSearchParams(location.search);
+    if (params.has("request_id") || params.has("restore_history_id")) {
+      let savingMarker = null;
+      try {
+        savingMarker = sessionStorage.getItem(SAVING_MARKER_KEY);
+        sessionStorage.removeItem(SAVING_MARKER_KEY);
+      } catch {
+        /* ignore */
+      }
+
+      let tab = null;
+      if (savingMarker) {
+        const marked = findByClientId(savingMarker);
+        if (marked && !marked.requestId) {
+          marked.requestId = CURRENT.id;
+          marked.name = CURRENT.name;
+          tab = marked;
+        }
+      }
+      if (!tab && params.has("request_id")) {
+        tab = findByRequestId(CURRENT.id);
+        if (tab) tab.name = CURRENT.name; // pick up a rename, keep any in-flight edits
+      }
+      if (!tab) {
+        tab = tabFromCurrent(CURRENT, window.__AC_LAST_RESPONSE__);
+        tabs.push(tab);
+      }
+      activeClientId = tab.clientId;
+      // Drop the query string so a refresh restores from localStorage
+      // instead of re-running this branch (and re-adding a tab) every time.
+      history.replaceState(null, "", "/api-client");
+    } else if (!tabs.length) {
+      const tab = tabFromCurrent(CURRENT, window.__AC_LAST_RESPONSE__);
+      tabs.push(tab);
+      activeClientId = tab.clientId;
+    } else if (!findByClientId(activeClientId)) {
+      activeClientId = tabs[0].clientId;
+    }
+
+    renderStrip();
+    applyTabToDom(activeTab());
+    persist();
+  })();
 })();

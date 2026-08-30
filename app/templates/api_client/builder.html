@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_folder_plus, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout with context %}
 {% block title %}API Client - QA Toolbox{% endblock %}
 
 {% macro tree_request_row(req, current) %}
-<a class="ac-tree-row is-request {% if current.id == req.id %}is-active{% endif %}" href="/api-client?request_id={{ req.id }}">
+<a class="ac-tree-row is-request {% if current.id == req.id %}is-active{% endif %}" href="/api-client?request_id={{ req.id }}" data-ac-tree-url="{{ req.url }}">
   <span class="ac-method-badge m-{{ req.method.lower() }}">{{ req.method[:3] }}</span>
   <span class="ac-tree-name">{{ req.name }}</span>
   <span class="ac-tree-actions">
@@ -29,6 +29,7 @@
   <span class="ac-tree-name">{{ folder.name }}</span>
   <span class="ac-tree-actions">
     <a class="btn act add" href="#" data-modal-open="new-request-folder-{{ folder.id }}" title="New request" aria-label="New request in {{ folder.name }}">{{ icon_plus(11) }}</a>
+    <a class="btn act add" href="#" data-modal-open="new-folder-folder-{{ folder.id }}" title="New folder" aria-label="New folder in {{ folder.name }}">{{ icon_folder_plus(11) }}</a>
     <a class="btn act edit" href="#" data-modal-open="rename-folder-{{ folder.id }}" title="Rename" aria-label="Rename {{ folder.name }}">{{ icon_pencil(11) }}</a>
     <form class="inline-form" method="post" action="/api-client/folders/{{ folder.id }}/delete" data-confirm="Delete folder &quot;{{ folder.name }}&quot; and everything inside it?">
       <button class="btn act remove" type="submit" title="Delete" aria-label="Delete {{ folder.name }}">{{ icon_trash(11) }}</button>
@@ -36,6 +37,7 @@
   </span>
 </div>
 <div class="ac-tree-children">
+  {% for child in folder.children %}{{ tree_folder_row(child, current) }}{% endfor %}
   {% for req in folder.requests %}{{ tree_request_row(req, current) }}{% endfor %}
 </div>
 {% endmacro %}
@@ -47,6 +49,7 @@
   <span class="ac-tree-name">{{ collection.name }}</span>
   <span class="ac-tree-actions">
     <a class="btn act add" href="#" data-modal-open="new-request-collection-{{ collection.id }}" title="New request" aria-label="New request in {{ collection.name }}">{{ icon_plus(11) }}</a>
+    <a class="btn act add" href="#" data-modal-open="new-folder-collection-{{ collection.id }}" title="New folder" aria-label="New folder in {{ collection.name }}">{{ icon_folder_plus(11) }}</a>
     <a class="btn act edit" href="#" data-modal-open="rename-collection-{{ collection.id }}" title="Rename" aria-label="Rename {{ collection.name }}">{{ icon_pencil(11) }}</a>
     <a class="btn act export" href="/api-client/collections/{{ collection.id }}/export" title="Export collection" aria-label="Export {{ collection.name }}">{{ icon_download(11) }}</a>
     <form class="inline-form" method="post" action="/api-client/collections/{{ collection.id }}/delete" data-confirm="Delete collection &quot;{{ collection.name }}&quot; and everything inside it?">
@@ -80,8 +83,15 @@
 <div class="ac-layout">
 
   <div class="ac-main">
+    {#
+      Populated entirely by JS (see "Request tabs" in api_client.js) — the
+      open set + which one's active lives in localStorage, not here, so it
+      survives navigating away and back without a server round trip.
+    #}
+    <div class="ac-request-tabs" data-ac-request-tabs></div>
+
     <div class="ac-panel-top">
-      <span class="card-title">{{ current.name }}</span>
+      <span class="card-title" data-ac-current-name>{{ current.name }}</span>
       <div class="ac-tools">
         <button type="button" class="btn ac-collections-trigger" data-modal-open="collections-drawer" title="Collections" aria-label="Collections">{{ icon_folder(14) }} Collections</button>
         <button type="button" class="btn act edit" data-ac-copy-curl title="Copy as cURL" aria-label="Copy as cURL">{{ icon_terminal(15) }}</button>
@@ -102,12 +112,12 @@
         </select>
         <input type="text" class="ac-url-input" data-ac-url placeholder="https://api.example.com/v1/..." value="{{ current.url }}">
         <button type="button" class="btn lime" data-ac-send>{{ icon_send() }} Send</button>
-        {% if current.id %}
-        <button type="submit" form="ac-edit-form" class="btn secondary" data-ac-manual-save>Save</button>
+        {# Both live in the DOM at once; switching tabs client-side toggles
+           which is shown (see applyTabToDom in api_client.js) rather than
+           this being baked in once per page load like it used to be. #}
+        <button type="submit" form="ac-edit-form" class="btn secondary" data-ac-manual-save {% if not current.id %}hidden{% endif %}>Save</button>
         <span class="ac-save-state" data-ac-save-state hidden>Saved</span>
-        {% else %}
-        <a class="btn secondary" href="#" data-modal-open="save-request">Save</a>
-        {% endif %}
+        <a class="btn secondary" href="#" data-modal-open="save-request" data-ac-save-new {% if current.id %}hidden{% endif %}>Save</a>
       </div>
       <p class="ac-hint">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>
@@ -181,6 +191,7 @@
    since it holds a search field plus the whole tree rather than one form. #}
 <div class="modal-backdrop is-drawer" id="collections-drawer" data-modal hidden>
   <div class="modal modal--drawer" role="dialog" aria-modal="true" aria-labelledby="collections-drawer-title">
+    <div class="ac-drawer-resize-handle" data-ac-drawer-resize title="Drag to resize" aria-hidden="true"></div>
     <div class="card-head" style="padding: 0 0 14px;">
       <span class="card-title" id="collections-drawer-title">Collections</span>
       <div class="spacer"></div>
@@ -203,15 +214,17 @@
   </div>
 </div>
 
-{% if current.id %}
-<form id="ac-edit-form" method="post" action="/api-client/requests/{{ current.id }}/edit" hidden>
+{# Always present (even for a brand-new, unsaved request) so switching to a
+   saved-request tab client-side has a form to point at — its action gets
+   set by JS on tab switch; empty here just means autosave has nothing to
+   submit to until a tab with a real id becomes active. #}
+<form id="ac-edit-form" method="post" action="{% if current.id %}/api-client/requests/{{ current.id }}/edit{% endif %}" hidden>
   <input type="hidden" name="name" value="{{ current.name }}">
   <input type="hidden" name="method" data-ac-hidden-method>
   <input type="hidden" name="url" data-ac-hidden-url>
   <input type="hidden" name="headers_json" data-ac-hidden-headers>
   <input type="hidden" name="body" data-ac-hidden-body>
 </form>
-{% endif %}
 
 {% call modal('new-collection', 'New Collection', '/api-client/collections') %}
   <div class="field"><label>Name</label><input name="name" placeholder="e.g. Workplace API" required></div>
@@ -255,7 +268,9 @@
   </div>
 </div>
 
-{% if not current.id %}
+{# Rendered unconditionally (not just when current.id is unset) — a tab
+   opened via the "+" button can need this modal even when the page's
+   initial load was a saved request, since switching tabs doesn't reload. #}
 {% call modal('save-request', 'Save Request', '/api-client/requests') %}
   <input type="hidden" name="method" data-ac-hidden-method>
   <input type="hidden" name="url" data-ac-hidden-url>
@@ -273,7 +288,6 @@
     <button class="btn" type="submit">Save</button>
   </div>
 {% endcall %}
-{% endif %}
 
 {% for collection in collections %}
 {% call modal('rename-collection-' ~ collection.id, 'Rename Collection', '/api-client/collections/' ~ collection.id ~ '/edit') %}
@@ -297,6 +311,14 @@
     <button class="btn" type="submit">Create</button>
   </div>
 {% endcall %}
+{% call modal('new-folder-collection-' ~ collection.id, 'New Folder in ' ~ collection.name, '/api-client/folders') %}
+  <input type="hidden" name="collection_id" value="{{ collection.id }}">
+  <div class="field"><label>Name</label><input name="name" placeholder="e.g. Auth" required></div>
+  <div class="form-actions" style="justify-content: flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Create</button>
+  </div>
+{% endcall %}
 {% for folder in collection.folders %}
 {% call modal('rename-folder-' ~ folder.id, 'Rename Folder', '/api-client/folders/' ~ folder.id ~ '/edit') %}
   <div class="field"><label>Name</label><input name="name" value="{{ folder.name }}" required></div>
@@ -315,6 +337,15 @@
     <select name="method" data-ac-quickcreate-method>{% for m in ["GET", "POST", "PUT", "PATCH", "DELETE"] %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
   </div>
   <div class="field"><label>URL</label><input name="url" placeholder="https://... (or paste a curl command)" data-ac-quickcreate-url></div>
+  <div class="form-actions" style="justify-content: flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Create</button>
+  </div>
+{% endcall %}
+{% call modal('new-folder-folder-' ~ folder.id, 'New Folder in ' ~ folder.name, '/api-client/folders') %}
+  <input type="hidden" name="collection_id" value="{{ collection.id }}">
+  <input type="hidden" name="parent_folder_id" value="{{ folder.id }}">
+  <div class="field"><label>Name</label><input name="name" placeholder="e.g. Auth" required></div>
   <div class="form-actions" style="justify-content: flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
     <button class="btn" type="submit">Create</button>

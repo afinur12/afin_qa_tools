@@ -6,6 +6,7 @@ hits browser CORS. See PLAN.md for the full feature spec this implements.
 """
 
 import json
+import re
 import time as time_module
 import uuid
 from collections import defaultdict
@@ -39,6 +40,74 @@ def _headers_from_json(raw: str) -> list[list[str]]:
         return [[str(k), str(v)] for k, v in json.loads(raw or "[]")]
     except (json.JSONDecodeError, TypeError, ValueError):
         return []
+
+
+def _strip_json_line_comments(text: str) -> str:
+    """Removes `//`-to-end-of-line comments, the way the body editor's own
+    syntax highlighting already renders them (see api_client.js's hljs JSON
+    grammar, which is lenient enough to color // as a comment token even
+    though it isn't valid JSON) — so `//` reads as a real "exclude this
+    field" toggle instead of just cosmetically greying text that still gets
+    sent verbatim and breaks the target API's JSON parser.
+
+    Scans character by character tracking string-literal state so a // that
+    is genuine string content (a URL value, say) is never touched — only a
+    // outside any "..." is treated as a comment start. A comma left
+    dangling before a closing ]/} by a removed line is trimmed after, since
+    JSON doesn't allow trailing commas."""
+    out: list[str] = []
+    in_string = False
+    escaped = False
+    i = 0
+    length = len(text)
+    while i < length:
+        ch = text[i]
+        if in_string:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and i + 1 < length and text[i + 1] == "/":
+            while i < length and text[i] != "\n":
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return re.sub(r",(\s*[\]}])", r"\1", "".join(out))
+
+
+def _body_for_wire(body: str) -> str:
+    """What actually gets sent/stored as "what was sent" — as typed, unless
+    it's JSON containing `//` comments (invalid JSON, so it'd otherwise be
+    rejected outright by the target API's own parser), in which case the
+    commented lines are dropped so what goes out is the valid JSON the
+    comments were pointing at. A body that's already valid JSON, or isn't
+    JSON at all (XML, form-encoded, a signature-checked webhook payload),
+    is returned completely untouched."""
+    stripped = (body or "").strip()
+    if not stripped:
+        return body or ""
+    try:
+        json.loads(stripped)
+        return body  # already valid JSON — nothing to strip
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    candidate = _strip_json_line_comments(body)
+    try:
+        json.loads(candidate.strip())
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return body  # not just //-comments away from valid JSON — leave it alone
+    return candidate
 
 
 def _beautify(text: str) -> str:
@@ -184,7 +253,7 @@ def _resolve_request(db: Session, payload: dict) -> dict:
 async def resolve_request(request: Request, db: Session = Depends(get_db)):
     payload = await request.json()
     resolved = _resolve_request(db, payload)
-    resolved["curl"] = build_curl(resolved["method"], resolved["url"], resolved["headers"], resolved["body"])
+    resolved["curl"] = build_curl(resolved["method"], resolved["url"], resolved["headers"], _body_for_wire(resolved["body"]))
     return JSONResponse(resolved)
 
 
@@ -202,11 +271,12 @@ async def parse_curl_route(request: Request):
 async def send_request(request: Request, db: Session = Depends(get_db)):
     payload = await request.json()
     resolved = _resolve_request(db, payload)
+    wire_body = _body_for_wire(resolved["body"])
 
     history = ApiHistory(
         request_id=payload.get("request_id"),
         method=resolved["method"], url=resolved["url"],
-        request_headers_json=_headers_to_json(resolved["headers"]), request_body=_beautify(resolved["body"]),
+        request_headers_json=_headers_to_json(resolved["headers"]), request_body=_beautify(wire_body),
     )
 
     if resolved["errors"] and not resolved["url"]:
@@ -222,7 +292,7 @@ async def send_request(request: Request, db: Session = Depends(get_db)):
             resp = await client.request(
                 resolved["method"], resolved["url"],
                 headers={k: v for k, v in resolved["headers"]},
-                content=resolved["body"].encode("utf-8") if resolved["body"] else None,
+                content=wire_body.encode("utf-8") if wire_body else None,
             )
         duration_ms = int((time_module.perf_counter() - started) * 1000)
         # Beautified for storage/display only — response_size_bytes below

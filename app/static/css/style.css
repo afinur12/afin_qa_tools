@@ -677,6 +677,19 @@ tbody tr:hover { background: var(--surface-sunk); }
   background: transparent !important;
   padding: 0 !important;
   color: #d5d2e0;
+  /* Browsers ship a UA-stylesheet default of `code { font-family: monospace }`
+     — a bare generic keyword, not the actual font-family value the parent
+     <pre> has (var(--font-mono)'s real stack, e.g. "Cascadia Code"). Being
+     an explicit declaration rather than an inherited one, it wins over the
+     parent's font — meaning code.hljs silently rendered in a *different*
+     monospace font than everything around it. Two different fonts have
+     different character-advance widths, so text inside .ac-code-overlay's
+     <code> drifted a fraction of a pixel further from where the identical
+     text sits in the real (font-family: var(--font-mono)) textarea below
+     it with every character — invisible for a line or two, but by a few
+     hundred characters into a long body it had drifted several characters
+     wide, which is what the caret misplacement bug actually was. */
+  font-family: inherit;
 }
 .snippet-pre.is-wrapped, .snippet-pre.is-wrapped code.hljs { white-space: pre-wrap; word-break: break-word; }
 
@@ -1308,10 +1321,21 @@ tbody tr:hover { background: var(--surface-sunk); }
    on top of the page rather than a takeover dialog. */
 .modal-backdrop.is-drawer { justify-content: flex-end; align-items: stretch; padding: 0; background: transparent; }
 .modal--drawer {
+  position: relative;
   width: 340px; max-width: 88vw; max-height: 100vh; height: 100%;
   border-radius: 0; box-shadow: -14px 0 34px rgba(27, 27, 25, 0.14);
   display: flex; flex-direction: column; padding: 22px 16px;
 }
+.ac-drawer-resize-handle {
+  position: absolute; top: 0; left: -3px; bottom: 0; width: 7px;
+  cursor: col-resize; z-index: 1; touch-action: none;
+}
+.ac-drawer-resize-handle::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 1px; background: transparent;
+}
+.ac-drawer-resize-handle:hover::after { background: var(--indigo); }
+body.is-resizing-drawer { cursor: col-resize; user-select: none; }
+body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indigo); }
 .ac-tree-scroll { flex-grow: 1; overflow-y: auto; margin: 0 -8px; padding: 0 8px; }
 
 .ac-tree-search { position: relative; margin: 0 8px 10px; }
@@ -1347,6 +1371,29 @@ tbody tr:hover { background: var(--surface-sunk); }
 .ac-method-badge.m-post { background: var(--pass-bg); color: var(--pass); }
 .ac-method-badge.m-put, .ac-method-badge.m-patch { background: var(--warn-bg); color: var(--warn); }
 .ac-method-badge.m-delete { background: var(--fail-bg); color: var(--fail); }
+
+/* Open request tabs — see "Request tabs" in api_client.js. Purely a client-
+   side/localStorage concept, so the strip starts empty in the rendered
+   HTML and is always built by JS. */
+.ac-request-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 10px; overflow-x: auto; }
+.ac-request-tab {
+  display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 10px; border: 1px solid var(--line);
+  border-radius: 8px 8px 0 0; background: var(--surface-sunk); color: var(--ink-2);
+  font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.ac-request-tab:hover { background: var(--surface); color: var(--ink); }
+.ac-request-tab.is-active { background: var(--surface); color: var(--ink); border-color: var(--line-strong); box-shadow: 0 -2px 0 var(--indigo) inset; }
+.ac-request-tab-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.ac-request-tab-close {
+  display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; color: var(--ink-3);
+  font-size: 14px; line-height: 1; flex-shrink: 0;
+}
+.ac-request-tab-close:hover { background: var(--fail-bg); color: var(--fail); }
+.ac-request-tab-add {
+  display: grid; place-items: center; width: 26px; height: 26px; border: 1px dashed var(--line-strong);
+  border-radius: 6px; background: transparent; color: var(--ink-2); font-size: 15px; cursor: pointer; flex-shrink: 0;
+}
+.ac-request-tab-add:hover { background: var(--surface-sunk); color: var(--ink); border-style: solid; }
 
 .ac-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .ac-panel-top .ac-tools { display: flex; align-items: center; gap: 8px; }
@@ -1544,7 +1591,14 @@ tbody tr:hover { background: var(--surface-sunk); }
 
 /* ── Request body: editable dark code-block (gutter + hljs + {{var}}) ──── */
 .ac-code-editor .snippet-code { align-items: stretch; }
-.ac-code-editor .snippet-gutter { padding-top: 14px; }
+.ac-code-editor .snippet-gutter {
+  padding-top: 14px;
+  /* Pinned during horizontal scroll (see the no-wrap note below) — needs
+     its own opaque background so scrolled-under code doesn't show through
+     it; #111116 matches .code-block's background, which is what shows
+     through .snippet-pre code.hljs's own background: transparent. */
+  position: sticky; left: 0; z-index: 1; background: #111116;
+}
 /* align-self: flex-start, not the inherited align-items: stretch — with a
    max-height + overflow-y: auto ancestor (.ac-code-scroll) in the chain,
    Chromium's stretch calculation for this flex item resolves against that
@@ -1557,17 +1611,34 @@ tbody tr:hover { background: var(--surface-sunk); }
    size to its own content instead of being stretched against that wrong
    reference; the gutter beside it is unaffected and keeps stretching to
    match. */
-.ac-code-editor-inner { position: relative; flex: 1 1 auto; min-width: 0; align-self: flex-start; }
+/* flex-shrink: 0 (not the shorthand's default 1) — width is set from JS
+   (see attachCodeEditor's measureNaturalWidth) to whatever the widest line
+   actually needs; letting flexbox shrink it back down under that would
+   defeat the whole point. */
+.ac-code-editor-inner { position: relative; flex: 1 0 auto; align-self: flex-start; }
 .ac-code-overlay {
   position: absolute; inset: 0; margin: 0; padding: 14px 18px 14px 0;
-  pointer-events: none; overflow: hidden; white-space: pre-wrap; word-break: break-word;
+  pointer-events: none; overflow: visible; white-space: pre;
 }
+/* white-space: pre, not pre-wrap — long lines scroll horizontally (see
+   .snippet-code's own overflow-x: auto) instead of wrapping. A real wrap
+   turned out to be unreliable here specifically *because* of the overlay
+   trick this editor depends on: Chromium computes a line-wrap point from
+   the overlay's hljs markup (the line's text split across sibling <span>
+   tokens for each highlighted piece) slightly differently than from the
+   textarea's own single unbroken text run underneath, so a line long
+   enough to sit near the wrap width could wrap in one but not the other.
+   Once that happens the two fall out of sync for every line after it, so
+   the caret (which always tracks the real, invisible textarea) ends up
+   nowhere near where the highlighted text visually is — worse the further
+   down a long body you look. Disabling wrap removes the disagreement
+   outright rather than chasing where, exactly, the two diverge. */
 .ac-code-textarea {
   position: relative; z-index: 1; display: block; width: 100%; box-sizing: border-box;
   min-height: 160px; margin: 0; padding: 14px 18px 14px 0; border: none; resize: none; overflow: hidden;
   background: transparent !important; color: transparent !important; caret-color: #d5d2e0;
   font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
-  white-space: pre-wrap; word-break: break-word; outline: none;
+  white-space: pre; outline: none;
 }
 .ac-code-textarea::placeholder { color: #6b6875; opacity: 1; }
 .ac-code-textarea::selection { background: rgba(201, 242, 77, 0.4); color: transparent; }
