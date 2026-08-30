@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron, icon_download, icon_doc with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload with context %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
@@ -26,6 +26,7 @@
   <form class="inline-form" method="post" action="/stories/{{ story.id }}/delete">
     <button class="btn danger" type="submit">Delete</button>
   </form>
+  <a class="btn act edit" href="#" data-modal-open="export-task-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
   {% if ns.has_testcases %}
   {% if ns.has_images %}
   <a class="btn act export" href="/stories/{{ story.id }}/export-images"
@@ -48,6 +49,17 @@
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
     <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
+
+{% call modal('export-task-json', 'Export Task as JSON', '/stories/' ~ story.id ~ '/export-json', method='get') %}
+  <label class="choice">
+    <input type="checkbox" name="include_screenshots" value="1">
+    <span>Include screenshots (embedded, larger file)</span>
+  </label>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Download</button>
   </div>
 {% endcall %}
 
@@ -89,6 +101,8 @@
     {% if phase.allowed_subtask_types %}
     <a class="btn act add" href="/phases/{{ phase.id }}/subtasks/new" data-modal-open="new-subtask-{{ phase.id }}"
        title="New subtask" aria-label="New subtask">{{ icon_plus() }}</a>
+    <a class="btn act edit" href="#" data-modal-open="import-subtask-{{ phase.id }}"
+       title="Import subtask from JSON" aria-label="Import subtask from JSON">{{ icon_upload() }}</a>
     {% endif %}
     <form class="inline-form" method="post" action="/phases/{{ phase.id }}/delete"
           {% if phase.subtasks %}data-confirm="Delete the {{ phase.type.value }} phase?"{% endif %}>
@@ -118,6 +132,13 @@
     <div class="form-actions" style="justify-content:flex-end;">
       <button class="btn secondary" type="button" data-modal-close>Cancel</button>
       <button class="btn" type="submit">Save</button>
+    </div>
+  {% endcall %}
+  {% call modal('import-subtask-' ~ phase.id, 'Import Subtask · ' ~ phase.type.value, '/phases/' ~ phase.id ~ '/subtasks/import', hint='Accepts a subtask JSON file exported from this same page.', enctype='multipart/form-data') %}
+    <div class="field"><label>File</label><input type="file" name="file" accept="application/json" required></div>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+      <button class="btn" type="submit">Import</button>
     </div>
   {% endcall %}
   {% endif %}

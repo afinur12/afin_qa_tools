@@ -288,7 +288,12 @@ async def send_request(request: Request, db: Session = Depends(get_db)):
 
     started = time_module.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        # verify=False: every target this hits is an internal SIT/dev host
+        # reached over VPN (see the page's own "rides your VPN" tagline),
+        # almost always behind a self-signed or internal-CA certificate —
+        # the same reason Postman/Insomnia ship an "SSL verification" toggle
+        # that teams routinely turn off for exactly this kind of endpoint.
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, verify=False) as client:
             resp = await client.request(
                 resolved["method"], resolved["url"],
                 headers={k: v for k, v in resolved["headers"]},

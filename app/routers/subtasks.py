@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Form, Request
+import json
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app import deletion
@@ -6,6 +8,7 @@ from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, generate_internal_key
+from app.testcase_io import dict_to_subtask
 
 router = APIRouter()
 
@@ -83,6 +86,24 @@ def create_subtask(
     db.commit()
     db.refresh(subtask)
     return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} created.")
+
+
+@router.post("/phases/{phase_id}/subtasks/import")
+async def import_subtask(request: Request, phase_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    try:
+        data = json.loads(await file.read())
+    except json.JSONDecodeError:
+        return redirect_with_flash(f"/stories/{phase.story_id}", "That file isn't valid JSON.", category="danger")
+    try:
+        subtask = dict_to_subtask(db, phase_id, data)
+    except ValueError as exc:
+        db.rollback()
+        return redirect_with_flash(f"/stories/{phase.story_id}", str(exc), category="danger")
+    db.commit()
+    return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} imported.")
 
 
 @router.get("/subtasks/{subtask_id}")

@@ -1530,11 +1530,46 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-resptabs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ac-resptabs-row .tabs { margin-bottom: 0 !important; }
 [data-ac-wrap-toggle] { margin-bottom: 12px; }
-/* .btn.act.edit's own indigo tint is already this button's resting
-   state, so the "on" state needs a visibly different color (and enough
-   specificity to actually win — see the sensitive-toggle fix above for
-   why a bare .is-active class alone isn't reliable here). */
-.btn.act.edit[data-ac-wrap-toggle].is-active { background: var(--lime); color: var(--ink); }
+
+/* Response Payload toolbar (search / copy / wrap) — a bordered "surface"
+   button rather than .btn.act's tinted-fill look: those tints (e.g.
+   indigo-soft) read fine packed into a busy list row with other colored
+   elements around them, but sitting alone against the plain white response
+   card they were nearly invisible — a real border gives them a clear edge
+   regardless of what's behind them. */
+.ac-resp-toolbar-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0; flex-shrink: 0;
+  border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--surface); color: var(--ink-2);
+  cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.ac-resp-toolbar-btn:hover { background: var(--surface-sunk); color: var(--ink); border-color: var(--ink-3); }
+.ac-resp-toolbar-btn.is-active,
+[data-ac-wrap-toggle].is-active { background: var(--lime); color: var(--ink); border-color: var(--lime); }
+
+.ac-resp-search-bar {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 0 10px; padding: 6px 6px 6px 10px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--surface);
+}
+.ac-resp-search-bar svg { flex-shrink: 0; color: var(--ink-3); }
+.ac-resp-search-bar input {
+  flex: 1 1 auto; min-width: 0; border: none; background: transparent;
+  font-size: 13px; padding: 4px 0; color: var(--ink);
+}
+.ac-resp-search-bar input:focus { outline: none; }
+.ac-resp-search-count { flex-shrink: 0; font-size: 12px; color: var(--ink-3); white-space: nowrap; padding: 0 2px; }
+.ac-resp-search-bar .ac-resp-toolbar-btn { width: 26px; height: 26px; border-color: transparent; background: transparent; }
+.ac-resp-search-bar .ac-resp-toolbar-btn:hover { background: var(--surface-sunk); border-color: var(--line-strong); }
+.ac-resp-search-bar .ac-resp-toolbar-btn:disabled { opacity: 0.35; cursor: default; }
+.ac-resp-search-bar .ac-resp-toolbar-btn:disabled:hover { background: transparent; border-color: transparent; }
+
+/* Matches: dark background works whether they land inside the light
+   toolbar area or the dark code block; the current match gets the app's
+   own accent so it's unmistakable among several highlighted hits. */
+mark.ac-search-hit { background: #ffd54a; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }
+mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px var(--ink) inset; }
 
 .ac-save-state { font-size: 11px; color: var(--ink-3); }
 .ac-save-state[data-state="saving"] { color: var(--ink-2); }

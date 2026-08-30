@@ -23,6 +23,11 @@
   // it's assembled into an innerHTML template, not rendered by Jinja.
   const CHEVRON_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>';
 
+  // Used by the Response Payload toolbar's search toggle and inside the
+  // search bar itself — built once here rather than duplicated at each
+  // usage site.
+  const ICON_SEARCH_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+
   // Same TDZ hazard as VAR_TOKEN_PATTERN above: currentHeaders() (defined
   // much further down) reads this, and now gets called during the request
   // body editor's own initial, synchronous setup (attachCodeEditor's
@@ -1055,13 +1060,30 @@
       <div class="ac-report-subhead ac-report-subhead-row">
         <span class="ac-report-subhead-title">Response Payload <span class="badge code">${escapeHtml(contentType ? contentType[1] : "n/a")}</span></span>
         <div style="display: flex; gap: 6px;">
-          <button type="button" class="btn act edit" data-ac-copy-response title="Copy response body" aria-label="Copy response body">
+          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-toggle title="Search response" aria-label="Search response">
+            ${ICON_SEARCH_SVG}
+          </button>
+          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-copy-response title="Copy response body" aria-label="Copy response body">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
-          <button type="button" class="btn act edit" data-ac-wrap-toggle title="Wrap long lines" aria-label="Wrap long lines">
+          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-wrap-toggle title="Wrap long lines" aria-label="Wrap long lines">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h13a3 3 0 0 1 0 6h-4m0 0 3-3m-3 3 3 3M3 18h4"/></svg>
           </button>
         </div>
+      </div>
+      <div class="ac-resp-search-bar" data-ac-search-bar hidden>
+        ${ICON_SEARCH_SVG}
+        <input type="text" placeholder="Search response" data-ac-search-input>
+        <span class="ac-resp-search-count" data-ac-search-count></span>
+        <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-prev title="Previous match" aria-label="Previous match" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+        </button>
+        <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-next title="Next match" aria-label="Next match" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-close title="Close search" aria-label="Close search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
       </div>
       <div class="code-block">
         <div class="snippet-code ac-code-scroll">
@@ -1113,6 +1135,131 @@
     responseBox.querySelector("[data-ac-copy-response]")?.addEventListener("click", async () => {
       await copyText(data.body || "");
       toast("Response copied");
+    });
+
+    // ── Search within the response payload ──────────────────────────────
+    // Runs against the already-hljs-highlighted DOM (this fires after the
+    // highlightElement() call above), wrapping each match in its own
+    // <mark> without disturbing the existing hljs-* spans around it — a
+    // match can straddle a span boundary in the rendered HTML, but since
+    // this walks real text nodes (not the HTML string) rather than
+    // re-parsing markup, that's not a concern here.
+    const searchToggle = responseBox.querySelector("[data-ac-search-toggle]");
+    const searchBar = responseBox.querySelector("[data-ac-search-bar]");
+    const searchInput = responseBox.querySelector("[data-ac-search-input]");
+    const searchCount = responseBox.querySelector("[data-ac-search-count]");
+    const searchPrevBtn = responseBox.querySelector("[data-ac-search-prev]");
+    const searchNextBtn = responseBox.querySelector("[data-ac-search-next]");
+    const searchCloseBtn = responseBox.querySelector("[data-ac-search-close]");
+    const responseCode = responseBox.querySelector("[data-ac-response-pre] code");
+
+    let searchMatches = [];
+    let searchCurrentIndex = -1;
+
+    function clearSearchHighlights() {
+      if (!responseCode) return;
+      responseCode.querySelectorAll("mark.ac-search-hit").forEach((mark) => {
+        mark.replaceWith(document.createTextNode(mark.textContent));
+      });
+      responseCode.normalize();
+      searchMatches = [];
+      searchCurrentIndex = -1;
+    }
+
+    function updateSearchCount() {
+      if (!searchCount) return;
+      searchCount.textContent = searchMatches.length
+        ? `${searchCurrentIndex + 1}/${searchMatches.length}`
+        : (searchInput.value ? "0/0" : "");
+      if (searchPrevBtn) searchPrevBtn.disabled = searchMatches.length === 0;
+      if (searchNextBtn) searchNextBtn.disabled = searchMatches.length === 0;
+    }
+
+    function setCurrentMatch(index) {
+      searchMatches[searchCurrentIndex]?.classList.remove("is-current");
+      searchCurrentIndex = index;
+      const mark = searchMatches[searchCurrentIndex];
+      if (mark) {
+        mark.classList.add("is-current");
+        mark.scrollIntoView({ block: "center", inline: "nearest" });
+      }
+      updateSearchCount();
+    }
+
+    function runSearch(query) {
+      clearSearchHighlights();
+      if (!responseCode || !query) {
+        updateSearchCount();
+        return;
+      }
+      const lowerQuery = query.toLowerCase();
+      const walker = document.createTreeWalker(responseCode, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      let node;
+      while ((node = walker.nextNode())) textNodes.push(node);
+
+      textNodes.forEach((textNode) => {
+        const text = textNode.nodeValue;
+        const lowerText = text.toLowerCase();
+        if (!lowerText.includes(lowerQuery)) return;
+        const frag = document.createDocumentFragment();
+        let cursor = 0;
+        let idx;
+        while ((idx = lowerText.indexOf(lowerQuery, cursor)) !== -1) {
+          if (idx > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, idx)));
+          const mark = document.createElement("mark");
+          mark.className = "ac-search-hit";
+          mark.textContent = text.slice(idx, idx + query.length);
+          frag.appendChild(mark);
+          searchMatches.push(mark);
+          cursor = idx + query.length;
+        }
+        if (cursor < text.length) frag.appendChild(document.createTextNode(text.slice(cursor)));
+        textNode.replaceWith(frag);
+      });
+
+      if (searchMatches.length) setCurrentMatch(0);
+      else updateSearchCount();
+    }
+
+    function openSearch() {
+      searchBar.hidden = false;
+      searchToggle?.classList.add("is-active");
+      searchInput.focus();
+    }
+    function closeSearch() {
+      searchBar.hidden = true;
+      searchToggle?.classList.remove("is-active");
+      searchInput.value = "";
+      clearSearchHighlights();
+    }
+
+    searchToggle?.addEventListener("click", () => (searchBar.hidden ? openSearch() : closeSearch()));
+    searchCloseBtn?.addEventListener("click", closeSearch);
+
+    let searchDebounce;
+    searchInput?.addEventListener("input", () => {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => runSearch(searchInput.value.trim()), 150);
+    });
+    searchInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!searchMatches.length) return;
+        const next = event.shiftKey
+          ? (searchCurrentIndex - 1 + searchMatches.length) % searchMatches.length
+          : (searchCurrentIndex + 1) % searchMatches.length;
+        setCurrentMatch(next);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        closeSearch();
+      }
+    });
+    searchNextBtn?.addEventListener("click", () => {
+      if (searchMatches.length) setCurrentMatch((searchCurrentIndex + 1) % searchMatches.length);
+    });
+    searchPrevBtn?.addEventListener("click", () => {
+      if (searchMatches.length) setCurrentMatch((searchCurrentIndex - 1 + searchMatches.length) % searchMatches.length);
     });
   }
 

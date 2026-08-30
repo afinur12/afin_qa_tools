@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces with context %}
 {% block content %}
 
 {% set story = testcase.subtask.phase.story %}
@@ -35,7 +35,19 @@
   {% endif %}
   <a class="btn act docx" href="/testcases/{{ testcase.id }}/export-docx"
      title="Export .docx" aria-label="Export as Word document">{{ icon_doc() }}</a>
+  <a class="btn act edit" href="#" data-modal-open="export-testcase-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
 </div>
+
+{% call modal('export-testcase-json', 'Export Test Case as JSON', '/testcases/' ~ testcase.id ~ '/export-json', method='get') %}
+  <label class="choice">
+    <input type="checkbox" name="include_screenshots" value="1">
+    <span>Include screenshots (embedded, larger file)</span>
+  </label>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Download</button>
+  </div>
+{% endcall %}
 
 {% call modal('edit-testcase', 'Edit Test Case', '/testcases/' ~ testcase.id ~ '/edit') %}
   <div class="field">

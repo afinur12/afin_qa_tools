@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, Form, Request
+import json
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import Note, NoteAttachType, Phase, PhaseType, Story, generate_internal_key
+from app.testcase_io import dict_to_task
 
 router = APIRouter()
 
@@ -47,6 +50,21 @@ def create_story(
     db.commit()
     db.refresh(story)
     return redirect_with_flash(f"/stories/{story.id}", f"Story {story.display_code} created.")
+
+
+@router.post("/stories/import")
+async def import_story(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    try:
+        data = json.loads(await file.read())
+    except json.JSONDecodeError:
+        return redirect_with_flash("/stories", "That file isn't valid JSON.", category="danger")
+    try:
+        story = dict_to_task(db, data)
+    except ValueError as exc:
+        db.rollback()
+        return redirect_with_flash("/stories", str(exc), category="danger")
+    db.commit()
+    return redirect_with_flash(f"/stories/{story.id}", f"Task {story.display_code} imported.")
 
 
 def _available_phase_types(story: Story) -> list[PhaseType]:

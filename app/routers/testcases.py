@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Form, Request
+import json
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app import deletion
@@ -9,6 +11,7 @@ from app.models import (
     DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
     generate_internal_key,
 )
+from app.testcase_io import dict_to_testcase
 
 router = APIRouter()
 
@@ -83,6 +86,24 @@ def create_testcase(
             db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
     db.commit()
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {testcase.display_code} created.")
+
+
+@router.post("/subtasks/{subtask_id}/testcases/import")
+async def import_testcase(request: Request, subtask_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    try:
+        data = json.loads(await file.read())
+    except json.JSONDecodeError:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "That file isn't valid JSON.", category="danger")
+    try:
+        testcase = dict_to_testcase(db, subtask_id, data)
+    except ValueError as exc:
+        db.rollback()
+        return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
+    db.commit()
+    return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {testcase.display_code} imported.")
 
 
 @router.get("/testcases/{testcase_id}/edit")

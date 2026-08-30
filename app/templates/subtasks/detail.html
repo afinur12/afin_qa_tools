@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -27,6 +27,7 @@
         data-confirm="Delete this subtask, and all of its test cases and bugs?">
     <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask">{{ icon_trash() }}</button>
   </form>
+  <a class="btn act edit" href="#" data-modal-open="export-subtask-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
   {% if subtask.testcases %}
   {% if ns.has_images %}
   <a class="btn act export" href="/subtasks/{{ subtask.id }}/export-images"
@@ -36,6 +37,17 @@
      title="Download all docx (.zip)" aria-label="Download all docx as a zip">{{ icon_doc() }}</a>
   {% endif %}
 </div>
+
+{% call modal('export-subtask-json', 'Export Subtask as JSON', '/subtasks/' ~ subtask.id ~ '/export-json', method='get') %}
+  <label class="choice">
+    <input type="checkbox" name="include_screenshots" value="1">
+    <span>Include screenshots (embedded, larger file)</span>
+  </label>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Download</button>
+  </div>
+{% endcall %}
 
 {% call modal('edit-subtask', 'Edit Subtask', '/subtasks/' ~ subtask.id ~ '/edit') %}
   <div class="field">
@@ -73,7 +85,17 @@
     <div class="spacer"></div>
     <a class="btn act add" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase"
        title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
+    <a class="btn act edit" href="#" data-modal-open="import-testcase"
+       title="Import test case from JSON" aria-label="Import test case from JSON">{{ icon_upload() }}</a>
   </div>
+
+  {% call modal('import-testcase', 'Import Test Case', '/subtasks/' ~ subtask.id ~ '/testcases/import', hint='Accepts a test case JSON file exported from this same page.', enctype='multipart/form-data') %}
+    <div class="field"><label>File</label><input type="file" name="file" accept="application/json" required></div>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+      <button class="btn" type="submit">Import</button>
+    </div>
+  {% endcall %}
 
   {% call modal('new-testcase', 'New Test Case', '/subtasks/' ~ subtask.id ~ '/testcases', wide=True) %}
     <div class="grid-2" style="gap:20px;">

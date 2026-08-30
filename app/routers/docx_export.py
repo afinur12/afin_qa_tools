@@ -1,11 +1,12 @@
 import io
+import json
 import re
 import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.requests import Request
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from app.database import get_db
 from app.templating import templates
 from app.docx.builder import SECTION_FILE_LABELS, build_docx
 from app.models import Story, Subtask, TestCase
+from app.testcase_io import subtask_to_dict, task_to_dict, testcase_to_dict
 
 router = APIRouter()
 
@@ -217,3 +219,40 @@ def export_story_images(request: Request, story_id: int, db: Session = Depends(g
     return StreamingResponse(
         buffer, media_type="application/zip", headers={"Content-Disposition": _content_disposition(filename)}
     )
+
+
+# ── JSON export (see app/testcase_io.py for the shared schema + the import
+#    side of this, which lives next to each level's create_* route instead)
+
+def _json_response(data: dict, filename: str) -> Response:
+    return Response(
+        json.dumps(data, indent=2), media_type="application/json",
+        headers={"Content-Disposition": _content_disposition(filename)},
+    )
+
+
+@router.get("/testcases/{testcase_id}/export-json")
+def export_testcase_json(request: Request, testcase_id: int, include_screenshots: bool = False, db: Session = Depends(get_db)):
+    testcase = db.get(TestCase, testcase_id)
+    if testcase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    data = testcase_to_dict(testcase, include_screenshots=include_screenshots)
+    return _json_response(data, f"{_testcase_basename(testcase)}.json")
+
+
+@router.get("/subtasks/{subtask_id}/export-json")
+def export_subtask_json(request: Request, subtask_id: int, include_screenshots: bool = False, db: Session = Depends(get_db)):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    data = subtask_to_dict(subtask, include_screenshots=include_screenshots)
+    return _json_response(data, f"{_safe_filename(subtask.display_code)}.json")
+
+
+@router.get("/stories/{story_id}/export-json")
+def export_story_json(request: Request, story_id: int, include_screenshots: bool = False, db: Session = Depends(get_db)):
+    story = db.get(Story, story_id)
+    if story is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    data = task_to_dict(story, include_screenshots=include_screenshots)
+    return _json_response(data, f"{_safe_filename(story.display_code)}.json")
