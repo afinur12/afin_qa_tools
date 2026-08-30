@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_send, icon_lock, icon_sliders, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout with context %}
 {% block title %}API Client - QA Toolbox{% endblock %}
 
 {% macro tree_request_row(req, current) %}
@@ -60,8 +60,6 @@
 </div>
 {% endmacro %}
 
-{% from "api_client/_variable_macros.html" import variable_row, variable_form_fields with context %}
-
 {% block content %}
 
 <div class="page-head">
@@ -75,6 +73,7 @@
 <div class="tabs" style="margin-bottom: 20px;">
   <a class="tab active" href="/api-client">Builder</a>
   <a class="tab" href="/api-client/history">History</a>
+  <a class="tab" href="/api-client/variables">Variables</a>
   <a class="tab" href="/api-client/variables/builtin">Built-in Variables</a>
 </div>
 
@@ -102,7 +101,6 @@
           {% endfor %}
         </select>
         <input type="text" class="ac-url-input" data-ac-url placeholder="https://api.example.com/v1/..." value="{{ current.url }}">
-        <button type="button" class="btn act edit" data-modal-open="variables-panel" title="Variables" aria-label="Variables">{{ icon_sliders(15) }}</button>
         <button type="button" class="btn lime" data-ac-send>{{ icon_send() }} Send</button>
         {% if current.id %}
         <button type="submit" form="ac-edit-form" class="btn secondary" data-ac-manual-save>Save</button>
@@ -325,72 +323,6 @@
 {% endfor %}
 {% endfor %}
 
-{#
-  Not built with the `modal` macro: its content wraps in a single <form>,
-  but this panel holds one delete-form PER variable plus links to sibling
-  modals — nesting <form> inside <form> is invalid HTML and silently
-  mangles the inner ones, so this is assembled by hand instead.
-#}
-<div class="modal-backdrop" id="variables-panel" data-modal hidden>
-  <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="variables-panel-title">
-    <div class="modal-head">
-      <div class="modal-title" id="variables-panel-title">Variables</div>
-      <div class="spacer"></div>
-      <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-
-    <div class="hint" style="margin-bottom: 18px;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>
-      Used anywhere in the URL, headers or body as <code>{{ '{{name}}' }}</code>. Precedence: collection &gt; global &gt; built-in.
-    </div>
-
-    <div class="card-title" style="margin-bottom: 10px;">Built-in</div>
-    {% for v in builtin_vars %}
-    <div class="ac-var-row" style="opacity: 0.8;">
-      <div class="ac-var-row-head">
-        <span class="ac-var-name"><span class="ac-brace">{{ '{{' }}</span>{{ v.key }}<span class="ac-brace">{{ '}}' }}</span></span>
-        <span class="muted" style="font-size: 12px;">{{ v.description or '' }}</span>
-      </div>
-    </div>
-    {% endfor %}
-    <p class="muted" style="font-size: 12px; margin: -4px 0 20px;">Manage these on the <a href="/api-client/variables/builtin">Built-in Variables</a> page.</p>
-
-    <div class="card-title" style="margin-bottom: 10px;">Global</div>
-    {% for v in global_vars %}{{ variable_row(v) }}{% endfor %}
-    <a class="btn secondary sm" href="#" data-modal-open="new-variable-global">{{ icon_plus(12) }} Add Global Variable</a>
-
-    {% if current.collection_id %}
-    <div class="card-title" style="margin: 22px 0 10px;">Collection</div>
-    {% for v in collection_vars %}{{ variable_row(v) }}{% endfor %}
-    <a class="btn secondary sm" href="#" data-modal-open="new-variable-collection">{{ icon_plus(12) }} Add Collection Variable</a>
-    {% endif %}
-
-    <div class="form-actions" style="justify-content: flex-end; margin-top: 20px;">
-      <button class="btn secondary" type="button" data-modal-close>Close</button>
-    </div>
-  </div>
-</div>
-
-{% call modal('new-variable-global', 'New Global Variable', '/api-client/variables') %}
-  <input type="hidden" name="scope" value="GLOBAL">
-  {{ variable_form_fields() }}
-{% endcall %}
-
-{% if current.collection_id %}
-{% call modal('new-variable-collection', 'New Collection Variable', '/api-client/variables') %}
-  <input type="hidden" name="scope" value="COLLECTION">
-  <input type="hidden" name="collection_id" value="{{ current.collection_id }}">
-  {{ variable_form_fields() }}
-{% endcall %}
-{% endif %}
-
-{% for v in global_vars + collection_vars %}
-{% call modal('edit-variable-' ~ v.id, 'Edit Variable', '/api-client/variables/' ~ v.id ~ '/edit') %}
-  {{ variable_form_fields(v) }}
-{% endcall %}
-{% endfor %}
 
 {% endblock %}
 

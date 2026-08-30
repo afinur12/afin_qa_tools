@@ -7,7 +7,16 @@
   // 'VAR_TOKEN_PATTERN' before initialization" (a real bug this file had,
   // caught by attachCodeEditor being called unconditionally — i.e. before
   // the builder-only early-return below — for the Built-in Variables page).
-  const VAR_TOKEN_PATTERN = /\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g;
+  const VAR_TOKEN_PATTERN = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}/g;
+
+  // Same TDZ hazard as above: wrapVarTokens (below) runs during the very
+  // first render of the URL bar, well before the {{variable}} autocomplete
+  // section further down this file would otherwise define this — so it has
+  // to live up here too. Pages that don't render the Builder (Built-in
+  // Variables' own script editor, etc.) never set window.__AC_VARIABLES__,
+  // hence the fallback; nothing on those pages contains {{name}} tokens.
+  const AC_VARIABLES = window.__AC_VARIABLES__ || [];
+  const AC_VARIABLE_NAMES = new Set(AC_VARIABLES.map((v) => v.name));
 
   // Matches icon_chevron() in macros.html — used for the collapsible
   // Response Headers <details> summary, built as a plain string here since
@@ -191,8 +200,27 @@
   // tokens colored, and makes the real field's glyphs transparent (keeping
   // a visible caret) so only the overlay's colors show through underneath
   // — the standard trick for "syntax highlighting" inside a native field.
+  // Alternates two chip colors across the tokens found in one string, so
+  // adjacent variables (e.g. {{amdocs-cm}}{{base_url_dev_tc}} with nothing
+  // between them) read as two distinct chips instead of one unbroken block
+  // of the same green.
+  function wrapVarTokens(html) {
+    let index = 0;
+    return html.replace(VAR_TOKEN_PATTERN, (match, name) => {
+      // Only a token that actually resolves (matches a real built-in/
+      // global/collection variable) gets the badge treatment — anything
+      // else ({{randomkjfdxk}}, a typo, {{}} you haven't defined yet) is
+      // left as plain text so the highlight can be trusted as "this will
+      // really substitute", not just "this looks like {{...}}".
+      if (!AC_VARIABLE_NAMES.has(name)) return match;
+      const cls = index % 2 === 0 ? "ac-var-token" : "ac-var-token-alt";
+      index += 1;
+      return `<span class="${cls}">${match}</span>`;
+    });
+  }
+
   function highlightMarkup(text) {
-    return escapeHtml(text).replace(VAR_TOKEN_PATTERN, (match) => `<span class="ac-var-token">${match}</span>`);
+    return wrapVarTokens(escapeHtml(text));
   }
 
   function attachVariableHighlight(field) {
@@ -305,7 +333,7 @@
     // Python string literal — since hljs keeps the whole quoted string as
     // one token, so {{name}} stays contiguous in the resulting HTML
     // instead of being split across span boundaries by hljs's tokenizing.
-    return html.replace(VAR_TOKEN_PATTERN, (match) => `<span class="ac-var-token">${match}</span>`);
+    return wrapVarTokens(html);
   }
 
   function attachCodeEditor(textarea, language) {
@@ -408,7 +436,6 @@
   // typing "{{" opens a filtered list of every variable visible from here
   // (collection-scoped listed first, matching real resolution precedence —
   // see the server-side `all_variables` ordering in the api_client router).
-  const AC_VARIABLES = window.__AC_VARIABLES__ || [];
   const AC_SCOPE_LABEL = { collection: "collection", global: "global", builtin: "built-in" };
   const AC_FIELD_SELECTOR = "[data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-param-key], [data-ac-param-value], [data-ac-body]";
 
@@ -460,13 +487,20 @@
     if (typeof field.selectionStart !== "number") return;
     const pos = field.selectionStart;
     const before = field.value.slice(0, pos);
-    const match = before.match(/\{\{([a-zA-Z0-9_]*)$/);
+    const match = before.match(/\{\{([a-zA-Z0-9_-]*)$/);
     if (!match) {
       closeSuggest();
       return;
     }
     const partial = match[1].toLowerCase();
-    const matches = AC_VARIABLES.filter((v) => v.name.toLowerCase().startsWith(partial)).slice(0, 8);
+    // Prefix hits first (typing "base_url" should still lead with
+    // base_url_dev_tc), then anything that merely contains what was typed
+    // (so "dev_tc" also turns up base_url_dev_tc) — best of both.
+    const startsWithMatches = AC_VARIABLES.filter((v) => v.name.toLowerCase().startsWith(partial));
+    const containsMatches = partial
+      ? AC_VARIABLES.filter((v) => !v.name.toLowerCase().startsWith(partial) && v.name.toLowerCase().includes(partial))
+      : [];
+    const matches = [...startsWithMatches, ...containsMatches].slice(0, 8);
     if (!matches.length) {
       closeSuggest();
       return;
@@ -622,14 +656,20 @@
   // a raw curl string — see that function for why that can happen).
   function applyParsedCurl(data) {
     document.querySelector("[data-ac-method]").value = data.method;
-    document.querySelector("[data-ac-url]").value = data.url;
+    const urlField = document.querySelector("[data-ac-url]");
+    urlField.value = data.url;
     headersContainer.innerHTML = "";
     (data.headers || []).forEach(([k, v]) => addHeaderRow(k, v));
     const bodyField = document.querySelector("[data-ac-body]");
     bodyField.value = data.body || "";
     // Params/Headers/Body are always shown at once now (no tabs to switch
-    // to) — just make sure the body's syntax-highlight overlay and gutter
-    // resync, since setting .value directly doesn't fire "input" on its own.
+    // to) — just make sure the URL bar's {{var}} highlight overlay and the
+    // body's syntax-highlight overlay + gutter resync, since setting .value
+    // directly doesn't fire "input" on its own (both real fields render
+    // transparent text over an overlay div that only repaints on "input" —
+    // skipping this leaves the address bar looking blank even though its
+    // value is set correctly underneath).
+    urlField.dispatchEvent(new Event("input", { bubbles: true }));
     bodyField.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
@@ -647,12 +687,14 @@
       const data = await response.json();
       if (!data.matched) {
         urlInput.value = text;
+        urlInput.dispatchEvent(new Event("input", { bubbles: true }));
         return;
       }
       applyParsedCurl(data);
       toast("Parsed from curl");
     } catch {
       urlInput.value = text;
+      urlInput.dispatchEvent(new Event("input", { bubbles: true }));
     }
   });
 

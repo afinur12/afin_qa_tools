@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ApiVariable, ApiVariableKind, ApiVariableScope
 
-VAR_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
+VAR_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}")
 
 SCRIPT_TIMEOUT_SECONDS = 1.0
 

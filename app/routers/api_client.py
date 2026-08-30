@@ -145,9 +145,6 @@ def builder(
         {
             "collections": collections,
             "current": current,
-            "builtin_vars": builtin_vars,
-            "global_vars": global_vars,
-            "collection_vars": collection_vars,
             "all_variables": all_variables,
             "last_response": last_response,
         },
@@ -554,7 +551,32 @@ def delete_request(request: Request, request_id: int, db: Session = Depends(get_
     return redirect_with_flash(f"/api-client?collection_id={collection_id}", f'"{name}" deleted.', category="danger")
 
 
-# ── Variables (quick panel: global + collection) ───────────────────────
+# ── Variables (dedicated page: global + collection) ─────────────────────
+
+@router.get("/variables")
+def variables_page(request: Request, collection_id: int | None = None, db: Session = Depends(get_db)):
+    global_vars = db.query(ApiVariable).filter(ApiVariable.scope == ApiVariableScope.GLOBAL).order_by(ApiVariable.key).all()
+    collections = db.query(ApiCollection).order_by(ApiCollection.name).all()
+    selected_collection = db.get(ApiCollection, collection_id) if collection_id else None
+    collection_vars = []
+    if selected_collection is not None:
+        collection_vars = (
+            db.query(ApiVariable)
+            .filter(ApiVariable.scope == ApiVariableScope.COLLECTION, ApiVariable.collection_id == selected_collection.id)
+            .order_by(ApiVariable.key)
+            .all()
+        )
+    return templates.TemplateResponse(
+        request,
+        "api_client/variables.html",
+        {
+            "global_vars": global_vars,
+            "collections": collections,
+            "selected_collection": selected_collection,
+            "collection_vars": collection_vars,
+        },
+    )
+
 
 @router.post("/variables")
 def create_variable(
@@ -579,7 +601,7 @@ def create_variable(
     if existing is not None:
         return redirect_with_flash(
             "/api-client/variables/builtin" if scope_enum == ApiVariableScope.BUILTIN
-            else (f"/api-client?collection_id={scoped_collection_id}" if scoped_collection_id else "/api-client"),
+            else (f"/api-client/variables?collection_id={scoped_collection_id}" if scoped_collection_id else "/api-client/variables"),
             f'{{{{{key}}}}} already exists in this scope.', category="danger",
         )
 
@@ -618,16 +640,22 @@ def delete_variable(request: Request, variable_id: int, db: Session = Depends(ge
     if variable is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     scope = variable.scope
+    collection_id = variable.collection_id
     db.delete(variable)
     db.commit()
-    target = "/api-client/variables/builtin" if scope == ApiVariableScope.BUILTIN else "/api-client"
+    if scope == ApiVariableScope.BUILTIN:
+        target = "/api-client/variables/builtin"
+    elif collection_id:
+        target = f"/api-client/variables?collection_id={collection_id}"
+    else:
+        target = "/api-client/variables"
     return redirect_with_flash(target, "Variable deleted.", category="danger")
 
 
 def _variable_redirect(variable: ApiVariable):
     if variable.scope == ApiVariableScope.BUILTIN:
         return redirect_with_flash("/api-client/variables/builtin", f"{{{{{variable.key}}}}} saved.")
-    target = f"/api-client?collection_id={variable.collection_id}" if variable.collection_id else "/api-client"
+    target = f"/api-client/variables?collection_id={variable.collection_id}" if variable.collection_id else "/api-client/variables"
     return redirect_with_flash(target, f"{{{{{variable.key}}}}} saved.")
 
 

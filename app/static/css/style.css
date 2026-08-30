@@ -1518,7 +1518,29 @@ tbody tr:hover { background: var(--surface-sunk); }
   overflow: hidden; white-space: pre; color: var(--ink);
 }
 .ac-highlight-overlay.is-multiline { white-space: pre-wrap; word-break: break-word; overflow: auto; }
-.ac-var-token { background: var(--lime); color: var(--ink) !important; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+/* Badge-styled, but WITHOUT padding or margin: this overlay is a second
+   copy of the real (invisible) input's text stacked exactly on top of it —
+   every character has to land at the same x in both layers, or the caret,
+   which belongs to the real input and knows nothing about this overlay,
+   visibly drifts from the text it's supposedly sitting next to. padding/
+   margin add pixels the real input doesn't have, so they're off-limits
+   here; outline is layout-neutral (drawn outside the box, doesn't shift
+   anything) and border-radius doesn't add width either, so those two do
+   the "badge" look safely. Adjacent badges with no gap between them are
+   told apart by the outline seam and the alternating background below. */
+.ac-var-token {
+  background: var(--lime); color: var(--ink) !important;
+  border-radius: 4px; outline: 1px solid rgba(27, 27, 25, 0.3); outline-offset: -1px;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+/* Alternates with .ac-var-token so back-to-back variables (no separator
+   between them) still read as two distinct badges instead of one solid
+   block of the same color. */
+.ac-var-token-alt {
+  background: var(--ink); color: #fff !important;
+  border-radius: 4px; outline: 1px solid rgba(255, 255, 255, 0.3); outline-offset: -1px;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
 
 /* ── Request body: editable dark code-block (gutter + hljs + {{var}}) ──── */
 .ac-code-editor .snippet-code { align-items: stretch; }

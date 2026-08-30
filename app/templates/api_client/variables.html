@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal, icon_plus with context %}
+{% from "api_client/_variable_macros.html" import variable_row, variable_form_fields with context %}
+{% block title %}Variables - QA Toolbox{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">Variables</h1>
+    <div class="page-sub">{{ '{{name}}' }} placeholders for the URL, headers, or body. Precedence: collection &gt; global &gt; built-in.</div>
+  </div>
+</div>
+
+<div class="tabs" style="margin-bottom: 20px;">
+  <a class="tab" href="/api-client">Builder</a>
+  <a class="tab" href="/api-client/history">History</a>
+  <a class="tab active" href="/api-client/variables">Variables</a>
+  <a class="tab" href="/api-client/variables/builtin">Built-in Variables</a>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Global</div>
+    <div class="card-sub">Available to every request, in every collection.</div>
+    <div class="spacer"></div>
+    <a class="btn act add" href="#" data-modal-open="new-variable-global" title="New global variable" aria-label="New global variable">{{ icon_plus() }}</a>
+  </div>
+  {% for v in global_vars %}{{ variable_row(v) }}{% endfor %}
+  {% if not global_vars %}<div class="empty" style="padding: 22px;">No global variables yet.</div>{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head" style="margin-bottom: 4px;">
+    <div class="card-title">Collection</div>
+    <div class="card-sub">Scoped to one collection &mdash; shadows a same-named global or built-in variable.</div>
+  </div>
+  <form method="get" action="/api-client/variables" class="field" style="max-width: 320px; margin: 14px 0 20px;">
+    <label>Collection</label>
+    <select name="collection_id" onchange="this.form.submit()">
+      <option value="">Select a collection&hellip;</option>
+      {% for c in collections %}
+      <option value="{{ c.id }}" {% if selected_collection and selected_collection.id == c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if selected_collection %}
+  <div class="row" style="margin-bottom: 14px;">
+    <div class="spacer"></div>
+    <a class="btn act add" href="#" data-modal-open="new-variable-collection" title="New collection variable" aria-label="New collection variable">{{ icon_plus() }}</a>
+  </div>
+  {% for v in collection_vars %}{{ variable_row(v) }}{% endfor %}
+  {% if not collection_vars %}<div class="empty" style="padding: 22px;">No variables in {{ selected_collection.name }} yet.</div>{% endif %}
+  {% else %}
+  <div class="muted" style="font-size: 13px;">Pick a collection above to see and manage its variables.</div>
+  {% endif %}
+</div>
+
+{% call modal('new-variable-global', 'New Global Variable', '/api-client/variables') %}
+  <input type="hidden" name="scope" value="GLOBAL">
+  {{ variable_form_fields() }}
+{% endcall %}
+
+{% if selected_collection %}
+{% call modal('new-variable-collection', 'New Collection Variable', '/api-client/variables') %}
+  <input type="hidden" name="scope" value="COLLECTION">
+  <input type="hidden" name="collection_id" value="{{ selected_collection.id }}">
+  {{ variable_form_fields() }}
+{% endcall %}
+{% endif %}
+
+{% for v in global_vars + collection_vars %}
+{% call modal('edit-variable-' ~ v.id, 'Edit Variable', '/api-client/variables/' ~ v.id ~ '/edit') %}
+  {{ variable_form_fields(v) }}
+{% endcall %}
+{% endfor %}
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/api_client.js') }}"></script>
+{% endblock %}
