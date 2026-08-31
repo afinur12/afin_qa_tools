@@ -11,7 +11,7 @@ from app.models import (
     DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
     generate_internal_key,
 )
-from app.testcase_io import dict_to_testcase
+from app.testcase_io import dict_to_testcase, extract_testcase_candidates
 
 router = APIRouter()
 
@@ -104,6 +104,58 @@ async def import_testcase(request: Request, subtask_id: int, file: UploadFile = 
         return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
     db.commit()
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {testcase.display_code} imported.")
+
+
+@router.post("/subtasks/{subtask_id}/testcases/import-preview")
+async def import_testcases_preview(request: Request, subtask_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    try:
+        data = json.loads(await file.read())
+    except json.JSONDecodeError:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "That file isn't valid JSON.", category="danger")
+    try:
+        candidates = extract_testcase_candidates(data)
+    except ValueError as exc:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
+    if not candidates:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "That file has no test cases to import.", category="danger")
+    rows = [{"fields": fields, "json": json.dumps(fields)} for fields in candidates]
+    return templates.TemplateResponse(
+        request,
+        "testcases/import_preview.html",
+        {"subtask": subtask, "rows": rows},
+    )
+
+
+@router.post("/subtasks/{subtask_id}/testcases/import-confirm")
+def import_testcases_confirm(
+    request: Request,
+    subtask_id: int,
+    candidates: list[str] = Form(...),
+    selected: list[int] = Form([]),
+    db: Session = Depends(get_db),
+):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    if not selected:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "No test cases selected to import.", category="danger")
+    try:
+        fields_list = [json.loads(candidates[i]) for i in selected]
+    except (IndexError, json.JSONDecodeError):
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "That selection doesn't match the uploaded file.", category="danger")
+    created = []
+    try:
+        for fields in fields_list:
+            created.append(dict_to_testcase(db, subtask_id, {"kind": "testcase", "testcase": fields}))
+    except ValueError as exc:
+        db.rollback()
+        return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
+    db.commit()
+    plural = "" if len(created) == 1 else "s"
+    return redirect_with_flash(f"/subtasks/{subtask_id}", f"{len(created)} test case{plural} imported.")
 
 
 @router.get("/testcases/{testcase_id}/edit")

@@ -83,13 +83,24 @@
       <div class="card-sub">{{ subtask.testcases | length }} case{{ '' if subtask.testcases | length == 1 else 's' }}</div>
     </div>
     <div class="spacer"></div>
+    {% if subtask.testcases %}
+    <form id="export-selected-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/export-selected"
+          style="display:inline-flex; align-items:center; gap:8px; margin-right:4px;">
+      <label class="choice" style="margin:0;">
+        <input type="checkbox" name="include_screenshots" value="1">
+        <span style="font-size:12px;">Screenshots</span>
+      </label>
+      <button class="btn act export" type="button" data-submit-selected="export-selected-form" data-selection-name="testcase_ids"
+              title="Export selected test cases as JSON" aria-label="Export selected test cases as JSON">{{ icon_braces() }}</button>
+    </form>
+    {% endif %}
     <a class="btn act add" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase"
        title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
     <a class="btn act edit" href="#" data-modal-open="import-testcase"
-       title="Import test case from JSON" aria-label="Import test case from JSON">{{ icon_upload() }}</a>
+       title="Import test cases from JSON" aria-label="Import test cases from JSON">{{ icon_upload() }}</a>
   </div>
 
-  {% call modal('import-testcase', 'Import Test Case', '/subtasks/' ~ subtask.id ~ '/testcases/import', hint='Accepts a test case JSON file exported from this same page.', enctype='multipart/form-data') %}
+  {% call modal('import-testcase', 'Import Test Cases', '/subtasks/' ~ subtask.id ~ '/testcases/import-preview', hint='Accepts a single test case, a selected-testcases, or a whole-subtask JSON export — you\'ll pick which ones to keep on the next page.', enctype='multipart/form-data') %}
     <div class="field"><label>File</label><input type="file" name="file" accept="application/json" required></div>
     <div class="form-actions" style="justify-content:flex-end;">
       <button class="btn secondary" type="button" data-modal-close>Cancel</button>
@@ -126,10 +137,14 @@
   {% endcall %}
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Status</th><th></th></tr></thead>
+    <thead><tr>
+      <th style="width:1%;">{% if subtask.testcases %}<input type="checkbox" data-select-all="[data-selection-name='testcase_ids']" title="Select all">{% endif %}</th>
+      <th>Code</th><th>Title</th><th>Status</th><th></th>
+    </tr></thead>
     <tbody>
       {% for tc in subtask.testcases %}
       <tr>
+        <td><input type="checkbox" data-selection-name="testcase_ids" value="{{ tc.id }}" aria-label="Select {{ tc.display_code }}"></td>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
         <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
         <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>
@@ -141,7 +156,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="empty">No test cases yet.</td></tr>
+      <tr><td colspan="5" class="empty">No test cases yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

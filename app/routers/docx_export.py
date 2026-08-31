@@ -5,16 +5,17 @@ import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.requests import Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.templating import templates
 from app.docx.builder import SECTION_FILE_LABELS, build_docx
 from app.models import Story, Subtask, TestCase
-from app.testcase_io import subtask_to_dict, task_to_dict, testcase_to_dict
+from app.testcase_io import subtask_to_dict, task_to_dict, testcase_to_dict, testcases_to_dict
 
 router = APIRouter()
 
@@ -238,6 +239,26 @@ def export_testcase_json(request: Request, testcase_id: int, include_screenshots
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     data = testcase_to_dict(testcase, include_screenshots=include_screenshots)
     return _json_response(data, f"{_testcase_basename(testcase)}.json")
+
+
+@router.post("/subtasks/{subtask_id}/testcases/export-selected")
+def export_selected_testcases_json(
+    request: Request,
+    subtask_id: int,
+    testcase_ids: list[int] = Form(...),
+    include_screenshots: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    wanted = set(testcase_ids)
+    testcases = [tc for tc in subtask.testcases if tc.id in wanted]
+    if not testcases:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "No test cases selected.", category="danger")
+    data = testcases_to_dict(testcases, include_screenshots=include_screenshots)
+    filename = f"{_safe_filename(subtask.display_code)} - selected.json"
+    return _json_response(data, filename)
 
 
 @router.get("/subtasks/{subtask_id}/export-json")

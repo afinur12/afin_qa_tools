@@ -603,6 +603,41 @@ const HLJS_LANGUAGE_MAP = {
   YAML: "yaml", XML: "xml", BASH: "bash", PYTHON: "python", JAVASCRIPT: "javascript",
 };
 
+// A header checkbox with data-select-all="<css selector>" toggles every
+// checkbox matching that selector (used by the test case export/import
+// checklists — see subtasks/detail.html and testcases/import_preview.html).
+document.addEventListener("change", (event) => {
+  const selectAll = event.target.closest("[data-select-all]");
+  if (selectAll) {
+    document.querySelectorAll(selectAll.dataset.selectAll).forEach((cb) => {
+      cb.checked = selectAll.checked;
+    });
+  }
+});
+
+// A button with data-submit-selected="<hidden form id>" copies every checked
+// checkbox in data-selection-name="<name>" into that form as hidden inputs,
+// then submits it. Keeps the bulk-export form separate from the per-row
+// delete <form>s in the same table (forms can't nest).
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-submit-selected]");
+  if (!trigger) return;
+  const form = document.getElementById(trigger.dataset.submitSelected);
+  if (!form) return;
+  const checked = document.querySelectorAll(`[data-selection-name="${trigger.dataset.selectionName}"]:checked`);
+  if (checked.length === 0) return;
+  form.querySelectorAll('input[data-generated="1"]').forEach((el) => el.remove());
+  checked.forEach((cb) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = trigger.dataset.selectionName;
+    input.value = cb.value;
+    input.dataset.generated = "1";
+    form.appendChild(input);
+  });
+  form.submit();
+});
+
 document.querySelectorAll("[data-snippet-code]").forEach((block) => {
   if (!window.hljs) return; // vendored bundle failed to load — plain text is still readable
   const lang = HLJS_LANGUAGE_MAP[block.dataset.snippetCode] || "plaintext";

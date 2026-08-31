@@ -124,6 +124,16 @@ def subtask_to_dict(subtask: Subtask, include_screenshots: bool = False) -> dict
     }
 
 
+def testcases_to_dict(testcases: list[TestCase], include_screenshots: bool = False) -> dict:
+    """A selected subset of test cases (e.g. checkbox-picked in the UI), as
+    opposed to testcase_to_dict (one) or subtask_to_dict (all, plus bugs)."""
+    return {
+        "kind": "testcases",
+        "schema_version": SCHEMA_VERSION,
+        "testcases": [_testcase_fields(tc, include_screenshots) for tc in testcases],
+    }
+
+
 def _bug_fields(bug: Bug) -> dict:
     return {
         "display_code": bug.display_code,
@@ -192,6 +202,32 @@ def _write_screenshot(testcase_id: int, step_id: int, shot: dict) -> Screenshot:
     disk_path.parent.mkdir(parents=True, exist_ok=True)
     disk_path.write_bytes(raw)
     return Screenshot(step_id=step_id, file_path=relative_path)
+
+
+def extract_testcase_candidates(data: dict) -> list[dict]:
+    """Pull a list of raw testcase field-dicts out of an uploaded file for the
+    import-preview flow, regardless of which export shape it came from: a
+    single testcase, a "testcases" list (testcases_to_dict), or a whole
+    subtask export (only its nested testcases — bugs/notes/etc are ignored,
+    this flow is testcase-only). Each dict is exactly what dict_to_testcase
+    expects under a {"kind": "testcase", "testcase": ...} wrapper."""
+    kind = data.get("kind")
+    if kind == "testcase":
+        fields = data.get("testcase")
+        if not isinstance(fields, dict):
+            raise ValueError('Missing "testcase" object.')
+        return [fields]
+    if kind == "testcases":
+        items = data.get("testcases")
+        if not isinstance(items, list):
+            raise ValueError('Missing "testcases" list.')
+        return items
+    if kind == "subtask":
+        fields = data.get("subtask")
+        if not isinstance(fields, dict):
+            raise ValueError('Missing "subtask" object.')
+        return fields.get("testcases") or []
+    raise ValueError(f'Unsupported file kind "{kind}" for test case import — expected "testcase", "testcases", or "subtask".')
 
 
 def dict_to_testcase(db: Session, subtask_id: int, data: dict) -> TestCase:

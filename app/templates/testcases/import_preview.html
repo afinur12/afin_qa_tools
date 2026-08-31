@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/stories">Tasks</a><span class="sep">/</span>
+  <a href="/subtasks/{{ subtask.id }}">{{ subtask.display_code }}</a><span class="sep">/</span>
+  Import test cases
+</div>
+
+<div class="page-head">
+  <h1 class="page-title">Import test cases</h1>
+</div>
+
+<div class="card flush">
+  <div class="card-head" style="padding:22px 22px 0; margin-bottom:14px;">
+    <div>
+      <div class="card-title">Choose which to import</div>
+      <div class="card-sub">{{ rows | length }} test case{{ '' if rows | length == 1 else 's' }} found in the file — all checked by default</div>
+    </div>
+  </div>
+
+  <form method="post" action="/subtasks/{{ subtask.id }}/testcases/import-confirm">
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:1%;"><input type="checkbox" data-select-all=".import-candidate" checked></th>
+          <th>Code</th>
+          <th>Title</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>
+            <input type="checkbox" class="import-candidate" name="selected" value="{{ loop.index0 }}" checked>
+            <input type="hidden" name="candidates" value="{{ row.json }}">
+          </td>
+          <td><span class="badge code">{{ row.fields.get('display_code', '') }}</span></td>
+          <td>{{ row.fields.get('title', '') }}</td>
+          <td><span class="badge">{{ row.fields.get('status', 'TO_DO') }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <div class="form-actions" style="justify-content:flex-end; padding:16px 22px;">
+      <a class="btn secondary" href="/subtasks/{{ subtask.id }}">Cancel</a>
+      <button class="btn" type="submit">Import selected</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

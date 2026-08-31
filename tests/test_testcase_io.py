@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.models import (
@@ -17,8 +19,12 @@ from app.models import (
 # "test", which pytest's default collector treats as a test function to
 # call — aliasing avoids a spurious collection error without touching
 # pytest config.
-from app.testcase_io import dict_to_subtask, dict_to_task, dict_to_testcase, subtask_to_dict, task_to_dict
+from app.testcase_io import (
+    dict_to_subtask, dict_to_task, dict_to_testcase, extract_testcase_candidates,
+    subtask_to_dict, task_to_dict,
+)
 from app.testcase_io import testcase_to_dict as dump_testcase
+from app.testcase_io import testcases_to_dict as dump_testcases
 
 
 def _make_story(db, code="PROJ-1", phase_type=PhaseType.SIT):
@@ -258,3 +264,141 @@ def test_import_testcase_endpoint_happy_path(client, db_session):
     imported = [t for t in target_subtask.testcases if t.display_code == "TC-1"]
     assert len(imported) == 1
     assert len(imported[0].sections) == 3
+
+
+# ── Selected-testcases export/import (extract_testcase_candidates + routes) ─
+
+def test_testcases_to_dict_and_extract_round_trip(db_session):
+    story, phase = _make_story(db_session, code="SEL-1")
+    subtask = _make_subtask(db_session, phase)
+    tc1 = _make_testcase(db_session, subtask, "TC-1")
+    tc2 = _make_testcase(db_session, subtask, "TC-2")
+    db_session.commit()
+
+    data = dump_testcases([tc1, tc2])
+    assert data["kind"] == "testcases"
+    assert [t["display_code"] for t in data["testcases"]] == ["TC-1", "TC-2"]
+
+    candidates = extract_testcase_candidates(data)
+    assert [c["display_code"] for c in candidates] == ["TC-1", "TC-2"]
+
+
+def test_extract_testcase_candidates_from_single_testcase(db_session):
+    story, phase = _make_story(db_session, code="SEL-2")
+    subtask = _make_subtask(db_session, phase)
+    tc = _make_testcase(db_session, subtask, "TC-1")
+    db_session.commit()
+
+    candidates = extract_testcase_candidates(dump_testcase(tc))
+    assert len(candidates) == 1
+    assert candidates[0]["display_code"] == "TC-1"
+
+
+def test_extract_testcase_candidates_from_subtask_ignores_bugs(db_session):
+    story, phase = _make_story(db_session, code="SEL-3")
+    subtask = _make_subtask(db_session, phase)
+    _make_testcase(db_session, subtask, "TC-1")
+    _make_bug(db_session, subtask, "BUG-1")
+    db_session.commit()
+
+    candidates = extract_testcase_candidates(subtask_to_dict(subtask))
+    assert len(candidates) == 1
+    assert candidates[0]["display_code"] == "TC-1"
+
+
+def test_extract_testcase_candidates_rejects_unknown_kind():
+    with pytest.raises(ValueError):
+        extract_testcase_candidates({"kind": "bug", "bug": {}})
+
+
+def test_export_selected_testcases_endpoint_only_includes_checked_ids(client, db_session):
+    story, phase = _make_story(db_session, code="SELHTTP-1")
+    subtask = _make_subtask(db_session, phase)
+    tc1 = _make_testcase(db_session, subtask, "TC-1")
+    _make_testcase(db_session, subtask, "TC-2")  # not selected
+    db_session.commit()
+
+    response = client.post(
+        f"/subtasks/{subtask.id}/testcases/export-selected",
+        data={"testcase_ids": [str(tc1.id)]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "testcases"
+    assert [t["display_code"] for t in body["testcases"]] == ["TC-1"]
+
+
+def test_export_selected_testcases_endpoint_flashes_when_none_selected(client, db_session):
+    story, phase = _make_story(db_session, code="SELHTTP-2")
+    subtask = _make_subtask(db_session, phase)
+    db_session.commit()
+
+    response = client.post(
+        f"/subtasks/{subtask.id}/testcases/export-selected",
+        data={"testcase_ids": ["999999"]},  # doesn't belong to this subtask
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/subtasks/{subtask.id}"
+
+
+def test_import_preview_endpoint_lists_every_candidate(client, db_session):
+    story, phase = _make_story(db_session, code="SELHTTP-3")
+    source_subtask = _make_subtask(db_session, phase, "ST-SRC")
+    target_subtask = _make_subtask(db_session, phase, "ST-DST")
+    tc1 = _make_testcase(db_session, source_subtask, "TC-1")
+    tc2 = _make_testcase(db_session, source_subtask, "TC-2")
+    db_session.commit()
+
+    payload = json.dumps(dump_testcases([tc1, tc2])).encode("utf-8")
+    response = client.post(
+        f"/subtasks/{target_subtask.id}/testcases/import-preview",
+        files={"file": ("selected.json", payload, "application/json")},
+    )
+    assert response.status_code == 200
+    assert "TC-1" in response.text
+    assert "TC-2" in response.text
+
+
+def test_import_confirm_endpoint_only_creates_selected_rows(client, db_session):
+    story, phase = _make_story(db_session, code="SELHTTP-4")
+    source_subtask = _make_subtask(db_session, phase, "ST-SRC")
+    target_subtask = _make_subtask(db_session, phase, "ST-DST")
+    tc1 = _make_testcase(db_session, source_subtask, "TC-1")
+    tc2 = _make_testcase(db_session, source_subtask, "TC-2")
+    db_session.commit()
+
+    candidates = [dump_testcase(tc1)["testcase"], dump_testcase(tc2)["testcase"]]
+    response = client.post(
+        f"/subtasks/{target_subtask.id}/testcases/import-confirm",
+        data={
+            "candidates": [json.dumps(c) for c in candidates],
+            "selected": ["0"],  # only TC-1
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/subtasks/{target_subtask.id}"
+
+    db_session.expire_all()
+    codes = {t.display_code for t in target_subtask.testcases}
+    assert codes == {"TC-1"}
+
+
+def test_import_confirm_endpoint_flashes_when_nothing_selected(client, db_session):
+    story, phase = _make_story(db_session, code="SELHTTP-5")
+    source_subtask = _make_subtask(db_session, phase, "ST-SRC")
+    target_subtask = _make_subtask(db_session, phase, "ST-DST")
+    tc = _make_testcase(db_session, source_subtask, "TC-1")
+    db_session.commit()
+
+    response = client.post(
+        f"/subtasks/{target_subtask.id}/testcases/import-confirm",
+        data={"candidates": [json.dumps(dump_testcase(tc)["testcase"])]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/subtasks/{target_subtask.id}"
+
+    db_session.expire_all()
+    assert len(target_subtask.testcases) == 0
