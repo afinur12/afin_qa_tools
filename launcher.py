@@ -1,109 +1,31 @@
 """Simple GUI to start/stop the QA Toolbox web service (no console window)."""
 import os
-import shutil
-import sqlite3
 import subprocess
 import sys
 import threading
-import time
 import webbrowser
-import zipfile
-from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import urllib.request
 
-HOST = "127.0.0.1"
-PORT = 8000
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from app import toolbox_ops as ops
+from app.toolbox_ops import (
+    BACKUPS_DIR,
+    BASE_DIR,
+    DB_PATH,
+    HOST,
+    PORT,
+    REQUIREMENTS,
+    VENV_DIR,
+    VENV_PYTHON,
+    find_system_python,
+    get_python,
+)
+
 URL = f"http://{HOST}:{PORT}"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW
 VERSION = "1.0.0-alpha.1"
-
-if getattr(sys, "frozen", False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-VENV_DIR = os.path.join(BASE_DIR, ".venv")
-VENV_PYTHON = os.path.join(VENV_DIR, "Scripts", "python.exe")
-REQUIREMENTS = os.path.join(BASE_DIR, "requirements.txt")
-DB_PATH = os.path.join(BASE_DIR, "qa_toolbox.db")
-UPLOADS_DIR = os.path.join(BASE_DIR, "app", "uploads")
-BACKUPS_DIR = os.path.join(BASE_DIR, "backups")
-
-
-def find_system_python():
-    """Locate a real Python interpreter on PATH (not this exe itself)."""
-    for candidate in (["py", "-3"], ["python"], ["python3"]):
-        if shutil.which(candidate[0]):
-            return candidate
-    return None
-
-
-def get_python():
-    """Interpreter to run uvicorn with: prefer the project venv."""
-    if os.path.exists(VENV_PYTHON):
-        return VENV_PYTHON
-    if not getattr(sys, "frozen", False):
-        return sys.executable
-    return None
-
-
-def _find_stray_server_pids():
-    """PIDs of any python process serving this app's uvicorn — including
-    ones this launcher didn't start itself (e.g. a terminal-started dev
-    server). Only self.proc is tracked normally, which misses those and
-    leaves qa_toolbox.db locked out from under Reset/Import."""
-    try:
-        result = subprocess.run(
-            [
-                "powershell", "-NoProfile", "-Command",
-                "Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" "
-                "| Where-Object { $_.CommandLine -like '*app.main:app*' } "
-                "| Select-Object -ExpandProperty ProcessId",
-            ],
-            capture_output=True, text=True, creationflags=NO_WINDOW, timeout=10,
-        )
-        return [int(pid) for pid in result.stdout.split() if pid.strip().isdigit()]
-    except Exception:
-        return []
-
-
-def _kill_stray_servers():
-    for pid in _find_stray_server_pids():
-        subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T", "/F"],
-            creationflags=NO_WINDOW, capture_output=True,
-        )
-
-
-def _retry(action, attempts=10, delay=0.3):
-    """Run `action`, retrying on OSError (e.g. WinError 32 - file still in
-    use for a moment after the process holding it was just killed)."""
-    last_err = None
-    for _ in range(attempts):
-        try:
-            return action()
-        except OSError as e:
-            last_err = e
-            time.sleep(delay)
-    raise last_err
-
-
-def _clear_uploads():
-    """Empty screenshots/exports in place, keeping each folder's .gitkeep."""
-    for sub in ("screenshots", "exports"):
-        d = os.path.join(UPLOADS_DIR, sub)
-        if not os.path.isdir(d):
-            continue
-        for entry_name in os.listdir(d):
-            if entry_name == ".gitkeep":
-                continue
-            full = os.path.join(d, entry_name)
-            if os.path.isdir(full):
-                shutil.rmtree(full)
-            else:
-                os.remove(full)
 
 
 class LauncherApp:
@@ -275,33 +197,11 @@ class LauncherApp:
     # -- backup ---------------------------------------------------------
 
     def backup(self):
-        os.makedirs(BACKUPS_DIR, exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        dest = os.path.join(BACKUPS_DIR, f"qa_toolbox_backup_{ts}.zip")
-        tmp_db = os.path.join(BACKUPS_DIR, f"_tmp_{ts}.db")
         try:
-            if os.path.exists(DB_PATH):
-                src = sqlite3.connect(DB_PATH)
-                dst = sqlite3.connect(tmp_db)
-                with dst:
-                    src.backup(dst)
-                src.close()
-                dst.close()
-            with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
-                if os.path.exists(tmp_db):
-                    zf.write(tmp_db, arcname="qa_toolbox.db")
-                if os.path.isdir(UPLOADS_DIR):
-                    for root_dir, _, files in os.walk(UPLOADS_DIR):
-                        for f in files:
-                            full = os.path.join(root_dir, f)
-                            arc = os.path.join("uploads", os.path.relpath(full, UPLOADS_DIR))
-                            zf.write(full, arcname=arc)
+            dest = ops.backup()
         except Exception as e:
             messagebox.showerror("Backup failed", str(e))
             return
-        finally:
-            if os.path.exists(tmp_db):
-                os.remove(tmp_db)
         messagebox.showinfo("Backup complete", f"Saved to:\n{dest}")
         try:
             os.startfile(BACKUPS_DIR)
@@ -350,11 +250,8 @@ class LauncherApp:
         was_running = self.proc is not None
         if was_running:
             self.stop()
-        _kill_stray_servers()
         try:
-            if os.path.exists(DB_PATH):
-                _retry(lambda: os.remove(DB_PATH))
-            _clear_uploads()
+            ops.reset()
         except Exception as e:
             messagebox.showerror(
                 "Reset failed",
@@ -387,24 +284,8 @@ class LauncherApp:
         was_running = self.proc is not None
         if was_running:
             self.stop()
-        _kill_stray_servers()
         try:
-            with zipfile.ZipFile(path) as zf:
-                names = zf.namelist()
-                if "qa_toolbox.db" not in names:
-                    raise RuntimeError("Not a QA Toolbox backup (missing qa_toolbox.db).")
-                _clear_uploads()
-                if os.path.exists(DB_PATH):
-                    _retry(lambda: os.remove(DB_PATH))
-                with zf.open("qa_toolbox.db") as src, open(DB_PATH, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-                for name in names:
-                    if not name.startswith("uploads/") or name.endswith("/"):
-                        continue
-                    dest = os.path.join(BASE_DIR, "app", *name.split("/"))
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    with zf.open(name) as src, open(dest, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
+            ops.restore(path)
         except Exception as e:
             messagebox.showerror(
                 "Import failed",
