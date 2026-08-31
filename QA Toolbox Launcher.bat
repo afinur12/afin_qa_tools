@@ -110,6 +110,7 @@ echo This replaces the current database and all screenshots/exports.
 echo Back up first if you haven't already (option 5).
 echo.
 set /p BACKUPZIP=Full path to the backup .zip file:
+set BACKUPZIP=!BACKUPZIP:"=!
 if not exist "!BACKUPZIP!" (
     echo File not found: !BACKUPZIP!
     pause
