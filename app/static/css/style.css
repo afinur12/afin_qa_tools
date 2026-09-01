@@ -56,6 +56,34 @@
                "Liberation Mono", monospace;
 }
 
+/* Dark theme: overrides the canvas/ink/line/semantic tokens above. Sidebar
+   colors and the lime/indigo accents are already dark-friendly and stay
+   unchanged (not redefined here, so they inherit from :root). */
+:root[data-theme="dark"] {
+  --bg:            #1c1c1f;
+  --surface:       #232326;
+  --surface-sunk:  #18181b;
+
+  --ink:   #f2f1ec;
+  --ink-2: #a3a099;
+  --ink-3: #726e64;
+
+  --line:        #313035;
+  --line-strong: #3d3c42;
+
+  --pass:      #4ade95;
+  --pass-bg:   #123524;
+  --fail:      #f2867d;
+  --fail-bg:   #3a1613;
+  --warn:      #e8b054;
+  --warn-bg:   #3a2a0c;
+  --idle:      #a3a099;
+  --idle-bg:   #232226;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop:  0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -178,6 +206,11 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 }
 .sidebar-toggle:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
 .sidebar-toggle svg { flex-shrink: 0; transition: transform 160ms ease; }
+.sidebar-toggle + .sidebar-toggle { margin-top: 2px; }
+
+.icon-theme-dark { display: none; }
+:root[data-theme="dark"] .icon-theme-light { display: none; }
+:root[data-theme="dark"] .icon-theme-dark { display: block; }
 
 .sidebar-footer {
   padding: 6px 11px 2px;
@@ -195,7 +228,7 @@ body.is-collapsed .nav-label,
 body.is-collapsed .nav-link span,
 body.is-collapsed .sidebar-toggle span { display: none; }
 body.is-collapsed .nav-link { justify-content: center; padding: 10px 0; }
-body.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 
 /* ── Page header ─────────────────────────────────────────────────────────── */
 
@@ -320,9 +353,9 @@ body.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
   align-items: center;
   justify-content: center;
   gap: 7px;
-  background: var(--ink);
+  background: var(--ink-inverse);
   color: #fff;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--ink-inverse);
   padding: 9px 16px;
   border-radius: var(--r-ctl);
   font-size: 13px;
@@ -381,7 +414,7 @@ body.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
 .btn.act.remove:hover  { background: #f7d6d2;     color: var(--fail); }
 .btn.act.export  { background: var(--warn-bg);    color: var(--warn); }
 .btn.act.export:hover  { background: #f8e6bf;     color: var(--warn); }
-.btn.act.docx    { background: var(--ink);        color: #fff; }
+.btn.act.docx    { background: var(--ink-inverse); color: #fff; }
 .btn.act.docx:hover    { background: #000;        color: #fff; }
 
 /* A clickable row that also carries its own actions: the link fills the row,
@@ -597,11 +630,11 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 .tab:hover { background: var(--surface-sunk); color: var(--ink); border-color: var(--ink-3); }
 .tab.active {
-  background: var(--ink);
+  background: var(--ink-inverse);
   color: #fff;
-  border-color: var(--ink);
+  border-color: var(--ink-inverse);
 }
-.tab.active:hover { background: var(--ink); color: #fff; }
+.tab.active:hover { background: var(--ink-inverse); color: #fff; }
 
 /* ── Code block (Note Section snippets) ──────────────────────────────────── */
 
@@ -874,7 +907,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%) translateY(12px);
-  background: var(--ink);
+  background: var(--ink-inverse);
   color: #fff;
   padding: 12px 20px;
   border-radius: var(--r-ctl);
@@ -1167,7 +1200,7 @@ tbody tr:hover { background: var(--surface-sunk); }
 /* ── PDF editor ──────────────────────────────────────────────────────────── */
 
 .pdf-editor-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.pdf-editor-toolbar .btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.pdf-editor-toolbar .btn.active { background: var(--ink-inverse); color: #fff; border-color: var(--ink-inverse); }
 
 .pdf-zoom-controls { display: flex; align-items: center; gap: 8px; }
 .pdf-zoom-controls span { font-size: 13px; font-weight: 600; color: var(--ink-2); min-width: 42px; text-align: center; }
@@ -1326,7 +1359,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--ink);
+  background: var(--ink-inverse);
   border-radius: 8px;
   padding: 4px 6px;
   box-shadow: var(--shadow-pop);
@@ -1480,7 +1513,7 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
   background: var(--surface); border: none; cursor: pointer;
 }
 .ac-layout-toggle button + button { border-left: 1px solid var(--line-strong); }
-.ac-layout-toggle button.is-active { background: var(--ink); color: #fff; }
+.ac-layout-toggle button.is-active { background: var(--ink-inverse); color: #fff; }
 
 .ac-req-bar { display: flex; align-items: center; gap: 10px; }
 .ac-method-select {
@@ -1695,7 +1728,7 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
    between them) still read as two distinct badges instead of one solid
    block of the same color. */
 .ac-var-token-alt {
-  background: var(--ink); color: #fff !important;
+  background: var(--ink-inverse); color: #fff !important;
   border-radius: 4px; outline: 1px solid rgba(255, 255, 255, 0.3); outline-offset: -1px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }

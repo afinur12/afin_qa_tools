@@ -547,6 +547,41 @@ document.addEventListener("click", (event) => {
   sync();
 })();
 
+// ── Light/dark theme ─────────────────────────────────────────────────────
+// The choice is applied before paint by an inline script in <head>, so the
+// page never flashes light-then-dark; this only handles the toggle.
+(function initThemeToggle() {
+  const KEY = "qa-toolbox:theme";
+  const toggle = document.querySelector("[data-theme-toggle]");
+  if (!toggle) return;
+  const label = toggle.querySelector("[data-theme-label]");
+
+  function sync() {
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    const text = dark ? "Switch to light theme" : "Switch to dark theme";
+    toggle.title = text;
+    toggle.setAttribute("aria-label", text);
+    if (label) label.textContent = dark ? "Light theme" : "Dark theme";
+  }
+
+  toggle.addEventListener("click", () => {
+    const dark = document.documentElement.getAttribute("data-theme") !== "dark";
+    if (dark) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    try {
+      localStorage.setItem(KEY, dark ? "dark" : "light");
+    } catch {
+      /* storage unavailable — the choice just won't persist */
+    }
+    sync();
+  });
+
+  sync();
+})();
+
 // ── Note Section: guess the snippet's language from what got pasted ─────────
 function detectSnippetLanguage(text) {
   const trimmed = text.trim();
