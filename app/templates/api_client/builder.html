@@ -7,7 +7,7 @@
   <span class="ac-drag-handle" data-ac-drag-handle title="Drag to move" aria-label="Drag to move {{ req.name }}">
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
   </span>
-  <span class="ac-method-badge m-{{ req.method.lower() }}">{{ req.method[:3] }}</span>
+  <span class="ac-method-badge m-{{ req.method.lower() }}">{{ req.method }}</span>
   <span class="ac-tree-name">{{ req.name }}</span>
   <span class="ac-tree-actions">
     <button type="button" class="btn act edit" data-modal-open="rename-request-{{ req.id }}" title="Rename" aria-label="Rename {{ req.name }}">{{ icon_pencil(11) }}</button>
