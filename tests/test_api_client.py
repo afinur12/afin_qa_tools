@@ -1,7 +1,91 @@
 import json
 
 import app.routers.api_client as api_client_module
+from app.models import ApiCollection, ApiFolder, ApiRequest
 from app.routers.api_client import _body_for_wire, _strip_json_line_comments
+
+
+def _make_collection(db, name="Collection A"):
+    collection = ApiCollection(name=name)
+    db.add(collection)
+    db.commit()
+    db.refresh(collection)
+    return collection
+
+
+def _make_folder(db, collection, name="Folder A", parent=None):
+    folder = ApiFolder(collection_id=collection.id, name=name, parent_folder_id=parent.id if parent else None)
+    db.add(folder)
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+
+def _make_request(db, collection, name="Req A", folder=None):
+    saved = ApiRequest(
+        collection_id=collection.id, folder_id=folder.id if folder else None,
+        name=name, method="GET", url="https://example.com",
+    )
+    db.add(saved)
+    db.commit()
+    db.refresh(saved)
+    return saved
+
+
+def test_move_request_into_folder_updates_folder_and_collection(client, db_session):
+    source_collection = _make_collection(db_session, "Source")
+    dest_collection = _make_collection(db_session, "Dest")
+    dest_folder = _make_folder(db_session, dest_collection, "Dest Folder")
+    saved = _make_request(db_session, source_collection, "My Request")
+
+    response = client.post(
+        f"/api-client/requests/{saved.id}/move",
+        data={"collection_id": dest_collection.id, "folder_id": dest_folder.id},
+    )
+    assert response.status_code == 204
+
+    db_session.expire_all()
+    moved = db_session.get(ApiRequest, saved.id)
+    assert moved.collection_id == dest_collection.id
+    assert moved.folder_id == dest_folder.id
+
+
+def test_move_request_to_collection_root_clears_folder(client, db_session):
+    collection = _make_collection(db_session)
+    folder = _make_folder(db_session, collection)
+    saved = _make_request(db_session, collection, folder=folder)
+
+    response = client.post(
+        f"/api-client/requests/{saved.id}/move",
+        data={"collection_id": collection.id, "folder_id": ""},
+    )
+    assert response.status_code == 204
+
+    db_session.expire_all()
+    moved = db_session.get(ApiRequest, saved.id)
+    assert moved.folder_id is None
+
+
+def test_move_request_rejects_folder_from_a_different_collection(client, db_session):
+    collection_a = _make_collection(db_session, "A")
+    collection_b = _make_collection(db_session, "B")
+    folder_in_b = _make_folder(db_session, collection_b)
+    saved = _make_request(db_session, collection_a)
+
+    response = client.post(
+        f"/api-client/requests/{saved.id}/move",
+        data={"collection_id": collection_a.id, "folder_id": folder_in_b.id},
+    )
+    assert response.status_code == 404
+
+
+def test_move_request_returns_404_for_unknown_request(client, db_session):
+    collection = _make_collection(db_session)
+    response = client.post(
+        "/api-client/requests/999999/move",
+        data={"collection_id": collection.id, "folder_id": ""},
+    )
+    assert response.status_code == 404
 
 
 def test_strip_json_line_comments_removes_commented_lines():

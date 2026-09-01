@@ -614,6 +614,29 @@ def rename_request(request: Request, request_id: int, name: str = Form(...), db:
     return redirect_with_flash(f"/api-client?request_id={saved.id}", f'Request renamed to "{saved.name}".')
 
 
+@router.post("/requests/{request_id}/move")
+def move_request(
+    request: Request, request_id: int,
+    collection_id: int = Form(...), folder_id: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Drag-and-drop target in the Collections drawer (see api_client.js)
+    — called via fetch, so a plain status code is all the caller reads."""
+    saved = db.get(ApiRequest, request_id)
+    if saved is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    collection = db.get(ApiCollection, collection_id)
+    if collection is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    folder = db.get(ApiFolder, int(folder_id)) if folder_id.strip() else None
+    if folder_id.strip() and (folder is None or folder.collection_id != collection_id):
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    saved.collection_id = collection_id
+    saved.folder_id = folder.id if folder else None
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.post("/requests/{request_id}/delete")
 def delete_request(request: Request, request_id: int, db: Session = Depends(get_db)):
     saved = db.get(ApiRequest, request_id)

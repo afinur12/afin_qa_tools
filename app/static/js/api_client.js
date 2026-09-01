@@ -165,6 +165,75 @@
     });
   }
 
+  // ── Tree: drag a request onto a folder/collection to move it ────────────
+  // A handle-arm-then-drag gesture, same convention as the section reorder
+  // in app.js — request rows are <a href> links, which browsers make
+  // natively draggable on their own (for "drag this link" gestures) even
+  // without draggable="true", so gating on a dedicated handle avoids that
+  // native behavior firing instead of this one on an ordinary click.
+  let draggingRequest = null;
+
+  root.querySelectorAll("[data-ac-drag-handle]").forEach((handle) => {
+    handle.addEventListener("pointerdown", () => {
+      const row = handle.closest("[data-ac-drag-request]");
+      if (row) row.draggable = true;
+    });
+  });
+
+  document.addEventListener("pointerup", () => {
+    root.querySelectorAll("[data-ac-drag-request]").forEach((row) => { row.draggable = false; });
+  });
+
+  root.querySelectorAll("[data-ac-drag-request]").forEach((row) => {
+    row.addEventListener("dragstart", (event) => {
+      if (!row.draggable) return;
+      draggingRequest = row;
+      row.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", row.dataset.acDragRequest);
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("is-dragging");
+      row.draggable = false;
+      draggingRequest = null;
+      root.querySelectorAll(".is-drop-target").forEach((el) => el.classList.remove("is-drop-target"));
+    });
+  });
+
+  root.querySelectorAll("[data-ac-drop-target]").forEach((target) => {
+    target.addEventListener("dragover", (event) => {
+      if (!draggingRequest) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      target.classList.add("is-drop-target");
+    });
+    target.addEventListener("dragleave", () => target.classList.remove("is-drop-target"));
+    target.addEventListener("drop", async (event) => {
+      if (!draggingRequest) return;
+      event.preventDefault();
+      target.classList.remove("is-drop-target");
+      const moved = draggingRequest;
+      const children = target.nextElementSibling;
+      if (!children || !children.classList.contains("ac-tree-children")) return;
+
+      const body = new FormData();
+      body.append("collection_id", target.dataset.acDropCollection);
+      body.append("folder_id", target.dataset.acDropFolder || "");
+      try {
+        const response = await fetch(`/api-client/requests/${moved.dataset.acDragRequest}/move`, { method: "POST", body });
+        if (!response.ok) throw new Error("move failed");
+        children.appendChild(moved);
+        // Follows wherever it actually landed, not where it started — same
+        // rule the server-rendered tree uses (target depth + 1).
+        const targetDepth = parseInt(target.style.getPropertyValue("--tree-depth") || "0", 10);
+        moved.style.setProperty("--tree-depth", String(targetDepth + 1));
+        toast(`Moved to "${target.querySelector(".ac-tree-name").textContent}".`);
+      } catch {
+        toast("Couldn't move the request — try again.", "danger");
+      }
+    });
+  });
+
   // ── Collections drawer: resizable width ──────────────────────────────────
   const DRAWER_WIDTH_KEY = "qa-toolbox:api-client-drawer-width";
   const drawerPanel = document.querySelector(".modal--drawer");

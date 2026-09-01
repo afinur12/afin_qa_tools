@@ -1410,6 +1410,12 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-row {
   display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px;
   border-radius: 8px; font-size: 12.5px; color: var(--ink); text-decoration: none;
+  /* Set per-row from the tree_*_row macros (builder.html) as an inline
+     custom property — a collection is depth 0, each nesting level below it
+     (folders can nest arbitrarily deep) adds one increment. Replaces a
+     fixed .ac-depth-1/2/3 set that was defined but never actually applied
+     by any macro, so every row rendered flush regardless of nesting. */
+  padding-left: calc(8px + var(--tree-depth, 0) * 18px);
 }
 .ac-tree-row:hover { background: var(--surface-sunk); }
 .ac-tree-row.is-request { color: var(--ink-2); }
@@ -1424,9 +1430,14 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-actions { margin-left: auto; display: none; gap: 3px; flex-shrink: 0; }
 .ac-tree-row:hover .ac-tree-actions { display: flex; }
 .ac-tree-children.is-collapsed { display: none; }
-.ac-depth-1 { padding-left: 22px; }
-.ac-depth-2 { padding-left: 40px; }
-.ac-depth-3 { padding-left: 58px; }
+
+.ac-drag-handle {
+  flex-shrink: 0; display: none; align-items: center; color: var(--ink-3);
+  cursor: grab; padding: 2px;
+}
+.ac-tree-row.is-request:hover .ac-drag-handle { display: flex; }
+.ac-tree-row.is-dragging { opacity: 0.45; }
+.ac-tree-row.is-drop-target { background: var(--indigo-soft); outline: 1.5px dashed var(--indigo-ink); outline-offset: -1.5px; }
 
 .ac-method-badge {
   display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
