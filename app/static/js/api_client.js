@@ -1447,6 +1447,12 @@
     const pre = document.createElement("pre");
     pre.className = "snippet-pre";
     const code = document.createElement("code");
+    // .snippet-pre code.hljs is what gives plain/unwrapped punctuation
+    // (braces, colons, commas — anything hljs doesn't tokenize into its
+    // own span) a visible color and the right font; without the .hljs
+    // class here that rule doesn't match, so those characters fall back
+    // to the browser's default text color, invisible on the dark background.
+    code.className = "hljs";
     code.innerHTML = renderCodeHighlight(rowsInColumn.map((r) => r.text).join("\n"), language);
     pre.appendChild(code);
 
