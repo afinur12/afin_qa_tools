@@ -1379,6 +1379,138 @@
     });
   }
 
+  // A table-layout:fixed table with no explicit width (the headers list,
+  // .ac-report-table) has a well-defined width on the live page because
+  // every ancestor up to the page layout has a definite width. The export
+  // wrapper's panels are flex:0 0 auto (size-to-content) so the response
+  // can be as wide as its paginated columns need — but that makes the
+  // table's containing block *indeterminate*, and Chromium's fixed-table
+  // intrinsic-sizing falls back to a huge default (observed: ~1,000,000px),
+  // ballooning the whole export. Pinning the table to its live counterpart's
+  // real width keeps its containing block definite and sidesteps the bug.
+  function pinFixedTableWidths(liveRoot, cloneRoot) {
+    const liveTables = liveRoot.querySelectorAll(".ac-report-table-wrap");
+    cloneRoot.querySelectorAll(".ac-report-table-wrap").forEach((el, i) => {
+      const live = liveTables[i];
+      if (live) el.style.width = `${live.getBoundingClientRect().width}px`;
+    });
+  }
+
+  // ── Pagination for tall code blocks (export only) ────────────────────────
+  // html2canvas renders whatever height expandScrollCaps left it with — a
+  // response with thousands of lines produces an unshareable, tens-of-
+  // thousands-of-pixels-tall image. Instead of shrinking or truncating
+  // content, a block whose full text would exceed EXPORT_MAX_COLUMN_HEIGHT
+  // gets split into that many side-by-side columns instead, so the export
+  // grows wide-and-bounded rather than tall-and-unbounded.
+  const EXPORT_MAX_COLUMN_HEIGHT = 1200;
+  const EXPORT_MAX_LINE_CHARS = 100;
+
+  // Soft-wraps one source line to EXPORT_MAX_LINE_CHARS: breaks at the last
+  // space within the limit when there is one (keeps XML attributes/words
+  // intact), otherwise hard-breaks at the limit (a long token or base64
+  // blob with no whitespace at all). This is what lets a single giant
+  // unbroken line (minified XML, a huge value) still participate in
+  // column-capping instead of producing one absurdly wide column — the
+  // common case (already-pretty-printed JSON, short lines) never triggers
+  // it. Continuation rows get gutterLabel "" so the source line number
+  // appears exactly once, the same convention editors use for soft-wrap.
+  function reflowLine(text, lineNumber) {
+    if (text.length <= EXPORT_MAX_LINE_CHARS) return [{ text, gutterLabel: String(lineNumber) }];
+    const rows = [];
+    let rest = text;
+    let first = true;
+    while (rest.length > EXPORT_MAX_LINE_CHARS) {
+      let cut = rest.lastIndexOf(" ", EXPORT_MAX_LINE_CHARS);
+      if (cut <= 0) cut = EXPORT_MAX_LINE_CHARS; // no whitespace to break on
+      rows.push({ text: rest.slice(0, cut), gutterLabel: first ? String(lineNumber) : "" });
+      rest = rest.slice(cut).replace(/^ /, "");
+      first = false;
+    }
+    rows.push({ text: rest, gutterLabel: first ? String(lineNumber) : "" });
+    return rows;
+  }
+
+  function reflowText(text) {
+    const rows = [];
+    text.split("\n").forEach((line, i) => rows.push(...reflowLine(line, i + 1)));
+    return rows;
+  }
+
+  // Rebuilds `rows` (from reflowText) as a static gutter+pre block, capped
+  // at EXPORT_MAX_COLUMN_HEIGHT — one such block per column.
+  function buildColumnBlock(rowsInColumn, language) {
+    const gutter = document.createElement("div");
+    gutter.className = "snippet-gutter";
+    gutter.innerHTML = rowsInColumn.map((r) => `<span>${r.gutterLabel}</span>`).join("");
+
+    const pre = document.createElement("pre");
+    pre.className = "snippet-pre";
+    const code = document.createElement("code");
+    code.innerHTML = renderCodeHighlight(rowsInColumn.map((r) => r.text).join("\n"), language);
+    pre.appendChild(code);
+
+    const block = document.createElement("div");
+    block.className = "snippet-code";
+    block.style.cssText = `height:${EXPORT_MAX_COLUMN_HEIGHT}px; overflow:hidden; flex:0 0 auto;`;
+    block.appendChild(gutter);
+    block.appendChild(pre);
+    return block;
+  }
+
+  // Replaces `scrollEl` (a .snippet-code.ac-code-scroll — the gutter +
+  // content wrapper shared by the response's <pre> and the request body's
+  // textarea+overlay) with N side-by-side capped columns, but only when
+  // its full content would actually exceed EXPORT_MAX_COLUMN_HEIGHT —
+  // otherwise it's left exactly as expandScrollCaps already set it up.
+  function paginateOneBlock(scrollEl, text, language, referenceLineHeightEl) {
+    if (!scrollEl) return;
+    const rows = reflowText(text || "");
+    const lineHeight = parseFloat(getComputedStyle(referenceLineHeightEl).lineHeight) || 21;
+    const perColumn = Math.max(1, Math.floor(EXPORT_MAX_COLUMN_HEIGHT / lineHeight));
+    if (rows.length <= perColumn) return;
+
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex; align-items:flex-start; gap:14px;";
+    for (let i = 0; i < rows.length; i += perColumn) {
+      wrap.appendChild(buildColumnBlock(rows.slice(i, i + perColumn), language));
+    }
+    // .code-block clips overflow and (as a plain block, width:auto) would
+    // otherwise just inherit whatever width the live page's layout gave
+    // it — neither is what a now-multiple-columns-wide block needs.
+    const codeBlock = scrollEl.closest(".code-block");
+    if (codeBlock) {
+      codeBlock.style.overflow = "visible";
+      codeBlock.style.width = "fit-content";
+    }
+    scrollEl.replaceWith(wrap);
+  }
+
+  // `liveSource` is the original (attached, styled) request card or
+  // response panel — getComputedStyle on a not-yet-attached clone returns
+  // meaningless defaults, so line-height is measured from the live element
+  // instead (identical CSS applies to both, only one is actually rendered).
+  function paginateCodeBlocks(cloneRoot, liveSource) {
+    const referenceLineHeightEl = liveSource.querySelector(".snippet-pre") || liveSource;
+
+    const responsePre = cloneRoot.querySelector("[data-ac-response-pre]");
+    if (responsePre) {
+      const code = responsePre.querySelector("code");
+      paginateOneBlock(
+        responsePre.closest(".ac-code-scroll"), code?.textContent || "",
+        code?.dataset.snippetCode || "plaintext", referenceLineHeightEl,
+      );
+    }
+
+    const bodyTextarea = cloneRoot.querySelector("[data-ac-body]");
+    if (bodyTextarea) {
+      paginateOneBlock(
+        bodyTextarea.closest(".ac-code-scroll"), bodyTextarea.value,
+        detectBodyLanguage(currentHeaders(), bodyTextarea.value), referenceLineHeightEl,
+      );
+    }
+  }
+
   let lastExportUrl = null;
 
   document.querySelector("[data-ac-export-image]")?.addEventListener("click", async () => {
@@ -1397,6 +1529,8 @@
     const topbarClone = topbar.cloneNode(true);
     const requestClone = requestCard.cloneNode(true);
     const responseClone = responsePanel.cloneNode(true);
+    pinFixedTableWidths(requestCard, requestClone);
+    pinFixedTableWidths(responsePanel, responseClone);
     copyLiveFormValues(topbar, topbarClone);
     copyLiveFormValues(requestCard, requestClone);
     copyLiveFormValues(responsePanel, responseClone);
@@ -1411,12 +1545,13 @@
     });
     maskSensitiveValues(requestClone, maskValues);
     maskSensitiveValues(responseClone, maskValues);
+    paginateCodeBlocks(requestClone, requestCard);
+    paginateCodeBlocks(responseClone, responsePanel);
 
     const columns = document.createElement("div");
     columns.style.cssText = "display:flex;gap:18px;align-items:flex-start;";
-    columns.style.width = `${Math.max(requestCard.offsetWidth, responsePanel.offsetWidth) * 2 + 18}px`;
-    requestClone.style.flex = "1 1 0";
-    responseClone.style.flex = "1 1 0";
+    requestClone.style.flex = "0 0 auto";
+    responseClone.style.flex = "0 0 auto";
     columns.appendChild(requestClone);
     columns.appendChild(responseClone);
 
