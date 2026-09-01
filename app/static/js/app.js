@@ -93,9 +93,12 @@ document.addEventListener("click", async (event) => {
   let text = button.dataset.copyText;
   if (text === undefined) {
     const block = button.closest(".code-block");
-    const body = block && block.querySelector(".code-body");
-    if (!body) return;
-    text = body.textContent;
+    // A note's own textarea (live, possibly unsaved edits) takes priority
+    // over .code-body, an older fallback kept for any other code-block
+    // that still relies on it.
+    const source = block && (block.querySelector("[data-note-content]") || block.querySelector(".code-body"));
+    if (!source) return;
+    text = "value" in source ? source.value : source.textContent;
   }
   try {
     await navigator.clipboard.writeText(text);
@@ -218,7 +221,9 @@ const SAVE_LABELS = {
 // than from inside the form. Scoping to .step first keeps sibling steps in
 // the same section card from sharing one indicator.
 function indicatorFor(form) {
-  const scope = form.closest(".step") || form.closest(".card") || form;
+  // .code-block before .card: a note's own block, not the shared Note
+  // Section card holding every other note too (same reasoning as .step).
+  const scope = form.closest(".step") || form.closest(".code-block") || form.closest(".card") || form;
   return scope.querySelector("[data-save-state]");
 }
 
@@ -602,6 +607,138 @@ const HLJS_LANGUAGE_MAP = {
   CURL: "bash", JSON: "json", SQL: "sql", TEXT: "plaintext",
   YAML: "yaml", XML: "xml", BASH: "bash", PYTHON: "python", JAVASCRIPT: "javascript",
 };
+
+// ── Note Section: direct editing ─────────────────────────────────────────
+// An existing note's content is now a plain <textarea> inside .snippet-code
+// (autosaved via the generic form[data-autosave] handling above) instead of
+// a read-only <pre><code> — as opposed to the "+ Add Note" form's own plain
+// [data-note-content] textarea below, which stays exactly as it was (fixed
+// rows, no gutter). Two things the old static markup got for free need to
+// be kept in sync here for the editable one: the line-number gutter, and
+// the field's own height (a <textarea> doesn't grow to fit its content the
+// way a block of text does).
+function syncNoteTextarea(textarea) {
+  const scroller = textarea.closest(".snippet-code");
+  if (!scroller) return; // the "+ Add Note" textarea — leave it alone
+  const gutter = scroller.querySelector(".snippet-gutter");
+  if (gutter) {
+    const lineCount = textarea.value.split("\n").length;
+    let html = "";
+    for (let i = 1; i <= lineCount; i++) html += `<span>${i}</span>`;
+    gutter.innerHTML = html;
+  }
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+document.querySelectorAll("[data-note-content]").forEach(syncNoteTextarea);
+
+// Detected on every keystroke here (autosave never fires a real "submit"
+// event, so the submit-time detector above never runs for it) — keeps the
+// hidden language field current for whatever the debounced save actually
+// sends. Harmless no-op duplication for the "+ Add Note" form, which the
+// submit-time detector already covers.
+document.addEventListener("input", (event) => {
+  if (!event.target.matches("[data-note-content]")) return;
+  syncNoteTextarea(event.target);
+  const languageField = event.target.closest("form")?.querySelector("[data-note-language]");
+  if (languageField) languageField.value = detectSnippetLanguage(event.target.value) || "TEXT";
+});
+
+// The delete <form> has to live outside the note's own form (forms can't
+// nest — the note's whole block is already one, for autosave) — see
+// notes/_panel.html.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-note-delete]");
+  if (!button) return;
+  button.closest(".code-block")?.nextElementSibling?.requestSubmit();
+});
+
+// A tiny, deliberately-scoped Markdown subset — headings, bold/italic,
+// inline/fenced code, lists, links — rendered for the preview toggle only.
+// The source is HTML-escaped FIRST and every tag below is one this function
+// adds itself, so there's no way embedded HTML in a note can ever survive
+// into the rendered output (the panel's own promise: "stored verbatim,
+// nothing is executed").
+function escapeHtmlForMarkdown(text) {
+  const el = document.createElement("div");
+  el.textContent = text;
+  return el.innerHTML;
+}
+
+function renderNoteMarkdown(rawText) {
+  const inline = (s) => s
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(((?:https?:|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  const html = [];
+  let list = null; // { tag: "ul"|"ol", items: [] }
+  let inFence = false;
+  let fenceLines = [];
+
+  function closeList() {
+    if (!list) return;
+    html.push(`<${list.tag}>${list.items.map((item) => `<li>${inline(item)}</li>`).join("")}</${list.tag}>`);
+    list = null;
+  }
+
+  escapeHtmlForMarkdown(rawText).split("\n").forEach((line) => {
+    if (/^```/.test(line.trim())) {
+      if (inFence) {
+        html.push(`<pre><code>${fenceLines.join("\n")}</code></pre>`);
+        fenceLines = [];
+      } else {
+        closeList();
+      }
+      inFence = !inFence;
+      return;
+    }
+    if (inFence) {
+      fenceLines.push(line);
+      return;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      html.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+      return;
+    }
+    const ordered = line.match(/^\d+\.\s+(.*)$/);
+    const unordered = line.match(/^[-*]\s+(.*)$/);
+    if (ordered || unordered) {
+      const tag = ordered ? "ol" : "ul";
+      if (!list || list.tag !== tag) { closeList(); list = { tag, items: [] }; }
+      list.items.push((ordered || unordered)[1]);
+      return;
+    }
+    closeList();
+    if (line.trim()) html.push(`<p>${inline(line)}</p>`);
+  });
+  closeList();
+  if (inFence && fenceLines.length) html.push(`<pre><code>${fenceLines.join("\n")}</code></pre>`);
+  return html.join("\n");
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-note-preview-toggle]");
+  if (!button) return;
+  const block = button.closest(".code-block");
+  const rawView = block.querySelector("[data-note-raw-view]");
+  const previewView = block.querySelector("[data-note-preview-view]");
+  const textarea = block.querySelector("[data-note-content]");
+  const showingPreview = !previewView.hidden;
+  if (showingPreview) {
+    previewView.hidden = true;
+    rawView.hidden = false;
+  } else {
+    previewView.innerHTML = renderNoteMarkdown(textarea.value);
+    previewView.hidden = false;
+    rawView.hidden = true;
+  }
+  button.classList.toggle("is-active", !showingPreview);
+});
 
 // A header checkbox with data-select-all="<css selector>" toggles every
 // checkbox matching that selector (used by the test case export/import

@@ -638,7 +638,8 @@ tbody tr:hover { background: var(--surface-sunk); }
 .snippet-icon-btn:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .snippet-icon-btn.copied { background: var(--lime); color: var(--ink); }
 
-.snippet-header { padding: 16px 52px 12px 18px; }
+.snippet-header { padding: 16px 110px 12px 18px; }
+.snippet-header-row { display: flex; align-items: center; gap: 10px; }
 .snippet-title {
   font-family: var(--font-mono);
   font-size: 14px;
@@ -647,8 +648,34 @@ tbody tr:hover { background: var(--surface-sunk); }
   letter-spacing: 0.3px;
 }
 .snippet-remark { margin-top: 4px; font-size: 12.5px; color: #8f8c9e; }
+.snippet-remark-input {
+  display: block;
+  margin-top: 4px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  color: #8f8c9e;
+  padding: 0;
+}
+.snippet-remark-input::placeholder { color: #5c5966; }
+.snippet-remark-input:focus { color: #f2f1f6; }
+
+/* .save-state.snippet-save-state (two classes), not just .snippet-save-state:
+   the plain .save-state[data-state=...] rules further down have equal
+   specificity to a single-class version of this and appear later in the
+   file, so they'd win the light-theme colors right back without this. */
+.save-state.snippet-save-state { font-size: 11px; }
+.save-state.snippet-save-state[data-state="saving"],
+.save-state.snippet-save-state[data-state="editing"] { color: #d8b465; }
+.save-state.snippet-save-state[data-state="saved"] { color: #7ec98f; }
+.save-state.snippet-save-state[data-state="error"] { color: #e2837a; }
+
+.snippet-icon-btn.is-active { background: var(--lime); color: var(--ink); }
 
 .snippet-code { display: flex; padding: 2px 0 16px; overflow-x: auto; }
+.snippet-code[hidden] { display: none; }
 .snippet-gutter {
   flex: 0 0 auto;
   padding: 0 16px 0 18px;
@@ -692,6 +719,44 @@ tbody tr:hover { background: var(--surface-sunk); }
   font-family: inherit;
 }
 .snippet-pre.is-wrapped, .snippet-pre.is-wrapped code.hljs { white-space: pre-wrap; word-break: break-word; }
+
+.snippet-textarea {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden; /* height is kept in sync with content in app.js — no inner scrollbar */
+  color: #d5d2e0;
+}
+
+.snippet-markdown-preview {
+  padding: 4px 18px 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #d5d2e0;
+}
+.snippet-markdown-preview h1, .snippet-markdown-preview h2, .snippet-markdown-preview h3,
+.snippet-markdown-preview h4, .snippet-markdown-preview h5, .snippet-markdown-preview h6 {
+  color: #f2f1f6;
+  margin: 14px 0 6px;
+}
+.snippet-markdown-preview :first-child { margin-top: 0; }
+.snippet-markdown-preview p { margin: 0 0 10px; }
+.snippet-markdown-preview ul, .snippet-markdown-preview ol { margin: 0 0 10px; padding-left: 22px; }
+.snippet-markdown-preview li { margin-bottom: 4px; }
+.snippet-markdown-preview code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.snippet-markdown-preview pre { background: rgba(255, 255, 255, 0.06); padding: 10px 12px; border-radius: 8px; overflow-x: auto; }
+.snippet-markdown-preview pre code { background: none; padding: 0; }
+.snippet-markdown-preview a { color: var(--lime); }
+.snippet-markdown-preview a:hover { color: var(--lime-deep); }
 
 /* ── Steps + screenshots ─────────────────────────────────────────────────── */
 

@@ -1,5 +1,7 @@
 """Note Section: freeform snippets (curl, SQL, JSON, ...) attached to a
 story or subtask, stored verbatim."""
+import html
+import re
 
 
 def test_create_note_attached_to_story(client):
@@ -43,11 +45,36 @@ def test_delete_note(client):
     story_id = create.headers["location"].rstrip("/").split("/")[-1]
     client.post("/notes", data={"attach_type": "STORY", "attach_id": story_id, "language": "CURL", "content": "curl https://api.example.com/health"})
     story_page = client.get(f"/stories/{story_id}")
-    note_id = story_page.text.split("/notes/")[1].split("/delete")[0]
+    note_id = re.search(r"/notes/(\d+)/delete", story_page.text).group(1)
     response = client.post(f"/notes/{note_id}/delete", data={"attach_type": "STORY", "attach_id": story_id}, follow_redirects=False)
     assert response.status_code == 303
     story_page2 = client.get(f"/stories/{story_id}")
     assert "api.example.com/health" not in story_page2.text
+
+
+def test_update_note_saves_content_remark_and_language(client):
+    create = client.post("/stories", data={"display_code": "EX-720", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post("/notes", data={"attach_type": "STORY", "attach_id": story_id, "language": "TEXT", "content": "old text"})
+    story_page = client.get(f"/stories/{story_id}")
+    note_id = re.search(r"/notes/(\d+)/delete", story_page.text).group(1)
+
+    response = client.post(
+        f"/notes/{note_id}",
+        data={"language": "JSON", "content": '{"key": "value"}', "remark": "Now JSON"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    story_page2 = html.unescape(client.get(f"/stories/{story_id}").text)
+    assert '{"key": "value"}' in story_page2
+    assert "Now JSON" in story_page2
+    assert "old text" not in story_page2
+
+
+def test_update_note_returns_404_for_unknown_note(client):
+    response = client.post("/notes/999999", data={"content": "x"})
+    assert response.status_code == 404
 
 
 def _make_subtask(client, code="EX-710"):

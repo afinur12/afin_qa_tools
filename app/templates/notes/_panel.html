@@ -7,33 +7,42 @@
   </div>
 
   {% for note in notes %}
-  <div class="code-block">
+  <form class="code-block" method="post" action="/notes/{{ note.id }}" data-autosave>
+    <input type="hidden" name="language" value="{{ note.language }}" data-note-language>
     <div class="snippet-actions">
-      <form class="inline-form" method="post" action="/notes/{{ note.id }}/delete">
-        <input type="hidden" name="attach_type" value="{{ attach_type }}">
-        <input type="hidden" name="attach_id" value="{{ attach_id }}">
-        <button class="snippet-icon-btn" type="submit" title="Remove">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </form>
-      <button class="snippet-icon-btn" type="button" data-copy data-copy-text="{{ note.content }}" title="Copy">
+      <button class="snippet-icon-btn" type="button" data-note-preview-toggle title="Toggle Markdown preview" aria-label="Toggle Markdown preview">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button class="snippet-icon-btn" type="button" data-copy title="Copy">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         <span class="sr-only" data-copy-label>Copy</span>
+      </button>
+      <button class="snippet-icon-btn" type="button" data-note-delete title="Remove" aria-label="Remove note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
 
     <div class="snippet-header">
-      <div class="snippet-title">{{ note.language }}</div>
-      {% if note.remark %}<div class="snippet-remark">{{ note.remark }}</div>{% endif %}
+      <div class="snippet-header-row">
+        <div class="snippet-title">{{ note.language }}</div>
+        <span class="save-state snippet-save-state" data-save-state></span>
+      </div>
+      <input class="snippet-remark-input" name="remark" value="{{ note.remark or '' }}" placeholder="Optional description" autocomplete="off">
     </div>
 
-    <div class="snippet-code">
+    <div class="snippet-code" data-note-raw-view>
       <div class="snippet-gutter">
         {% for _ in note.content.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}
       </div>
-      <pre class="snippet-pre"><code data-snippet-code="{{ note.language }}">{{ note.content }}</code></pre>
+      <textarea class="snippet-pre snippet-textarea is-wrapped" name="content" data-note-content spellcheck="false" autocomplete="off">{{ note.content }}</textarea>
     </div>
-  </div>
+    <div class="snippet-markdown-preview" data-note-preview-view hidden></div>
+  </form>
+
+  <form class="inline-form" method="post" action="/notes/{{ note.id }}/delete" data-note-delete-form hidden>
+    <input type="hidden" name="attach_type" value="{{ attach_type }}">
+    <input type="hidden" name="attach_id" value="{{ attach_id }}">
+  </form>
   {% endfor %}
 
   <form method="post" action="/notes">
