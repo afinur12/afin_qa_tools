@@ -193,10 +193,16 @@
       event.dataTransfer.setData("text/plain", row.dataset.acDragRequest);
     });
     row.addEventListener("dragend", () => {
+      const container = row.parentElement;
+      const reordered =
+        container && container.classList.contains("ac-tree-children") &&
+        container.dataset.acContainerCollection === row.dataset.acRequestCollection &&
+        (container.dataset.acContainerFolder || "") === (row.dataset.acRequestFolder || "");
       row.classList.remove("is-dragging");
       row.draggable = false;
       draggingRequest = null;
       root.querySelectorAll(".is-drop-target").forEach((el) => el.classList.remove("is-drop-target"));
+      if (reordered) persistRequestOrder(container);
     });
   });
 
@@ -227,10 +233,63 @@
         // rule the server-rendered tree uses (target depth + 1).
         const targetDepth = parseInt(target.style.getPropertyValue("--tree-depth") || "0", 10);
         moved.style.setProperty("--tree-depth", String(targetDepth + 1));
+        // Keep the row's own container identity in sync so a same-folder
+        // reorder drag works immediately after, without a page reload.
+        moved.dataset.acRequestCollection = target.dataset.acDropCollection;
+        moved.dataset.acRequestFolder = target.dataset.acDropFolder || "";
         toast(`Moved to "${target.querySelector(".ac-tree-name").textContent}".`);
       } catch {
         toast("Couldn't move the request — try again.", "danger");
       }
+    });
+  });
+
+  // ── Tree: drag a request onto a sibling to reorder within its folder ────
+  // Live-shuffles the row as you drag, same convention as the section
+  // reorder in app.js. Scoped to the request's own container — dragging
+  // over a different folder's list does nothing; use that folder's header
+  // row (the gesture above) to move it there instead.
+  function siblingRequestRows(container) {
+    return Array.from(container.children).filter((el) => el.classList.contains("is-request"));
+  }
+
+  async function persistRequestOrder(container) {
+    const body = new FormData();
+    body.append("collection_id", container.dataset.acContainerCollection);
+    body.append("folder_id", container.dataset.acContainerFolder || "");
+    body.append("order", siblingRequestRows(container).map((row) => row.dataset.acDragRequest).join(","));
+    try {
+      const response = await fetch("/api-client/requests/reorder", { method: "POST", body });
+      if (!response.ok) throw new Error("reorder failed");
+    } catch {
+      toast("Couldn't save the new order — try again.", "danger");
+    }
+  }
+
+  root.querySelectorAll(".ac-tree-children").forEach((container) => {
+    container.addEventListener("dragover", (event) => {
+      if (!draggingRequest) return;
+      const sameContainer =
+        container.dataset.acContainerCollection === draggingRequest.dataset.acRequestCollection &&
+        (container.dataset.acContainerFolder || "") === (draggingRequest.dataset.acRequestFolder || "");
+      if (!sameContainer) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+
+      const siblings = siblingRequestRows(container);
+      const after = siblings.find((row) => {
+        if (row === draggingRequest) return false;
+        const box = row.getBoundingClientRect();
+        return event.clientY < box.top + box.height / 2;
+      });
+      if (after) {
+        if (after !== draggingRequest.nextElementSibling) container.insertBefore(draggingRequest, after);
+      } else if (siblings[siblings.length - 1] !== draggingRequest) {
+        container.appendChild(draggingRequest);
+      }
+    });
+    container.addEventListener("drop", (event) => {
+      if (draggingRequest) event.preventDefault();
     });
   });
 

@@ -101,7 +101,7 @@ a:hover { color: var(--indigo); }
 
 h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 
-::selection { background: var(--lime); color: var(--ink); }
+::selection { background: var(--lime); color: var(--ink-inverse); }
 
 :focus-visible {
   outline: 2px solid var(--indigo);
@@ -173,10 +173,10 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
 .nav-link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
 .nav-link.active {
   background: var(--lime);
-  color: var(--ink);
+  color: var(--ink-inverse);
   font-weight: 650;
 }
-.nav-link.active:hover { background: var(--lime-deep); color: var(--ink); }
+.nav-link.active:hover { background: var(--lime-deep); color: var(--ink-inverse); }
 .nav-link svg { flex-shrink: 0; }
 
 .main {
@@ -377,10 +377,10 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 
 .btn.lime {
   background: var(--lime);
-  color: var(--ink);
+  color: var(--ink-inverse);
   border-color: var(--lime);
 }
-.btn.lime:hover { background: var(--lime-deep); opacity: 1; color: var(--ink); }
+.btn.lime:hover { background: var(--lime-deep); opacity: 1; color: var(--ink-inverse); }
 
 .btn.danger {
   background: var(--surface);
@@ -464,7 +464,7 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
   color: var(--indigo-ink);
   letter-spacing: 0;
 }
-.badge.lime { background: var(--lime); color: var(--ink); }
+.badge.lime { background: var(--lime); color: var(--ink-inverse); }
 
 /* status variants — class is built from the enum value, lowercased */
 .badge--pass, .badge--resolved, .badge--closed { background: var(--pass-bg); color: var(--pass); }
@@ -669,7 +669,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   transition: background 120ms ease, color 120ms ease;
 }
 .snippet-icon-btn:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.snippet-icon-btn.copied { background: var(--lime); color: var(--ink); }
+.snippet-icon-btn.copied { background: var(--lime); color: var(--ink-inverse); }
 
 .snippet-header { padding: 16px 110px 12px 18px; }
 .snippet-header-row { display: flex; align-items: center; gap: 10px; }
@@ -705,7 +705,7 @@ tbody tr:hover { background: var(--surface-sunk); }
 .save-state.snippet-save-state[data-state="saved"] { color: #7ec98f; }
 .save-state.snippet-save-state[data-state="error"] { color: #e2837a; }
 
-.snippet-icon-btn.is-active { background: var(--lime); color: var(--ink); }
+.snippet-icon-btn.is-active { background: var(--lime); color: var(--ink-inverse); }
 
 .snippet-code { display: flex; padding: 2px 0 16px; overflow-x: auto; }
 .snippet-code[hidden] { display: none; }
@@ -1655,7 +1655,7 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 }
 .ac-resp-toolbar-btn:hover { background: var(--surface-sunk); color: var(--ink); border-color: var(--ink-3); }
 .ac-resp-toolbar-btn.is-active,
-[data-ac-wrap-toggle].is-active { background: var(--lime); color: var(--ink); border-color: var(--lime); }
+[data-ac-wrap-toggle].is-active { background: var(--lime); color: var(--ink-inverse); border-color: var(--lime); }
 
 .ac-resp-search-bar {
   display: flex; align-items: center; gap: 6px;
@@ -1720,7 +1720,7 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
    the "badge" look safely. Adjacent badges with no gap between them are
    told apart by the outline seam and the alternating background below. */
 .ac-var-token {
-  background: var(--lime); color: var(--ink) !important;
+  background: var(--lime); color: var(--ink-inverse) !important;
   border-radius: 4px; outline: 1px solid rgba(27, 27, 25, 0.3); outline-offset: -1px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
@@ -1732,6 +1732,10 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
   border-radius: 4px; outline: 1px solid rgba(255, 255, 255, 0.3); outline-offset: -1px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
+/* --ink-inverse is a near-black fixed tone, same as the dark-theme page
+   background — the badge would vanish into it. Indigo keeps the two
+   token colors distinct in dark mode too. */
+:root[data-theme="dark"] .ac-var-token-alt { background: var(--indigo); }
 
 /* ── Request body: editable dark code-block (gutter + hljs + {{var}}) ──── */
 .ac-code-editor .snippet-code { align-items: stretch; }

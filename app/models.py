@@ -344,7 +344,7 @@ class ApiCollection(Base):
         "ApiFolder", back_populates="collection", order_by="ApiFolder.id"
     )
     requests: Mapped[list["ApiRequest"]] = relationship(
-        "ApiRequest", back_populates="collection", order_by="ApiRequest.id"
+        "ApiRequest", back_populates="collection", order_by="ApiRequest.position, ApiRequest.id"
     )
     variables: Mapped[list["ApiVariable"]] = relationship(
         "ApiVariable", back_populates="collection", order_by="ApiVariable.id"
@@ -369,7 +369,7 @@ class ApiFolder(Base):
         "ApiFolder", back_populates="parent", order_by="ApiFolder.id"
     )
     requests: Mapped[list["ApiRequest"]] = relationship(
-        "ApiRequest", back_populates="folder", order_by="ApiRequest.id"
+        "ApiRequest", back_populates="folder", order_by="ApiRequest.position, ApiRequest.id"
     )
 
 
@@ -391,6 +391,7 @@ class ApiRequest(Base):
     url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     collection: Mapped["ApiCollection"] = relationship("ApiCollection", back_populates="requests")

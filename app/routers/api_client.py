@@ -633,6 +633,47 @@ def move_request(
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     saved.collection_id = collection_id
     saved.folder_id = folder.id if folder else None
+    # Land at the end of the destination list rather than keeping whatever
+    # position it had in its old one, which could drop it in the middle at
+    # random once that list has its own meaningful order.
+    siblings = folder.requests if folder else [
+        r for r in db.query(ApiRequest).filter(
+            ApiRequest.collection_id == collection_id, ApiRequest.folder_id.is_(None)
+        ).all()
+    ]
+    other_positions = [r.position for r in siblings if r.id != saved.id]
+    saved.position = (max(other_positions) + 1) if other_positions else 0
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/requests/reorder")
+def reorder_requests(
+    request: Request, collection_id: int = Form(...), folder_id: str = Form(""), order: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Persist a new request order within one folder (or a collection's
+    root list). ``order`` is a comma-separated list of request ids in
+    their new order — see api_client.js's tree drag-to-reorder."""
+    folder = db.get(ApiFolder, int(folder_id)) if folder_id.strip() else None
+    if folder_id.strip() and (folder is None or folder.collection_id != collection_id):
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+
+    siblings = folder.requests if folder else [
+        r for r in db.query(ApiRequest).filter(
+            ApiRequest.collection_id == collection_id, ApiRequest.folder_id.is_(None)
+        ).all()
+    ]
+    by_id = {r.id: r for r in siblings}
+    try:
+        requested = [int(value) for value in order.split(",") if value.strip()]
+    except ValueError:
+        return Response(status_code=422)
+    if sorted(requested) != sorted(by_id):
+        return Response(status_code=422)
+
+    for position, req_id in enumerate(requested):
+        by_id[req_id].position = position
     db.commit()
     return Response(status_code=204)
 

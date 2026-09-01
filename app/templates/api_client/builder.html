@@ -3,7 +3,7 @@
 {% block title %}API Client - QA Toolbox{% endblock %}
 
 {% macro tree_request_row(req, current, depth=0) %}
-<a class="ac-tree-row is-request {% if current.id == req.id %}is-active{% endif %}" href="/api-client?request_id={{ req.id }}" data-ac-tree-url="{{ req.url }}" style="--tree-depth: {{ depth }};" data-ac-drag-request="{{ req.id }}">
+<a class="ac-tree-row is-request {% if current.id == req.id %}is-active{% endif %}" href="/api-client?request_id={{ req.id }}" data-ac-tree-url="{{ req.url }}" style="--tree-depth: {{ depth }};" data-ac-drag-request="{{ req.id }}" data-ac-request-collection="{{ req.collection_id }}" data-ac-request-folder="{{ req.folder_id or '' }}">
   <span class="ac-drag-handle" data-ac-drag-handle title="Drag to move" aria-label="Drag to move {{ req.name }}">
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
   </span>
@@ -39,7 +39,7 @@
     </form>
   </span>
 </div>
-<div class="ac-tree-children">
+<div class="ac-tree-children" data-ac-container-collection="{{ folder.collection_id }}" data-ac-container-folder="{{ folder.id }}">
   {% for child in folder.children %}{{ tree_folder_row(child, current, depth + 1) }}{% endfor %}
   {% for req in folder.requests %}{{ tree_request_row(req, current, depth + 1) }}{% endfor %}
 </div>
@@ -60,7 +60,7 @@
     </form>
   </span>
 </div>
-<div class="ac-tree-children">
+<div class="ac-tree-children" data-ac-container-collection="{{ collection.id }}" data-ac-container-folder="">
   {% for folder in collection.folders if folder.parent_folder_id is none %}{{ tree_folder_row(folder, current, 1) }}{% endfor %}
   {% for req in collection.requests if req.folder_id is none %}{{ tree_request_row(req, current, 1) }}{% endfor %}
 </div>
