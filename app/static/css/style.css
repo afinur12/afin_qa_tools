@@ -817,8 +817,8 @@ tbody tr:hover { background: var(--surface-sunk); }
 
 /* ── Section reordering ──────────────────────────────────────────────────── */
 
-.section-card { transition: box-shadow 140ms ease, opacity 140ms ease; }
-.section-card.is-dragging {
+.section-card, .step { transition: box-shadow 140ms ease, opacity 140ms ease; }
+.section-card.is-dragging, .step.is-dragging {
   opacity: 0.55;
   box-shadow: 0 12px 32px rgba(27, 27, 25, 0.16);
 }

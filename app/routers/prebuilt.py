@@ -205,6 +205,42 @@ def create_step(
     return RedirectResponse(url=f"/prebuilt/{prebuilt_id}", status_code=303)
 
 
+@router.post("/prebuilt/{prebuilt_id}/sections/{section_id}/steps/reorder")
+def reorder_steps(
+    request: Request,
+    prebuilt_id: int,
+    section_id: int,
+    order: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Persist a new step order within a section.
+
+    ``order`` is a comma-separated list of step ids in their new order.
+    Ids that don't belong to this section are rejected outright rather than
+    partially applied.
+    """
+    prebuilt = db.get(PrebuiltTestCase, prebuilt_id)
+    if prebuilt is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    section = db.get(PrebuiltSection, section_id)
+    if section is None or section.prebuilt_id != prebuilt_id:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+
+    by_id = {step.id: step for step in section.steps}
+    try:
+        requested = [int(value) for value in order.split(",") if value.strip()]
+    except ValueError:
+        return _render_detail(request, prebuilt, error="Invalid step order.", status_code=422)
+
+    if sorted(requested) != sorted(by_id):
+        return _render_detail(request, prebuilt, error="Step order does not match this section.", status_code=422)
+
+    for step_no, step_id in enumerate(requested, start=1):
+        by_id[step_id].step_no = step_no
+    db.commit()
+    return RedirectResponse(url=f"/prebuilt/{prebuilt_id}", status_code=303)
+
+
 @router.post("/prebuilt/{prebuilt_id}/steps/{step_id}/edit")
 def update_step(
     request: Request,

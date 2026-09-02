@@ -315,24 +315,32 @@ document.addEventListener("submit", (event) => {
   window.addEventListener("load", () => requestAnimationFrame(apply), { once: true });
 })();
 
-// ── Drag to reorder sections ────────────────────────────────────────────────
+// ── Drag to reorder (sections and steps) ────────────────────────────────────
 // Shared by the test case execution page and the prebuilt template editor.
-document.querySelectorAll("[data-sections]").forEach(initSectionReorder);
+// Sections reorder across a whole [data-sections] list; steps reorder within
+// their own section's [data-steps] list, so drags never cross section
+// boundaries.
+document.querySelectorAll("[data-sections]").forEach((el) =>
+  initReorder(el, { itemSelector: ".section-card", idKey: "sectionId", indexSelector: "[data-section-index]" })
+);
+document.querySelectorAll("[data-steps]").forEach((el) =>
+  initReorder(el, { itemSelector: ".step", idKey: "stepId", indexSelector: "[data-step-index]" })
+);
 
-function initSectionReorder(container) {
-  const cards = () => Array.from(container.querySelectorAll(".section-card"));
+function initReorder(container, { itemSelector, idKey, indexSelector }) {
+  const items = () => Array.from(container.querySelectorAll(itemSelector));
   // A test case page has a Description card above the section list, so its
-  // numbering starts at 2; a prebuilt template has no such card and starts
-  // at 1. data-index-offset lets each page say which.
+  // section numbering starts at 2; everywhere else (steps, prebuilt
+  // sections) starts at 1. data-index-offset lets each container say which.
   const indexOffset = parseInt(container.dataset.indexOffset || "1", 10);
   let dragging = null;
 
-  function setState(card, text, state) {
+  function setState(item, text, state) {
     container.querySelectorAll("[data-reorder-state]").forEach((el) => {
       el.textContent = "";
       delete el.dataset.state;
     });
-    const indicator = card && card.querySelector("[data-reorder-state]");
+    const indicator = item && item.querySelector("[data-reorder-state]");
     if (indicator) {
       indicator.textContent = text;
       indicator.dataset.state = state;
@@ -340,53 +348,53 @@ function initSectionReorder(container) {
   }
 
   function renumber() {
-    cards().forEach((card, index) => {
-      const label = card.querySelector("[data-section-index]");
+    items().forEach((item, index) => {
+      const label = item.querySelector(indexSelector);
       if (label) label.textContent = String(index + indexOffset);
     });
   }
 
-  // `card` is passed in because dragend clears `dragging` synchronously,
+  // `item` is passed in because dragend clears `dragging` synchronously,
   // before this promise resolves — reading it after the await would leave the
   // confirmation with nowhere to render.
-  async function persist(card) {
-    const order = cards().map((item) => item.dataset.sectionId).join(",");
+  async function persist(item) {
+    const order = items().map((el) => el.dataset[idKey]).join(",");
     const body = new FormData();
     body.append("order", order);
-    setState(card, "Saving…", "saving");
+    setState(item, "Saving…", "saving");
     try {
       const response = await fetch(container.dataset.reorderAction, { method: "POST", body });
-      setState(card, response.ok ? "Order saved" : "Not saved", response.ok ? "saved" : "error");
+      setState(item, response.ok ? "Order saved" : "Not saved", response.ok ? "saved" : "error");
     } catch {
-      setState(card, "Not saved", "error");
+      setState(item, "Not saved", "error");
     }
-    setTimeout(() => setState(card, "", ""), 1600);
+    setTimeout(() => setState(item, "", ""), 1600);
   }
 
   // A handle-only drag would use the handle as the drag image. Flipping the
-  // card's draggable flag on handle press makes the whole card the subject
-  // while still leaving text in the card selectable the rest of the time.
+  // item's draggable flag on handle press makes the whole item the subject
+  // while still leaving text in it selectable the rest of the time.
   container.addEventListener("pointerdown", (event) => {
     const handle = event.target.closest("[data-drag-handle]");
     if (!handle) return;
-    const card = handle.closest(".section-card");
-    if (card) card.draggable = true;
+    const item = handle.closest(itemSelector);
+    if (item) item.draggable = true;
   });
 
   document.addEventListener("pointerup", () => {
-    cards().forEach((card) => {
-      card.draggable = false;
+    items().forEach((item) => {
+      item.draggable = false;
     });
   });
 
   container.addEventListener("dragstart", (event) => {
-    const card = event.target.closest(".section-card");
-    if (!card || !card.draggable) return;
-    dragging = card;
-    card.classList.add("is-dragging");
+    const item = event.target.closest(itemSelector);
+    if (!item || !item.draggable) return;
+    dragging = item;
+    item.classList.add("is-dragging");
     event.dataTransfer.effectAllowed = "move";
     // Firefox needs data set for a drag to start at all.
-    event.dataTransfer.setData("text/plain", card.dataset.sectionId);
+    event.dataTransfer.setData("text/plain", item.dataset[idKey]);
   });
 
   container.addEventListener("dragover", (event) => {
@@ -394,9 +402,9 @@ function initSectionReorder(container) {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
 
-    const after = cards().find((card) => {
-      if (card === dragging) return false;
-      const box = card.getBoundingClientRect();
+    const after = items().find((item) => {
+      if (item === dragging) return false;
+      const box = item.getBoundingClientRect();
       return event.clientY < box.top + box.height / 2;
     });
 

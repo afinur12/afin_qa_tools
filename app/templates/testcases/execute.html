@@ -154,12 +154,16 @@
 </div>
 
 {% macro step_block(step) %}
-<div class="step">
+<div class="step" data-step-id="{{ step.id }}">
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit" data-autosave>
     <div class="step-head">
-      <span class="step-no">{{ step.step_no }}</span>
+      <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+      </span>
+      <span class="step-no" data-step-index>{{ step.step_no }}</span>
       <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
       <span class="save-state" data-save-state></span>
+      <span class="save-state" data-reorder-state></span>
     </div>
     <div class="grid-2" style="gap:2px 16px;">
       <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
@@ -211,7 +215,9 @@
       </form>
     </div>
 
+    <div data-steps data-reorder-action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/steps/reorder">
     {% for step in section.steps %}{{ step_block(step) }}{% endfor %}
+    </div>
 
     <form method="post" action="/testcases/{{ testcase.id }}/sections/{{ section.id }}/steps">
       <button class="btn secondary sm" type="submit">+ Add Step</button>
