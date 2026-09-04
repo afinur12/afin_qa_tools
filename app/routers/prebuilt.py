@@ -12,15 +12,22 @@ from app.models import (
     PrebuiltSection,
     PrebuiltStep,
     PrebuiltTestCase,
+    Service,
+    Simulate,
     StepSection,
     TestCase,
+    TestType,
 )
 from app.templating import templates
 
 router = APIRouter()
 
 
-def _render_detail(request: Request, prebuilt: PrebuiltTestCase, error: str | None = None, status_code: int = 200):
+def _parse_id(raw: str) -> int | None:
+    return int(raw) if raw.strip().isdigit() else None
+
+
+def _render_detail(request: Request, prebuilt: PrebuiltTestCase, error: str | None = None, status_code: int = 200, db: Session | None = None):
     return templates.TemplateResponse(
         request,
         "prebuilt/detail.html",
@@ -28,6 +35,9 @@ def _render_detail(request: Request, prebuilt: PrebuiltTestCase, error: str | No
             "prebuilt": prebuilt,
             "section_kinds": list(StepSection),
             "section_labels": SECTION_LABELS,
+            "services": db.query(Service).order_by(Service.name).all() if db else [],
+            "simulates": db.query(Simulate).order_by(Simulate.name).all() if db else [],
+            "test_types": db.query(TestType).order_by(TestType.name).all() if db else [],
             "error": error,
         },
         status_code=status_code,
@@ -37,7 +47,16 @@ def _render_detail(request: Request, prebuilt: PrebuiltTestCase, error: str | No
 @router.get("/prebuilt")
 def list_prebuilt(request: Request, db: Session = Depends(get_db)):
     items = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all()
-    return templates.TemplateResponse(request, "prebuilt/list.html", {"prebuilts": items})
+    return templates.TemplateResponse(
+        request,
+        "prebuilt/list.html",
+        {
+            "prebuilts": items,
+            "services": db.query(Service).order_by(Service.name).all(),
+            "simulates": db.query(Simulate).order_by(Simulate.name).all(),
+            "test_types": db.query(TestType).order_by(TestType.name).all(),
+        },
+    )
 
 
 @router.post("/prebuilt")
@@ -45,18 +64,18 @@ def create_prebuilt(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
-    service_name: str = Form(""),
-    test_type: str = Form(""),
-    simulate: str = Form(""),
+    service_id: str = Form(""),
+    test_type_id: str = Form(""),
+    simulate_id: str = Form(""),
     remark: str = Form(""),
     db: Session = Depends(get_db),
 ):
     prebuilt = PrebuiltTestCase(
         name=name.strip(),
         description=description.strip() or None,
-        service_name=service_name.strip() or None,
-        test_type=test_type.strip() or None,
-        simulate=simulate.strip() or None,
+        service_id=_parse_id(service_id),
+        test_type_id=_parse_id(test_type_id),
+        simulate_id=_parse_id(simulate_id),
         remark=remark.strip() or None,
     )
     db.add(prebuilt)
@@ -73,7 +92,7 @@ def prebuilt_detail(request: Request, prebuilt_id: int, db: Session = Depends(ge
     prebuilt = db.get(PrebuiltTestCase, prebuilt_id)
     if prebuilt is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    return _render_detail(request, prebuilt)
+    return _render_detail(request, prebuilt, db=db)
 
 
 @router.post("/prebuilt/{prebuilt_id}/edit")
@@ -82,9 +101,9 @@ def update_prebuilt(
     prebuilt_id: int,
     name: str = Form(...),
     description: str = Form(""),
-    service_name: str = Form(""),
-    test_type: str = Form(""),
-    simulate: str = Form(""),
+    service_id: str = Form(""),
+    test_type_id: str = Form(""),
+    simulate_id: str = Form(""),
     remark: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -93,9 +112,9 @@ def update_prebuilt(
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     prebuilt.name = name.strip()
     prebuilt.description = description.strip() or None
-    prebuilt.service_name = service_name.strip() or None
-    prebuilt.test_type = test_type.strip() or None
-    prebuilt.simulate = simulate.strip() or None
+    prebuilt.service_id = _parse_id(service_id)
+    prebuilt.test_type_id = _parse_id(test_type_id)
+    prebuilt.simulate_id = _parse_id(simulate_id)
     prebuilt.remark = remark.strip() or None
     db.commit()
     return redirect_with_flash(f"/prebuilt/{prebuilt_id}", f'Template "{prebuilt.name}" updated.')
@@ -137,10 +156,10 @@ def reorder_sections(
     try:
         requested = [int(value) for value in order.split(",") if value.strip()]
     except ValueError:
-        return _render_detail(request, prebuilt, error="Invalid section order.", status_code=422)
+        return _render_detail(request, prebuilt, error="Invalid section order.", status_code=422, db=db)
 
     if sorted(requested) != sorted(by_id):
-        return _render_detail(request, prebuilt, error="Section order does not match this template.", status_code=422)
+        return _render_detail(request, prebuilt, error="Section order does not match this template.", status_code=422, db=db)
 
     for position, section_id in enumerate(requested):
         by_id[section_id].position = position
@@ -161,7 +180,7 @@ def create_section(
     try:
         kind_enum = StepSection(kind)
     except ValueError:
-        return _render_detail(request, prebuilt, error=f'Invalid section "{kind}".', status_code=422)
+        return _render_detail(request, prebuilt, error=f'Invalid section "{kind}".', status_code=422, db=db)
 
     position = max((section.position for section in prebuilt.sections), default=-1) + 1
     db.add(PrebuiltSection(prebuilt_id=prebuilt_id, kind=kind_enum, position=position))
@@ -230,10 +249,10 @@ def reorder_steps(
     try:
         requested = [int(value) for value in order.split(",") if value.strip()]
     except ValueError:
-        return _render_detail(request, prebuilt, error="Invalid step order.", status_code=422)
+        return _render_detail(request, prebuilt, error="Invalid step order.", status_code=422, db=db)
 
     if sorted(requested) != sorted(by_id):
-        return _render_detail(request, prebuilt, error="Step order does not match this section.", status_code=422)
+        return _render_detail(request, prebuilt, error="Step order does not match this section.", status_code=422, db=db)
 
     for step_no, step_id in enumerate(requested, start=1):
         by_id[step_id].step_no = step_no
@@ -286,6 +305,7 @@ def save_testcase_as_prebuilt(request: Request, testcase_id: int, db: Session = 
         name=testcase.title or testcase.display_code,
         description=f"Saved from {testcase.display_code}",
         test_type=testcase.test_type,
+        test_type_id=testcase.test_type_id,
         remark=testcase.remark,
     )
     db.add(prebuilt)

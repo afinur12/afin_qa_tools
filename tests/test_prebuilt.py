@@ -119,12 +119,19 @@ def test_editing_a_prebuilt_does_not_change_cases_already_created_from_it(client
     assert "changed text" not in page
 
 
-def test_prebuilt_service_name_test_type_and_remark_round_trip(client):
+def test_prebuilt_service_simulate_test_type_round_trip(client):
+    client.post("/settings/services", data={"name": "payment-service"})
+    client.post("/settings/simulates", data={"name": "API Testing"})
+    client.post("/settings/test-types", data={"name": "NEGATIVE"})
+    service_id = re.search(r"/settings/services/(\d+)/delete", client.get("/settings/services").text).group(1)
+    simulate_id = re.search(r"/settings/simulates/(\d+)/delete", client.get("/settings/simulates").text).group(1)
+    test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
+
     resp = client.post(
         "/prebuilt",
         data={
-            "name": "Tagged", "description": "d", "service_name": "payment-service",
-            "test_type": "NEGATIVE", "simulate": "API Testing", "remark": "flaky on staging",
+            "name": "Tagged", "description": "d", "service_id": service_id,
+            "test_type_id": test_type_id, "simulate_id": simulate_id, "remark": "flaky on staging",
         },
         follow_redirects=False,
     )
@@ -143,9 +150,11 @@ def test_prebuilt_service_name_test_type_and_remark_round_trip(client):
 
 
 def test_creating_a_testcase_from_a_prebuilt_prefills_test_type_and_remark(client):
+    client.post("/settings/test-types", data={"name": "REGRESSION"})
+    test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
     resp = client.post(
         "/prebuilt",
-        data={"name": "With defaults", "test_type": "REGRESSION", "remark": "run every release"},
+        data={"name": "With defaults", "test_type_id": test_type_id, "remark": "run every release"},
         follow_redirects=False,
     )
     prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
@@ -161,9 +170,13 @@ def test_creating_a_testcase_from_a_prebuilt_prefills_test_type_and_remark(clien
 
 
 def test_new_testcase_modal_exposes_search_filter_and_title_autofill_hooks(client):
+    client.post("/settings/services", data={"name": "payment-service"})
+    client.post("/settings/test-types", data={"name": "POSITIVE"})
+    service_id = re.search(r"/settings/services/(\d+)/delete", client.get("/settings/services").text).group(1)
+    test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
     resp = client.post(
         "/prebuilt",
-        data={"name": "Top-up flow", "service_name": "payment-service", "test_type": "POSITIVE"},
+        data={"name": "Top-up flow", "service_id": service_id, "test_type_id": test_type_id},
         follow_redirects=False,
     )
     prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]

@@ -8,11 +8,11 @@
   <div>
     <h1 class="page-title">{{ prebuilt.name }}</h1>
     {% if prebuilt.description %}<div class="page-sub">{{ prebuilt.description }}</div>{% endif %}
-    {% if prebuilt.service_name or prebuilt.test_type or prebuilt.simulate or prebuilt.remark %}
+    {% if prebuilt.service or prebuilt.test_type_ref or prebuilt.simulate_ref or prebuilt.remark %}
     <div class="page-sub" style="margin-top:6px;">
-      {% if prebuilt.service_name %}<span class="badge">{{ prebuilt.service_name }}</span>{% endif %}
-      {% if prebuilt.test_type %}<span class="badge">{{ prebuilt.test_type }}</span>{% endif %}
-      {% if prebuilt.simulate %}<span class="badge">{{ prebuilt.simulate }}</span>{% endif %}
+      {% if prebuilt.service %}<span class="badge">{{ prebuilt.service.name }}</span>{% endif %}
+      {% if prebuilt.test_type_ref %}<span class="badge">{{ prebuilt.test_type_ref.name }}</span>{% endif %}
+      {% if prebuilt.simulate_ref %}<span class="badge">{{ prebuilt.simulate_ref.name }}</span>{% endif %}
       {% if prebuilt.remark %}<span class="muted">{{ prebuilt.remark }}</span>{% endif %}
     </div>
     {% endif %}
@@ -36,27 +36,24 @@
   </div>
   <div class="grid-3">
     <div class="field">
-      <label>Service Name</label>
-      <input name="service_name" value="{{ prebuilt.service_name or '' }}" placeholder="e.g. auth-service, payment-service">
+      <label>Service</label>
+      <select name="service_id">
+        <option value="">&mdash;</option>
+        {% for s in services %}<option value="{{ s.id }}" {% if prebuilt.service_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      </select>
     </div>
     <div class="field">
       <label>Test Type</label>
-      <select name="test_type">
+      <select name="test_type_id">
         <option value="">&mdash;</option>
-        {% for o in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}<option value="{{ o }}" {% if prebuilt.test_type == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        {% if prebuilt.test_type and prebuilt.test_type not in ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}
-        <option value="{{ prebuilt.test_type }}" selected>{{ prebuilt.test_type }}</option>
-        {% endif %}
+        {% for t in test_types %}<option value="{{ t.id }}" {% if prebuilt.test_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
       </select>
     </div>
     <div class="field">
       <label>Simulate</label>
-      <select name="simulate">
+      <select name="simulate_id">
         <option value="">&mdash;</option>
-        {% for o in ['E2E', 'API Testing'] %}<option value="{{ o }}" {% if prebuilt.simulate == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        {% if prebuilt.simulate and prebuilt.simulate not in ['E2E', 'API Testing'] %}
-        <option value="{{ prebuilt.simulate }}" selected>{{ prebuilt.simulate }}</option>
-        {% endif %}
+        {% for s in simulates %}<option value="{{ s.id }}" {% if prebuilt.simulate_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
       </select>
     </div>
   </div>
