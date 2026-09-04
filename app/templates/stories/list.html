@@ -45,17 +45,18 @@
 <div class="card flush">
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Phases</th><th>Created</th></tr></thead>
+    <thead><tr><th>Code</th><th>Title</th><th>Status</th><th>Phases</th><th>Created</th></tr></thead>
     <tbody>
       {% for s in stories %}
       <tr>
         <td><a class="badge code" href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
         <td><a href="/stories/{{ s.id }}" style="color:var(--ink); font-weight:500;">{{ s.title }}</a></td>
+        <td><span class="badge badge--{{ s.status.value | lower }}">{{ s.status.label }}</span></td>
         <td class="muted">{{ s.phases | length }}</td>
         <td class="muted">{{ s.created_at.strftime("%d %b %Y") }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="empty">No stories yet. Create one to get started.</td></tr>
+      <tr><td colspan="5" class="empty">No stories yet. Create one to get started.</td></tr>
       {% endfor %}
     </tbody>
   </table>

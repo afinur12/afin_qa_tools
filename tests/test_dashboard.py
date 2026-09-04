@@ -19,3 +19,15 @@ def test_dashboard_shows_story_and_counts(client):
     assert "Payments" in response.text
     assert "TO DO" in response.text
     assert "1" in response.text  # open bug count appears somewhere on the page
+
+
+def test_dashboard_shows_percent_of_tasks_done(client):
+    done = client.post("/stories", data={"display_code": "EX-801", "title": "Done one"}, follow_redirects=False)
+    done_id = done.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{done_id}/edit", data={"display_code": "EX-801", "title": "Done one", "status": "DONE"})
+
+    client.post("/stories", data={"display_code": "EX-802", "title": "Not done"})
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "50" in response.text  # 1 of 2 stories done

@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, Note, NoteAttachType, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
+from app.models import Bug, BugSeverity, BugStatus, Note, NoteAttachType, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -142,6 +142,35 @@ def test_bug_defaults(db_session):
     db_session.refresh(bug)
     assert bug.severity == BugSeverity.MEDIUM
     assert bug.status == BugStatus.OPEN
+
+
+def test_task_status_label_replaces_underscore_with_space():
+    assert TaskStatus.TO_DO.label == "TO DO"
+    assert TaskStatus.BACK_LOG.label == "BACK LOG"
+    assert TaskStatus.DONE.label == "DONE"
+
+
+def test_story_status_defaults_to_to_do(db_session):
+    story = Story(display_code="EX-30", title="A", internal_key="k30")
+    db_session.add(story)
+    db_session.commit()
+    db_session.refresh(story)
+    assert story.status == TaskStatus.TO_DO
+
+
+def test_subtask_status_defaults_to_to_do(db_session):
+    story = Story(display_code="EX-31", title="A", internal_key="k31")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k32", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    db_session.refresh(subtask)
+    assert subtask.status == TaskStatus.TO_DO
 
 
 def test_note_create(db_session):

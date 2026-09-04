@@ -72,3 +72,49 @@ def test_delete_subtask_cascades_to_testcases_and_bugs(client):
     assert client.get(f"/subtasks/{subtask_id}").status_code == 404
     assert "TC-1" not in client.get(f"/stories/{story_id}").text
     assert "B-1" not in client.get("/bugs").text
+
+
+def test_edit_subtask_status(client):
+    create = client.post("/stories", data={"display_code": "EX-204", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    sub_resp = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+        follow_redirects=False,
+    )
+    subtask_id = sub_resp.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/subtasks/{subtask_id}/edit",
+        data={"display_code": "S-1", "title": "Exec", "notes": "", "status": "DONE"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    detail = client.get(f"/subtasks/{subtask_id}")
+    assert "DONE" in detail.text
+
+    story_page_after = client.get(f"/stories/{story_id}")
+    assert "DONE" in story_page_after.text
+
+
+def test_edit_subtask_rejects_invalid_status(client):
+    create = client.post("/stories", data={"display_code": "EX-205", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    sub_resp = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+        follow_redirects=False,
+    )
+    subtask_id = sub_resp.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/subtasks/{subtask_id}/edit",
+        data={"display_code": "S-1", "title": "Exec", "notes": "", "status": "NOT_A_STATUS"},
+    )
+    assert response.status_code == 422

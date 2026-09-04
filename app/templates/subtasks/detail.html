@@ -18,6 +18,7 @@
     <div class="row" style="margin-bottom:6px;">
       <span class="badge code">{{ subtask.display_code }}</span>
       <span class="badge">{{ subtask.phase.type.value }}</span>
+      <span class="badge badge--{{ subtask.status.value | lower }}">{{ subtask.status.label }}</span>
     </div>
     <h1 class="page-title">{{ subtask.title }}</h1>
   </div>
@@ -61,6 +62,12 @@
   <div class="field">
     <label>Notes</label>
     <textarea name="notes" rows="4" placeholder="Optional context for this subtask">{{ subtask.notes or '' }}</textarea>
+  </div>
+  <div class="field">
+    <label>Status</label>
+    <select name="status">
+      {% for s in statuses %}<option value="{{ s.value }}" {% if subtask.status == s %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
   </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
@@ -200,8 +207,8 @@
       <tr>
         <td><a class="badge code" href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td>
         <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
-        <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span></td>
-        <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span></td>
+        <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.label }}</span></td>
+        <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.label }}</span></td>
         <td style="width:1%;">
           <form method="post" action="/bugs/{{ bug.id }}/delete"
                 data-confirm="Delete {{ bug.display_code }}?">

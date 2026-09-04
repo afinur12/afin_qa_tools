@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import Note, NoteAttachType, Phase, PhaseType, Story, generate_internal_key
+from app.models import Note, NoteAttachType, Phase, PhaseType, Story, TaskStatus, generate_internal_key
 from app.testcase_io import dict_to_task
 
 router = APIRouter()
@@ -83,7 +83,10 @@ def story_detail(request: Request, story_id: int, db: Session = Depends(get_db))
     return templates.TemplateResponse(
         request,
         "stories/detail.html",
-        {"story": story, "available_phase_types": _available_phase_types(story), "error": None, "notes": notes},
+        {
+            "story": story, "available_phase_types": _available_phase_types(story), "error": None, "notes": notes,
+            "statuses": list(TaskStatus),
+        },
     )
 
 
@@ -95,7 +98,12 @@ def edit_story_form(request: Request, story_id: int, db: Session = Depends(get_d
     return templates.TemplateResponse(
         request,
         "stories/form.html",
-        {"story": story, "error": None, "values": {"display_code": story.display_code, "title": story.title}},
+        {
+            "story": story,
+            "error": None,
+            "statuses": list(TaskStatus),
+            "values": {"display_code": story.display_code, "title": story.title, "status": story.status.value},
+        },
     )
 
 
@@ -105,6 +113,7 @@ def update_story(
     story_id: int,
     display_code: str = Form(...),
     title: str = Form(...),
+    status: str = Form(...),
     db: Session = Depends(get_db),
 ):
     story = db.get(Story, story_id)
@@ -113,19 +122,26 @@ def update_story(
     display_code = display_code.strip()
     title = title.strip()
     conflict = db.query(Story).filter(Story.display_code == display_code, Story.id != story_id).first()
+    try:
+        status_enum = TaskStatus(status)
+    except ValueError:
+        conflict = True  # reuse the same error branch below for any invalid enum value
+
     if conflict:
         return templates.TemplateResponse(
             request,
             "stories/form.html",
             {
                 "story": story,
-                "error": f'Code "{display_code}" is already used by another story.',
-                "values": {"display_code": display_code, "title": title},
+                "error": f'Code "{display_code}" is already used by another story, or the status was invalid.',
+                "statuses": list(TaskStatus),
+                "values": {"display_code": display_code, "title": title, "status": status},
             },
             status_code=422,
         )
     story.display_code = display_code
     story.title = title
+    story.status = status_enum
     db.commit()
     return redirect_with_flash(f"/stories/{story.id}", f"Story {story.display_code} updated.")
 
@@ -143,6 +159,7 @@ def delete_story(request: Request, story_id: int, db: Session = Depends(get_db))
                 "story": story,
                 "available_phase_types": _available_phase_types(story),
                 "error": f"Delete {len(story.phases)} phase(s) first.",
+                "statuses": list(TaskStatus),
             },
             status_code=422,
         )
@@ -166,7 +183,10 @@ def create_phase(request: Request, story_id: int, type: str = Form(...), db: Ses
         return templates.TemplateResponse(
             request,
             "stories/detail.html",
-            {"story": story, "available_phase_types": available, "error": "Invalid or already-used phase type."},
+            {
+                "story": story, "available_phase_types": available, "error": "Invalid or already-used phase type.",
+                "statuses": list(TaskStatus),
+            },
             status_code=422,
         )
     db.add(Phase(story_id=story.id, type=phase_type))
@@ -192,6 +212,7 @@ def delete_phase(request: Request, phase_id: int, db: Session = Depends(get_db))
                 "available_phase_types": _available_phase_types(story),
                 "error": f"Delete {len(phase.subtasks)} subtask(s) first.",
                 "notes": notes,
+                "statuses": list(TaskStatus),
             },
             status_code=422,
         )

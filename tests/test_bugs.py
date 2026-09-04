@@ -49,7 +49,7 @@ def test_edit_bug_severity_and_status(client):
     assert response.status_code == 303
     detail = client.get(f"/bugs/{bug_id}")
     assert "HIGH" in detail.text
-    assert "IN_PROGRESS" in detail.text
+    assert "IN PROGRESS" in detail.text, "status badge should show a space, not the raw enum underscore"
 
 
 def test_bug_list_route(client):

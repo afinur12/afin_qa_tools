@@ -36,6 +36,28 @@ SUBTASK_TYPE_LABELS = {
 }
 
 
+class TaskStatus(str, enum.Enum):
+    """Status for a Story ("task") or Subtask.
+
+    Deliberately its own enum rather than reusing TestCaseStatus: the two
+    are independent even though they share most of their values, so
+    adding DONE here (a story/subtask concept — a test case is PASS/FAIL,
+    never "done") never affects TestCase's own status options.
+    """
+    TO_DO = "TO_DO"
+    BACK_LOG = "BACK_LOG"
+    PASS = "PASS"
+    FAIL = "FAIL"
+    BLOCKED = "BLOCKED"
+    CANCELLED = "CANCELLED"
+    POSTPONED = "POSTPONED"
+    DONE = "DONE"
+
+    @property
+    def label(self) -> str:
+        return self.value.replace("_", " ")
+
+
 class Story(Base):
     __tablename__ = "stories"
 
@@ -44,6 +66,7 @@ class Story(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    status: Mapped[TaskStatus] = mapped_column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.TO_DO)
 
     phases: Mapped[list["Phase"]] = relationship("Phase", back_populates="story", order_by="Phase.id")
 
@@ -83,6 +106,7 @@ class Subtask(Base):
     internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
     subtask_type: Mapped[SubtaskType] = mapped_column(SAEnum(SubtaskType), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[TaskStatus] = mapped_column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.TO_DO)
 
     phase: Mapped["Phase"] = relationship("Phase", back_populates="subtasks")
     testcases: Mapped[list["TestCase"]] = relationship(
@@ -225,12 +249,20 @@ class BugSeverity(str, enum.Enum):
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
+    @property
+    def label(self) -> str:
+        return self.value.replace("_", " ")
+
 
 class BugStatus(str, enum.Enum):
     OPEN = "OPEN"
     IN_PROGRESS = "IN_PROGRESS"
     RESOLVED = "RESOLVED"
     CLOSED = "CLOSED"
+
+    @property
+    def label(self) -> str:
+        return self.value.replace("_", " ")
 
 
 class Bug(Base):

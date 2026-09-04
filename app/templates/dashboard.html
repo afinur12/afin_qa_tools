@@ -63,6 +63,12 @@
     <div class="stat-value">{{ open_bugs }}</div>
     <div class="stat-foot">Open or in progress</div>
   </div>
+
+  <div class="card">
+    <div class="stat-label">Tasks done</div>
+    <div class="stat-value">{{ task_done_pct }}<span style="font-size:18px; opacity:.7;">%</span></div>
+    <div class="stat-foot">{{ done_tasks }} of {{ total_tasks }} task{{ '' if total_tasks == 1 else 's' }} done</div>
+  </div>
 </div>
 
 <div class="split">

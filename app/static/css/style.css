@@ -467,7 +467,7 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .badge.lime { background: var(--lime); color: var(--ink-inverse); }
 
 /* status variants — class is built from the enum value, lowercased */
-.badge--pass, .badge--resolved, .badge--closed { background: var(--pass-bg); color: var(--pass); }
+.badge--pass, .badge--resolved, .badge--closed, .badge--done { background: var(--pass-bg); color: var(--pass); }
 .badge--fail, .badge--critical            { background: var(--fail-bg); color: var(--fail); }
 .badge--blocked, .badge--postponed,
 .badge--high, .badge--medium              { background: var(--warn-bg); color: var(--warn); }

@@ -37,6 +37,12 @@
       <label>Notes</label>
       <textarea name="notes" rows="4" placeholder="Optional context for this subtask">{{ values.notes }}</textarea>
     </div>
+    <div class="field">
+      <label>Status</label>
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s.value }}" {% if values.status == s.value %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+      </select>
+    </div>
     {% endif %}
 
     <div class="form-actions">

@@ -11,8 +11,8 @@
   <div>
     <div class="row" style="margin-bottom:6px;">
       <span class="badge code">{{ bug.display_code }}</span>
-      <span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span>
-      <span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span>
+      <span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.label }}</span>
+      <span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.label }}</span>
     </div>
     <h1 class="page-title">{{ bug.title }}</h1>
   </div>

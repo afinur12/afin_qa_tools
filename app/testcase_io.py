@@ -31,6 +31,7 @@ from app.models import (
     StepSection,
     Subtask,
     SubtaskType,
+    TaskStatus,
     TestCase,
     TestCaseSection,
     TestCaseStatus,
@@ -150,6 +151,7 @@ def _subtask_fields(subtask: Subtask, include_screenshots: bool) -> dict:
         "title": subtask.title,
         "subtask_type": subtask.subtask_type.value,
         "notes": subtask.notes,
+        "status": subtask.status.value,
         "testcases": [_testcase_fields(tc, include_screenshots) for tc in subtask.testcases],
         "bugs": [_bug_fields(bug) for bug in subtask.bugs],
     }
@@ -162,6 +164,7 @@ def task_to_dict(story: Story, include_screenshots: bool = False) -> dict:
         "task": {
             "display_code": story.display_code,
             "title": story.title,
+            "status": story.status.value,
             "phases": [
                 {
                     "type": phase.type.value,
@@ -292,10 +295,12 @@ def dict_to_subtask(db: Session, phase_id: int, data: dict) -> Subtask:
     if subtask_type not in phase.allowed_subtask_types:
         raise ValueError(f'Subtask type "{subtask_type.value}" isn\'t allowed on a {phase.type.value} phase.')
 
+    status = _parse_enum(TaskStatus, fields.get("status") or TaskStatus.TO_DO.value, "subtask status")
     display_code = _unique_code(db, Subtask, _require(fields, "display_code", "subtask"), phase_id=phase_id)
     subtask = Subtask(
         phase_id=phase_id, display_code=display_code, title=_require(fields, "title", "subtask"),
         internal_key=generate_internal_key(), subtask_type=subtask_type, notes=fields.get("notes"),
+        status=status,
     )
     db.add(subtask)
     db.flush()
@@ -338,8 +343,12 @@ def dict_to_task(db: Session, data: dict) -> Story:
             raise ValueError(f'Duplicate phase type "{raw_type}" in import file — a task can only have one of each.')
         seen_types.add(raw_type)
 
+    status = _parse_enum(TaskStatus, fields.get("status") or TaskStatus.TO_DO.value, "task status")
     display_code = _unique_code(db, Story, _require(fields, "display_code", "task"))
-    story = Story(display_code=display_code, title=_require(fields, "title", "task"), internal_key=generate_internal_key())
+    story = Story(
+        display_code=display_code, title=_require(fields, "title", "task"),
+        internal_key=generate_internal_key(), status=status,
+    )
     db.add(story)
     db.flush()
 

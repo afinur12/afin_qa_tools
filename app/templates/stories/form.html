@@ -17,6 +17,14 @@
       <label>Title</label>
       <input name="title" value="{{ values.title }}" placeholder="e.g. OWS-W2W (Top-up RO Balance)" required>
     </div>
+    {% if story %}
+    <div class="field">
+      <label>Status</label>
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s.value }}" {% if values.status == s.value %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <div class="form-actions">
       <button class="btn" type="submit">Save</button>
       <a class="btn secondary" href="/stories">Cancel</a>

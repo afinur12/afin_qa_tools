@@ -10,6 +10,7 @@ from app.models import (
     Story,
     Subtask,
     SubtaskType,
+    TaskStatus,
     TestCase,
     TestCaseSection,
     TestCaseStep,
@@ -146,6 +147,24 @@ def test_subtask_round_trip(db_session):
     assert imported.bugs[0].description == "Steps to reproduce..."
 
 
+def test_subtask_status_round_trips(db_session):
+    story, phase_a = _make_story(db_session, phase_type=PhaseType.SIT)
+    phase_b = Phase(story_id=story.id, type=PhaseType.STAGING)
+    db_session.add(phase_b)
+    db_session.flush()
+
+    subtask = _make_subtask(db_session, phase_a, "ST-5")
+    subtask.status = TaskStatus.DONE
+    db_session.commit()
+
+    data = subtask_to_dict(subtask)
+    assert data["subtask"]["status"] == "DONE"
+
+    imported = dict_to_subtask(db_session, phase_b.id, data)
+    db_session.commit()
+    assert imported.status == TaskStatus.DONE
+
+
 def test_subtask_import_rejects_disallowed_type_for_target_phase(db_session):
     story, phase_a = _make_story(db_session, phase_type=PhaseType.SIT)
     rollback_phase = Phase(story_id=story.id, type=PhaseType.STAGING_AFTER_ROLLBACK)
@@ -203,6 +222,19 @@ def test_task_round_trip(db_session):
     assert len(imported.phases[0].subtasks) == 1
     assert len(imported.phases[0].subtasks[0].bugs) == 1
     assert len(imported.phases[0].subtasks[0].testcases) == 1
+
+
+def test_task_status_round_trips(db_session):
+    story, phase = _make_story(db_session, code="PROJ-9")
+    story.status = TaskStatus.DONE
+    db_session.commit()
+
+    data = task_to_dict(story)
+    assert data["task"]["status"] == "DONE"
+
+    imported = dict_to_task(db_session, data)
+    db_session.commit()
+    assert imported.status == TaskStatus.DONE
 
 
 def test_task_import_rejects_duplicate_phase_type(db_session):

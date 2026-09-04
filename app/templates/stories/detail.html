@@ -18,6 +18,7 @@
   <div>
     <div class="row" style="margin-bottom:6px;">
       <span class="badge code">{{ story.display_code }}</span>
+      <span class="badge badge--{{ story.status.value | lower }}">{{ story.status.label }}</span>
     </div>
     <h1 class="page-title">{{ story.title }}</h1>
   </div>
@@ -45,6 +46,12 @@
   <div class="field">
     <label>Title</label>
     <input name="title" value="{{ story.title }}" required>
+  </div>
+  <div class="field">
+    <label>Status</label>
+    <select name="status">
+      {% for s in statuses %}<option value="{{ s.value }}" {% if story.status == s %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
   </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
@@ -152,6 +159,7 @@
         <span class="list-row-title">{{ subtask.title }}</span>
         <div class="spacer"></div>
         <span class="muted" style="font-size:12.5px;">{{ subtask.subtask_type.value.replace('_', ' ') | title }}</span>
+        <span class="badge badge--{{ subtask.status.value | lower }}">{{ subtask.status.label }}</span>
         <span class="muted">{{ icon_chevron() }}</span>
       </a>
       <form method="post" action="/subtasks/{{ subtask.id }}/delete"

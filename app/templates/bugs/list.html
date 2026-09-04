@@ -18,8 +18,8 @@
       <tr>
         <td><a class="badge code" href="/bugs/{{ bug.id }}">{{ bug.display_code }}</a></td>
         <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
-        <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.value }}</span></td>
-        <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.value }}</span></td>
+        <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.label }}</span></td>
+        <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.label }}</span></td>
       </tr>
       {% else %}
       <tr><td colspan="4" class="empty">No bugs logged. Nice.</td></tr>

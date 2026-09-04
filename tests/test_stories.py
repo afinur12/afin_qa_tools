@@ -77,3 +77,31 @@ def test_delete_phase_blocked_when_subtasks_exist(client):
 def test_delete_phase_not_found_returns_404(client):
     response = client.post("/phases/999999/delete")
     assert response.status_code == 404
+
+
+def test_edit_story_status(client):
+    create = client.post("/stories", data={"display_code": "EX-106", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/stories/{story_id}/edit",
+        data={"display_code": "EX-106", "title": "A", "status": "DONE"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    detail = client.get(f"/stories/{story_id}")
+    assert "DONE" in detail.text
+
+    listing = client.get("/stories")
+    assert "DONE" in listing.text
+
+
+def test_edit_story_rejects_invalid_status(client):
+    create = client.post("/stories", data={"display_code": "EX-107", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/stories/{story_id}/edit",
+        data={"display_code": "EX-107", "title": "A", "status": "NOT_A_STATUS"},
+    )
+    assert response.status_code == 422
