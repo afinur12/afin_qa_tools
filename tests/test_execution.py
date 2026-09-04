@@ -54,7 +54,7 @@ def test_update_section1_fields(client):
     page = client.get(f"/testcases/{testcase_id}/execute")
     assert "Jane Doe" in page.text
     assert "PASS" in page.text
-    assert "Functional" in page.text
+    assert f'value="{test_type_id}" selected' in page.text
 
 
 def test_edit_and_delete_step(client):
