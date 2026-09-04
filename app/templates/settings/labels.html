@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_trash with context %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Settings</div>
+    <h1 class="page-title">Labels</h1>
+    <div class="page-sub">A shared tag pool for tasks, subtasks, test cases, and bugs</div>
+  </div>
+</div>
+
+{% include "settings/_tabs.html" %}
+
+<div class="card">
+  <div class="card-head" style="margin-bottom:12px;"><div class="card-title">Add Label</div></div>
+  <form method="post" action="/settings/labels" class="row">
+    <div class="field" style="margin-bottom:0; flex:1;">
+      <input name="name" placeholder="e.g. regression" required>
+    </div>
+    <button class="btn secondary" type="submit">+ Add</button>
+  </form>
+</div>
+
+<div class="card flush">
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Name</th><th></th></tr></thead>
+    <tbody>
+      {% for label in labels %}
+      <tr>
+        <td style="width:100%;">
+          <form method="post" action="/settings/labels/{{ label.id }}/edit" class="row" style="gap:8px;">
+            <input name="name" value="{{ label.name }}" style="flex:1;" required>
+            <button class="btn secondary sm" type="submit">Save</button>
+          </form>
+        </td>
+        <td style="width:1%; white-space:nowrap;">
+          <form method="post" action="/settings/labels/{{ label.id }}/delete" data-confirm="Delete &quot;{{ label.name }}&quot;?">
+            <button class="btn act remove" type="submit" title="Delete {{ label.name }}" aria-label="Delete {{ label.name }}">{{ icon_trash() }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2" class="empty">No labels yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
