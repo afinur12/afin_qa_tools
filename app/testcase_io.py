@@ -20,6 +20,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.master_data import get_or_create
 from app.models import (
     Bug,
     BugSeverity,
@@ -36,6 +37,7 @@ from app.models import (
     TestCaseSection,
     TestCaseStatus,
     TestCaseStep,
+    TestType,
     generate_internal_key,
 )
 
@@ -85,7 +87,7 @@ def _testcase_fields(tc: TestCase, include_screenshots: bool) -> dict:
         "tester": tc.tester,
         "test_date": tc.test_date,
         "test_priority": tc.test_priority,
-        "test_type": tc.test_type,
+        "test_type": tc.test_type_ref.name if tc.test_type_ref else tc.test_type,
         "channel": tc.channel,
         "iteration": tc.iteration,
         "balance_before": tc.balance_before,
@@ -243,13 +245,15 @@ def dict_to_testcase(db: Session, subtask_id: int, data: dict) -> TestCase:
     display_code = _unique_code(db, TestCase, _require(fields, "display_code", "test case"), subtask_id=subtask_id)
     title = _require(fields, "title", "test case")
     status = _parse_enum(TestCaseStatus, fields.get("status") or TestCaseStatus.TO_DO.value, "test case status")
+    test_type_row = get_or_create(db, TestType, fields.get("test_type"))
 
     testcase = TestCase(
         subtask_id=subtask_id, display_code=display_code, title=title, internal_key=generate_internal_key(),
         status=status,
         tester=fields.get("tester") or "Andri Firman Nurvianto",
         test_date=fields.get("test_date"), test_priority=fields.get("test_priority"),
-        test_type=fields.get("test_type"), channel=fields.get("channel"),
+        test_type=fields.get("test_type"), test_type_id=test_type_row.id if test_type_row else None,
+        channel=fields.get("channel"),
         iteration=fields.get("iteration") or "1",
         balance_before=fields.get("balance_before") or "Rp. -",
         balance_after=fields.get("balance_after") or "Rp. -",

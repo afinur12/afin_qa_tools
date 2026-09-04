@@ -72,6 +72,7 @@ class _TestCase:
         self.test_date = "2026-08-26"
         self.test_priority = "High"
         self.test_type = "Functional"
+        self.test_type_ref = None
         self.channel = "Mobile App"
         self.iteration = "1"
         self.balance_before = "Rp. -"

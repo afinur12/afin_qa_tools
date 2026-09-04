@@ -75,6 +75,39 @@ def _make_testcase(db, subtask, code="TC-1"):
     return tc
 
 
+def test_testcase_import_get_or_creates_test_type_by_name(db_session):
+    story, phase = _make_story(db_session, code="PROJ-20")
+    subtask = _make_subtask(db_session, phase)
+    db_session.commit()
+
+    data = {
+        "kind": "testcase",
+        "testcase": {"display_code": "TC-1", "title": "A", "test_type": "SANITY-CHECK"},
+    }
+    imported = dict_to_testcase(db_session, subtask.id, data)
+    db_session.commit()
+    db_session.refresh(imported)
+
+    assert imported.test_type == "SANITY-CHECK"
+    assert imported.test_type_ref.name == "SANITY-CHECK"
+
+
+def test_testcase_export_includes_test_type_name(db_session):
+    from app.models import TestType
+
+    story, phase = _make_story(db_session, code="PROJ-21")
+    subtask = _make_subtask(db_session, phase)
+    test_type = TestType(name="EXPORT-CHECK")
+    db_session.add(test_type)
+    db_session.commit()
+    tc = _make_testcase(db_session, subtask, "TC-1")
+    tc.test_type_id = test_type.id
+    db_session.commit()
+
+    data = dump_testcase(tc)
+    assert data["testcase"]["test_type"] == "EXPORT-CHECK"
+
+
 def test_testcase_round_trip(db_session):
     story, phase = _make_story(db_session)
     subtask_a = _make_subtask(db_session, phase, "ST-A")
