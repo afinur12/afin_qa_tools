@@ -19,18 +19,6 @@ ensure_columns("prebuilt_testcases", {
     "service_id": "INTEGER", "simulate_id": "INTEGER", "test_type_id": "INTEGER",
 })
 ensure_columns("testcases", {"test_type_id": "INTEGER"})
-ensure_columns("stories", {
-    "assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER",
-})
-ensure_columns("subtasks", {
-    "assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER",
-})
-ensure_columns("testcases", {
-    "assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER",
-})
-ensure_columns("bugs", {
-    "assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER",
-})
 # service_name was briefly named "category"; carry over any values already saved under that name.
 backfill_column("prebuilt_testcases", dest="service_name", src="category")
 # Note replaces the curl-only CurlCollection; carry over anything already saved there.

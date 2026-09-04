@@ -292,19 +292,20 @@ def test_label_assignment_rejects_exact_duplicate(db_session):
 def test_story_assignee_tester_developer_relationships(db_session):
     tester = User(name="Tess Tester", type=UserType.TESTER)
     developer = User(name="Dave Dev", type=UserType.DEVELOPER)
-    db_session.add_all([tester, developer])
+    assignee = User(name="Ann Assignee", type=UserType.TESTER)
+    db_session.add_all([tester, developer, assignee])
     db_session.commit()
 
     story = Story(
         display_code="EX-60", title="A", internal_key="k60",
-        tester_id=tester.id, developer_id=developer.id, assignee_id=tester.id,
+        tester_id=tester.id, developer_id=developer.id, assignee_id=assignee.id,
     )
     db_session.add(story)
     db_session.commit()
     db_session.refresh(story)
     assert story.tester_user.name == "Tess Tester"
     assert story.developer.name == "Dave Dev"
-    assert story.assignee.name == "Tess Tester"
+    assert story.assignee.name == "Ann Assignee"
 
 
 def test_story_assignee_tester_developer_default_to_none(db_session):
@@ -320,9 +321,20 @@ def test_story_assignee_tester_developer_default_to_none(db_session):
 def test_subtask_bug_testcase_have_the_same_three_relationships(db_session):
     """One combined test covering all three remaining entities — same
     shape as the Story tests above, just confirming the pattern was
-    applied uniformly rather than re-deriving it three more times."""
-    user = User(name="Ada", type=UserType.TESTER)
-    db_session.add(user)
+    applied uniformly rather than re-deriving it three more times.
+    Uses distinct users for each FK field to catch wrong foreign_keys assignments."""
+    users = [
+        User(name="Tester1", type=UserType.TESTER),
+        User(name="Developer1", type=UserType.DEVELOPER),
+        User(name="Assignee1", type=UserType.TESTER),
+        User(name="Tester2", type=UserType.TESTER),
+        User(name="Developer2", type=UserType.DEVELOPER),
+        User(name="Assignee2", type=UserType.TESTER),
+        User(name="Tester3", type=UserType.TESTER),
+        User(name="Developer3", type=UserType.DEVELOPER),
+        User(name="Assignee3", type=UserType.TESTER),
+    ]
+    db_session.add_all(users)
     db_session.commit()
 
     story = Story(display_code="EX-62", title="A", internal_key="k62")
@@ -331,21 +343,28 @@ def test_subtask_bug_testcase_have_the_same_three_relationships(db_session):
     phase = Phase(story_id=story.id, type=PhaseType.SIT)
     db_session.add(phase)
     db_session.commit()
+
+    # Subtask with all three distinct users
     subtask = Subtask(
         phase_id=phase.id, display_code="S-1", title="Exec", internal_key="k63",
-        subtask_type=SubtaskType.EXECUTION, tester_id=user.id,
+        subtask_type=SubtaskType.EXECUTION,
+        tester_id=users[0].id, developer_id=users[1].id, assignee_id=users[2].id,
     )
     db_session.add(subtask)
     db_session.commit()
+
+    # TestCase with all three distinct users
     tc = TestCase(
         subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k64",
-        developer_id=user.id,
+        tester_id=users[3].id, developer_id=users[4].id, assignee_id=users[5].id,
     )
     db_session.add(tc)
     db_session.commit()
+
+    # Bug with all three distinct users
     bug = Bug(
         subtask_id=subtask.id, display_code="B-1", title="[ISSUE] a", internal_key="k65",
-        assignee_id=user.id,
+        tester_id=users[6].id, developer_id=users[7].id, assignee_id=users[8].id,
     )
     db_session.add(bug)
     db_session.commit()
@@ -353,6 +372,18 @@ def test_subtask_bug_testcase_have_the_same_three_relationships(db_session):
     db_session.refresh(subtask)
     db_session.refresh(tc)
     db_session.refresh(bug)
-    assert subtask.tester_user.name == "Ada"
-    assert tc.developer.name == "Ada"
-    assert bug.assignee.name == "Ada"
+
+    # Subtask assertions
+    assert subtask.tester_user.name == "Tester1"
+    assert subtask.developer.name == "Developer1"
+    assert subtask.assignee.name == "Assignee1"
+
+    # TestCase assertions
+    assert tc.tester_user.name == "Tester2"
+    assert tc.developer.name == "Developer2"
+    assert tc.assignee.name == "Assignee2"
+
+    # Bug assertions
+    assert bug.tester_user.name == "Tester3"
+    assert bug.developer.name == "Developer3"
+    assert bug.assignee.name == "Assignee3"
