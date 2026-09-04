@@ -430,6 +430,30 @@ function initReorder(container, { itemSelector, idKey, indexSelector }) {
   });
 }
 
+// ── Assignee mirrors Tester until manually touched ──────────────────────────
+// On page load, an Assignee that already has a value (editing an existing
+// record) counts as already "touched" — Tester changes must never silently
+// overwrite a deliberately-set Assignee. A blank Assignee (a fresh create
+// form) starts untouched, so it mirrors Tester until the user picks
+// something themselves. Both selects use the "change" event (not "input" —
+// a <select> doesn't fire that consistently across browsers the way a text
+// field does).
+document.querySelectorAll('select[name="assignee_id"]').forEach((select) => {
+  if (select.value) select.dataset.touched = "1";
+});
+
+document.addEventListener("change", (event) => {
+  if (event.target.matches('select[name="assignee_id"]')) {
+    event.target.dataset.touched = "1";
+    return;
+  }
+  if (event.target.matches('select[name="tester_id"]')) {
+    const form = event.target.closest("form");
+    const assignee = form?.querySelector('select[name="assignee_id"]');
+    if (assignee && !assignee.dataset.touched) assignee.value = event.target.value;
+  }
+});
+
 // ── Prebuilt picker: search/filter, pagination, and title autofill ──────────
 // "Blank" is pinned — always visible, never paginated or filtered away.
 // Everything else is filtered by search/service/test-type, then sliced into
