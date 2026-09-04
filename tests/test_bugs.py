@@ -65,3 +65,61 @@ def test_bug_list_shows_tracker_link(client):
     client.post(f"/subtasks/{subtask_id}/bugs", data={"display_code": "B-2", "title": "[ISSUE] a"})
     response = client.get("/bugs")
     assert "https://collabs.xlsmart.co.id/browse/B-2" in response.text
+
+
+def test_create_bug_with_assignee_tester_developer_and_labels(client):
+    import re
+
+    subtask_id = _create_execution_subtask(client, "EX-610")
+    client.post("/settings/users", data={"name": "Bug Tester", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/users", data={"name": "Bug Dev", "type": "DEVELOPER"})
+    developer_id = re.search(
+        r'value="Bug Dev"[\s\S]*?/settings/users/(\d+)/delete', client.get("/settings/users").text
+    ).group(1)
+    client.post("/settings/labels", data={"name": "crash"})
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        f"/subtasks/{subtask_id}/bugs",
+        data={
+            "display_code": "B-1", "title": "[ISSUE] a",
+            "assignee_id": tester_id, "tester_id": tester_id, "developer_id": developer_id,
+            "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(response.headers["location"])
+    assert "Bug Tester" in page.text
+    assert "Bug Dev" in page.text
+    assert "crash" in page.text
+
+
+def test_edit_bug_updates_assignee_tester_developer_and_labels(client):
+    import re
+
+    subtask_id = _create_execution_subtask(client, "EX-611")
+    create = client.post(
+        f"/subtasks/{subtask_id}/bugs", data={"display_code": "B-1", "title": "[ISSUE] a"}, follow_redirects=False
+    )
+    bug_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    client.post("/settings/users", data={"name": "Later Bug Tester", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/labels", data={"name": "p1"})
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        f"/bugs/{bug_id}/edit",
+        data={
+            "display_code": "B-1", "title": "[ISSUE] a", "description": "",
+            "severity": "HIGH", "status": "OPEN",
+            "tester_id": tester_id, "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(f"/bugs/{bug_id}")
+    assert "Later Bug Tester" in page.text
+    assert "p1" in page.text

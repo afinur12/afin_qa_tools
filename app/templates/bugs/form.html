@@ -24,6 +24,38 @@
       <label>Description</label>
       <textarea name="description" rows="5" placeholder="Steps to reproduce, expected vs actual">{{ values.description }}</textarea>
     </div>
+    <div class="field">
+      <label>Assignee</label>
+      <select name="assignee_id">
+        <option value="">&mdash;</option>
+        {% for u in assignees %}<option value="{{ u.id }}" {% if values.assignee_id == u.id | string %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Tester</label>
+      <select name="tester_id">
+        <option value="">&mdash;</option>
+        {% for u in testers %}<option value="{{ u.id }}" {% if values.tester_id == u.id | string %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Developer</label>
+      <select name="developer_id">
+        <option value="">&mdash;</option>
+        {% for u in developers %}<option value="{{ u.id }}" {% if values.developer_id == u.id | string %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Labels</label>
+      {% for l in all_labels %}
+      <label class="choice">
+        <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
+        <span>{{ l.name }}</span>
+      </label>
+      {% else %}
+      <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
+      {% endfor %}
+    </div>
 
     {% if bug %}
     <div class="grid-2">
