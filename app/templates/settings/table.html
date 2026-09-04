@@ -10,11 +10,7 @@
   </div>
 </div>
 
-<div class="tabs">
-  <a class="tab {% if slug == 'services' %}active{% endif %}" href="/settings/services">Services</a>
-  <a class="tab {% if slug == 'simulates' %}active{% endif %}" href="/settings/simulates">Simulate Types</a>
-  <a class="tab {% if slug == 'test-types' %}active{% endif %}" href="/settings/test-types">Test Types</a>
-</div>
+{% include "settings/_tabs.html" %}
 
 <div class="card">
   <div class="card-head" style="margin-bottom:12px;"><div class="card-title">Add {{ label }}</div></div>

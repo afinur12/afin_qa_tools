@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, backfill_column, engine, ensure_columns, migrate_table
 from app.master_data import migrate_free_text_to_master, migrate_testcase_tester_to_user, seed_defaults
-from app.routers import api_client, bugs, prebuilt, notes, dashboard, docx_export, execution, screenshots, settings, stories, subtasks, testcases, utility
+from app.routers import api_client, bugs, prebuilt, notes, dashboard, docx_export, execution, screenshots, settings, stories, subtasks, testcases, users, utility
 from app.variables import seed_builtin_variables
 
 Base.metadata.create_all(bind=engine)
@@ -56,6 +56,7 @@ app.include_router(screenshots.router)
 app.include_router(bugs.router)
 app.include_router(api_client.router)
 app.include_router(prebuilt.router)
+app.include_router(users.router)
 app.include_router(settings.router)
 app.include_router(notes.router)
 app.include_router(utility.router)

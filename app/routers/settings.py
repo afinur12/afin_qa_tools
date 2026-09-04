@@ -1,9 +1,11 @@
 """Settings: Service, Simulate, and Test Type master-data management.
 
 One generic, slug-driven set of routes handles all three tables instead
-of tripling near-identical CRUD code — see TABLES below. A later phase
-(User, Label) is expected to extend this same TABLES dict rather than
-add a parallel router.
+of tripling near-identical CRUD code — see TABLES below. User does NOT
+extend this dict: it has an extra required `type` column and a
+delete-block check spanning 12 (model, column) pairs across 4 models,
+neither of which fits this dict's one-model-per-slug shape, so it gets
+its own router (see app/routers/users.py).
 """
 
 from fastapi import APIRouter, Depends, Form, Request
