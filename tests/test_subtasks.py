@@ -138,3 +138,71 @@ def test_edit_subtask_rejects_invalid_status(client):
         data={"display_code": "S-1", "title": "Exec", "notes": "", "status": "NOT_A_STATUS"},
     )
     assert response.status_code == 422
+
+
+def test_create_subtask_with_assignee_tester_developer_and_labels(client):
+    import re
+
+    create = client.post("/stories", data={"display_code": "EX-210", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+
+    client.post("/settings/users", data={"name": "Sub Tester", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/users", data={"name": "Sub Dev", "type": "DEVELOPER"})
+    developer_id = re.search(
+        r'value="Sub Dev"[\s\S]*?/settings/users/(\d+)/delete', client.get("/settings/users").text
+    ).group(1)
+    client.post("/settings/labels", data={"name": "flaky"})
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={
+            "display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION",
+            "assignee_id": tester_id, "tester_id": tester_id, "developer_id": developer_id,
+            "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(response.headers["location"])
+    assert "Sub Tester" in page.text
+    assert "Sub Dev" in page.text
+    assert "flaky" in page.text
+
+
+def test_edit_subtask_updates_assignee_tester_developer_and_labels(client):
+    import re
+
+    create = client.post("/stories", data={"display_code": "EX-211", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    sub_resp = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+        follow_redirects=False,
+    )
+    subtask_id = sub_resp.headers["location"].rstrip("/").split("/")[-1]
+
+    client.post("/settings/users", data={"name": "Later Sub Tester", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/labels", data={"name": "smoke"})
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        f"/subtasks/{subtask_id}/edit",
+        data={
+            "display_code": "S-1", "title": "Exec", "notes": "", "status": "TO_DO",
+            "tester_id": tester_id, "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(f"/subtasks/{subtask_id}")
+    assert "Later Sub Tester" in page.text
+    assert "smoke" in page.text

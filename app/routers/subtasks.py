@@ -7,7 +7,9 @@ from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, TaskStatus, generate_internal_key
+from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, TaskStatus, generate_internal_key
+from app.labels import get_labels, set_labels
+from app.routers.stories import _parse_id, _user_dropdowns
 from app.testcase_io import dict_to_subtask
 
 router = APIRouter()
@@ -30,7 +32,12 @@ def new_subtask_form(request: Request, phase_id: int, db: Session = Depends(get_
             "phase": phase,
             "allowed_types": _allowed_subtask_types(phase),
             "error": None,
-            "values": {"display_code": "", "title": "", "subtask_type": ""},
+            "values": {
+                "display_code": "", "title": "", "subtask_type": "",
+                "assignee_id": "", "tester_id": "", "developer_id": "",
+            },
+            "current_label_ids": [],
+            **_user_dropdowns(db),
         },
     )
 
@@ -42,6 +49,10 @@ def create_subtask(
     display_code: str = Form(...),
     title: str = Form(...),
     subtask_type: str = Form(...),
+    assignee_id: str = Form(""),
+    tester_id: str = Form(""),
+    developer_id: str = Form(""),
+    label_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
 ):
     phase = db.get(Phase, phase_id)
@@ -70,7 +81,12 @@ def create_subtask(
                 "phase": phase,
                 "allowed_types": allowed,
                 "error": error,
-                "values": {"display_code": display_code, "title": title, "subtask_type": subtask_type},
+                "values": {
+                    "display_code": display_code, "title": title, "subtask_type": subtask_type,
+                    "assignee_id": assignee_id, "tester_id": tester_id, "developer_id": developer_id,
+                },
+                "current_label_ids": label_ids,
+                **_user_dropdowns(db),
             },
             status_code=422,
         )
@@ -81,8 +97,11 @@ def create_subtask(
         title=title,
         internal_key=generate_internal_key(),
         subtask_type=st_type,
+        assignee_id=_parse_id(assignee_id), tester_id=_parse_id(tester_id), developer_id=_parse_id(developer_id),
     )
     db.add(subtask)
+    db.flush()
+    set_labels(db, LabelAttachType.SUBTASK, subtask.id, label_ids)
     db.commit()
     db.refresh(subtask)
     return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} created.")
@@ -121,6 +140,9 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
             "subtask": subtask, "error": None, "notes": notes,
             "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
             "statuses": list(TaskStatus),
+            "subtask_labels": get_labels(db, LabelAttachType.SUBTASK, subtask_id),
+            "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],
+            **_user_dropdowns(db),
         },
     )
 
@@ -145,7 +167,11 @@ def edit_subtask_form(request: Request, subtask_id: int, db: Session = Depends(g
                 "subtask_type": subtask.subtask_type.value,
                 "notes": subtask.notes or "",
                 "status": subtask.status.value,
+                "assignee_id": str(subtask.assignee_id or ""), "tester_id": str(subtask.tester_id or ""),
+                "developer_id": str(subtask.developer_id or ""),
             },
+            "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],
+            **_user_dropdowns(db),
         },
     )
 
@@ -158,6 +184,10 @@ def update_subtask(
     title: str = Form(...),
     notes: str = Form(""),
     status: str = Form(...),
+    assignee_id: str = Form(""),
+    tester_id: str = Form(""),
+    developer_id: str = Form(""),
+    label_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
 ):
     subtask = db.get(Subtask, subtask_id)
@@ -184,7 +214,13 @@ def update_subtask(
                 "phase": subtask.phase,
                 "allowed_types": [subtask.subtask_type],
                 "error": f'Code "{display_code}" is already used in this phase, or the status was invalid.',
-                "values": {"display_code": display_code, "title": title, "subtask_type": subtask.subtask_type.value, "notes": notes, "status": status},
+                "values": {
+                    "display_code": display_code, "title": title, "subtask_type": subtask.subtask_type.value,
+                    "notes": notes, "status": status,
+                    "assignee_id": assignee_id, "tester_id": tester_id, "developer_id": developer_id,
+                },
+                "current_label_ids": label_ids,
+                **_user_dropdowns(db),
             },
             status_code=422,
         )
@@ -192,6 +228,10 @@ def update_subtask(
     subtask.title = title
     subtask.notes = notes
     subtask.status = status_enum
+    subtask.assignee_id = _parse_id(assignee_id)
+    subtask.tester_id = _parse_id(tester_id)
+    subtask.developer_id = _parse_id(developer_id)
+    set_labels(db, LabelAttachType.SUBTASK, subtask.id, label_ids)
     db.commit()
     return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} updated.")
 
