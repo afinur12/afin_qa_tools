@@ -124,4 +124,6 @@ def test_delete_blocked_when_test_type_used_by_testcase(client, db_session):
 
 def test_nav_shows_settings_link(client):
     page = client.get("/stories")
-    assert 'href="/settings"' in page.text
+    # Points straight at the default settings sub-page, skipping the
+    # /settings -> /settings/ -> /settings/services redirect hops.
+    assert 'href="/settings/services"' in page.text

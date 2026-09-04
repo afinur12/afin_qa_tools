@@ -24,10 +24,10 @@ router = APIRouter()
 
 
 def _parse_id(raw: str) -> int | None:
-    return int(raw) if raw.strip().isdigit() else None
+    return int(raw) if raw.strip().isdecimal() else None
 
 
-def _render_detail(request: Request, prebuilt: PrebuiltTestCase, error: str | None = None, status_code: int = 200, db: Session | None = None):
+def _render_detail(request: Request, prebuilt: PrebuiltTestCase, db: Session, error: str | None = None, status_code: int = 200):
     return templates.TemplateResponse(
         request,
         "prebuilt/detail.html",
@@ -35,9 +35,9 @@ def _render_detail(request: Request, prebuilt: PrebuiltTestCase, error: str | No
             "prebuilt": prebuilt,
             "section_kinds": list(StepSection),
             "section_labels": SECTION_LABELS,
-            "services": db.query(Service).order_by(Service.name).all() if db else [],
-            "simulates": db.query(Simulate).order_by(Simulate.name).all() if db else [],
-            "test_types": db.query(TestType).order_by(TestType.name).all() if db else [],
+            "services": db.query(Service).order_by(Service.name).all(),
+            "simulates": db.query(Simulate).order_by(Simulate.name).all(),
+            "test_types": db.query(TestType).order_by(TestType.name).all(),
             "error": error,
         },
         status_code=status_code,
@@ -304,7 +304,6 @@ def save_testcase_as_prebuilt(request: Request, testcase_id: int, db: Session = 
     prebuilt = PrebuiltTestCase(
         name=testcase.title or testcase.display_code,
         description=f"Saved from {testcase.display_code}",
-        test_type=testcase.test_type,
         test_type_id=testcase.test_type_id,
         remark=testcase.remark,
     )

@@ -117,6 +117,10 @@ def test_build_docx_header_and_single_step(tmp_path):
     assert header_table.rows[0].cells[3].text == "EX-142 - Payments"  # project (row 0)
     assert header_table.rows[1].cells[3].text == "TC-1 - Verify top-up RO balance"  # scenario (row 1)
     assert header_table.rows[4].cells[3].text == "SIT"  # environment (row 4, affected by flat-index bug if using .cell())
+    # test_type_ref is None (FK cleared) while the stub's stale free-text
+    # test_type ("Functional") is still populated — export must not fall
+    # back to it, matching the fix in app/docx/builder.py.
+    assert header_table.rows[6].cells[3].text == ""  # test_type (row 6)
     assert header_table.rows[8].cells[3].text == "1"  # iteration (row 8, affected by flat-index bug)
     assert header_table.rows[13].cells[3].text == ""  # remark (row 13, affected by flat-index bug)
     assert header_table.rows[14].cells[-1].text == "msisdn: 62812"  # data_test (row 14, uses fallback to last cell)

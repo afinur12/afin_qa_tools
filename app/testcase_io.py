@@ -87,7 +87,7 @@ def _testcase_fields(tc: TestCase, include_screenshots: bool) -> dict:
         "tester": tc.tester,
         "test_date": tc.test_date,
         "test_priority": tc.test_priority,
-        "test_type": tc.test_type_ref.name if tc.test_type_ref else tc.test_type,
+        "test_type": tc.test_type_ref.name if tc.test_type_ref else None,
         "channel": tc.channel,
         "iteration": tc.iteration,
         "balance_before": tc.balance_before,

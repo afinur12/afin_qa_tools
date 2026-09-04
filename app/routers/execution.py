@@ -64,7 +64,7 @@ def update_section1(
     testcase.tester = tester
     testcase.test_date = test_date
     testcase.test_priority = test_priority
-    testcase.test_type_id = int(test_type_id) if test_type_id.strip().isdigit() else None
+    testcase.test_type_id = int(test_type_id) if test_type_id.strip().isdecimal() else None
     testcase.channel = channel
     testcase.iteration = iteration
     testcase.balance_before = balance_before

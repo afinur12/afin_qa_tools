@@ -108,6 +108,28 @@ def test_testcase_export_includes_test_type_name(db_session):
     assert data["testcase"]["test_type"] == "EXPORT-CHECK"
 
 
+def test_export_does_not_resurrect_a_cleared_test_type(db_session):
+    from app.models import TestType
+
+    story, phase = _make_story(db_session, code="PROJ-22")
+    subtask = _make_subtask(db_session, phase)
+    test_type = TestType(name="STALE-VALUE")
+    db_session.add(test_type)
+    db_session.commit()
+    tc = _make_testcase(db_session, subtask, "TC-1")
+    tc.test_type_id = test_type.id
+    tc.test_type = "STALE-VALUE"  # simulates the free-text column having been populated by the startup migration
+    db_session.commit()
+
+    # User clears the Test Type dropdown: test_type_id goes back to None,
+    # but the old free-text column is never touched by application code.
+    tc.test_type_id = None
+    db_session.commit()
+
+    data = dump_testcase(tc)
+    assert data["testcase"]["test_type"] is None, "export must not fall back to the stale free-text value once the FK is explicitly cleared"
+
+
 def test_testcase_round_trip(db_session):
     story, phase = _make_story(db_session)
     subtask_a = _make_subtask(db_session, phase, "ST-A")
