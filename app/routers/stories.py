@@ -6,22 +6,45 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import Note, NoteAttachType, Phase, PhaseType, Story, TaskStatus, generate_internal_key
+from app.models import Label, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, Story, TaskStatus, User, UserType, generate_internal_key
+from app.labels import get_labels, set_labels
 from app.testcase_io import dict_to_task
 
 router = APIRouter()
 
 
+def _user_dropdowns(db: Session) -> dict:
+    return {
+        "testers": db.query(User).filter(User.type == UserType.TESTER).order_by(User.name).all(),
+        "developers": db.query(User).filter(User.type == UserType.DEVELOPER).order_by(User.name).all(),
+        "assignees": db.query(User).order_by(User.name).all(),
+        "all_labels": db.query(Label).order_by(Label.name).all(),
+    }
+
+
+def _parse_id(raw: str) -> int | None:
+    return int(raw) if raw.strip().isdecimal() else None
+
+
 @router.get("/stories")
 def list_stories(request: Request, db: Session = Depends(get_db)):
     stories = db.query(Story).order_by(Story.created_at.desc()).all()
-    return templates.TemplateResponse(request, "stories/list.html", {"stories": stories})
+    return templates.TemplateResponse(
+        request, "stories/list.html", {"stories": stories, **_user_dropdowns(db)}
+    )
 
 
 @router.get("/stories/new")
-def new_story_form(request: Request):
+def new_story_form(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
-        request, "stories/form.html", {"story": None, "error": None, "values": {"display_code": "", "title": ""}}
+        request,
+        "stories/form.html",
+        {
+            "story": None, "error": None,
+            "values": {"display_code": "", "title": "", "assignee_id": "", "tester_id": "", "developer_id": ""},
+            "current_label_ids": [],
+            **_user_dropdowns(db),
+        },
     )
 
 
@@ -30,6 +53,10 @@ def create_story(
     request: Request,
     display_code: str = Form(...),
     title: str = Form(...),
+    assignee_id: str = Form(""),
+    tester_id: str = Form(""),
+    developer_id: str = Form(""),
+    label_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
 ):
     display_code = display_code.strip()
@@ -41,12 +68,22 @@ def create_story(
             {
                 "story": None,
                 "error": f'Code "{display_code}" is already used by another story.',
-                "values": {"display_code": display_code, "title": title},
+                "values": {
+                    "display_code": display_code, "title": title,
+                    "assignee_id": assignee_id, "tester_id": tester_id, "developer_id": developer_id,
+                },
+                "current_label_ids": label_ids,
+                **_user_dropdowns(db),
             },
             status_code=422,
         )
-    story = Story(display_code=display_code, title=title, internal_key=generate_internal_key())
+    story = Story(
+        display_code=display_code, title=title, internal_key=generate_internal_key(),
+        assignee_id=_parse_id(assignee_id), tester_id=_parse_id(tester_id), developer_id=_parse_id(developer_id),
+    )
     db.add(story)
+    db.flush()
+    set_labels(db, LabelAttachType.STORY, story.id, label_ids)
     db.commit()
     db.refresh(story)
     return redirect_with_flash(f"/stories/{story.id}", f"Story {story.display_code} created.")
@@ -86,6 +123,9 @@ def story_detail(request: Request, story_id: int, db: Session = Depends(get_db))
         {
             "story": story, "available_phase_types": _available_phase_types(story), "error": None, "notes": notes,
             "statuses": list(TaskStatus),
+            "story_labels": get_labels(db, LabelAttachType.STORY, story_id),
+            "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.STORY, story_id)],
+            **_user_dropdowns(db),
         },
     )
 
@@ -102,7 +142,13 @@ def edit_story_form(request: Request, story_id: int, db: Session = Depends(get_d
             "story": story,
             "error": None,
             "statuses": list(TaskStatus),
-            "values": {"display_code": story.display_code, "title": story.title, "status": story.status.value},
+            "values": {
+                "display_code": story.display_code, "title": story.title, "status": story.status.value,
+                "assignee_id": str(story.assignee_id or ""), "tester_id": str(story.tester_id or ""),
+                "developer_id": str(story.developer_id or ""),
+            },
+            "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.STORY, story_id)],
+            **_user_dropdowns(db),
         },
     )
 
@@ -114,6 +160,10 @@ def update_story(
     display_code: str = Form(...),
     title: str = Form(...),
     status: str = Form(...),
+    assignee_id: str = Form(""),
+    tester_id: str = Form(""),
+    developer_id: str = Form(""),
+    label_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
 ):
     story = db.get(Story, story_id)
@@ -135,13 +185,22 @@ def update_story(
                 "story": story,
                 "error": f'Code "{display_code}" is already used by another story, or the status was invalid.',
                 "statuses": list(TaskStatus),
-                "values": {"display_code": display_code, "title": title, "status": status},
+                "values": {
+                    "display_code": display_code, "title": title, "status": status,
+                    "assignee_id": assignee_id, "tester_id": tester_id, "developer_id": developer_id,
+                },
+                "current_label_ids": label_ids,
+                **_user_dropdowns(db),
             },
             status_code=422,
         )
     story.display_code = display_code
     story.title = title
     story.status = status_enum
+    story.assignee_id = _parse_id(assignee_id)
+    story.tester_id = _parse_id(tester_id)
+    story.developer_id = _parse_id(developer_id)
+    set_labels(db, LabelAttachType.STORY, story.id, label_ids)
     db.commit()
     return redirect_with_flash(f"/stories/{story.id}", f"Story {story.display_code} updated.")
 
@@ -160,6 +219,9 @@ def delete_story(request: Request, story_id: int, db: Session = Depends(get_db))
                 "available_phase_types": _available_phase_types(story),
                 "error": f"Delete {len(story.phases)} phase(s) first.",
                 "statuses": list(TaskStatus),
+                "story_labels": get_labels(db, LabelAttachType.STORY, story.id),
+                "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.STORY, story.id)],
+                **_user_dropdowns(db),
             },
             status_code=422,
         )
@@ -186,6 +248,9 @@ def create_phase(request: Request, story_id: int, type: str = Form(...), db: Ses
             {
                 "story": story, "available_phase_types": available, "error": "Invalid or already-used phase type.",
                 "statuses": list(TaskStatus),
+                "story_labels": get_labels(db, LabelAttachType.STORY, story.id),
+                "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.STORY, story.id)],
+                **_user_dropdowns(db),
             },
             status_code=422,
         )
@@ -213,6 +278,9 @@ def delete_phase(request: Request, phase_id: int, db: Session = Depends(get_db))
                 "error": f"Delete {len(phase.subtasks)} subtask(s) first.",
                 "notes": notes,
                 "statuses": list(TaskStatus),
+                "story_labels": get_labels(db, LabelAttachType.STORY, story.id),
+                "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.STORY, story.id)],
+                **_user_dropdowns(db),
             },
             status_code=422,
         )

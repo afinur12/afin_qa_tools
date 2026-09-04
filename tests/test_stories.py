@@ -125,3 +125,65 @@ def test_edit_story_rejects_invalid_status(client):
         data={"display_code": "EX-107", "title": "A", "status": "NOT_A_STATUS"},
     )
     assert response.status_code == 422
+
+
+def test_create_story_with_assignee_tester_developer_and_labels(client):
+    client.post("/settings/users", data={"name": "Tess Tester", "type": "TESTER"})
+    tester_id = __import__("re").search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/users", data={"name": "Dave Dev", "type": "DEVELOPER"})
+    developer_id = __import__("re").search(
+        r'value="Dave Dev"[\s\S]*?/settings/users/(\d+)/delete', client.get("/settings/users").text
+    ).group(1)
+    client.post("/settings/labels", data={"name": "regression"})
+    label_id = __import__("re").search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        "/stories",
+        data={
+            "display_code": "EX-110", "title": "A",
+            "assignee_id": tester_id, "tester_id": tester_id, "developer_id": developer_id,
+            "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(response.headers["location"])
+    assert "Tess Tester" in page.text
+    assert "Dave Dev" in page.text
+    assert "regression" in page.text
+
+
+def test_edit_story_updates_assignee_tester_developer_and_labels(client):
+    import re
+
+    create = client.post("/stories", data={"display_code": "EX-111", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    client.post("/settings/users", data={"name": "Later Tester", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/labels", data={"name": "smoke"})
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        f"/stories/{story_id}/edit",
+        data={
+            "display_code": "EX-111", "title": "A", "status": "TO_DO",
+            "tester_id": tester_id, "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(f"/stories/{story_id}")
+    assert "Later Tester" in page.text
+    assert "smoke" in page.text
+
+
+def test_story_tester_dropdown_excludes_developers(client):
+    client.post("/settings/users", data={"name": "Only Dev", "type": "DEVELOPER"})
+    page = client.get("/stories/new")
+    # The create-form Tester <select> must not offer a Developer-typed user.
+    # (Story's create form always shows Tester per this task, unlike Status
+    # which stays edit-only — see Task 5's design note.)
+    assert 'name="tester_id"' in page.text
+    tester_select = page.text.split('name="tester_id"')[1].split("</select>")[0]
+    assert "Only Dev" not in tester_select

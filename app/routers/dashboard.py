@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.templating import templates
 from app.models import Bug, BugStatus, Story, TaskStatus, TestCase, TestCaseStatus
+from app.routers.stories import _user_dropdowns
 
 router = APIRouter()
 
@@ -33,5 +34,6 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         {
             "stories": stories, "status_counts": status_counts, "open_bugs": open_bugs,
             "total_tasks": total_tasks, "done_tasks": done_tasks, "task_done_pct": task_done_pct,
+            **_user_dropdowns(db),
         },
     )

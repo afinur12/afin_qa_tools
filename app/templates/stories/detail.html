@@ -19,6 +19,10 @@
     <div class="row" style="margin-bottom:6px;">
       <span class="badge code">{{ story.display_code }}</span>
       <span class="badge badge--{{ story.status.value | lower }}">{{ story.status.label }}</span>
+      {% if story.tester_user %}<span class="badge">{{ story.tester_user.name }}</span>{% endif %}
+      {% if story.developer %}<span class="badge">{{ story.developer.name }}</span>{% endif %}
+      {% if story.assignee %}<span class="badge">{{ story.assignee.name }}</span>{% endif %}
+      {% for l in story_labels %}<span class="badge">{{ l.name }}</span>{% endfor %}
     </div>
     <h1 class="page-title">{{ story.title }}</h1>
   </div>
@@ -52,6 +56,38 @@
     <select name="status">
       {% for s in statuses %}<option value="{{ s.value }}" {% if story.status == s %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
     </select>
+  </div>
+  <div class="field">
+    <label>Assignee</label>
+    <select name="assignee_id">
+      <option value="">&mdash;</option>
+      {% for u in assignees %}<option value="{{ u.id }}" {% if story.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>Tester</label>
+    <select name="tester_id">
+      <option value="">&mdash;</option>
+      {% for u in testers %}<option value="{{ u.id }}" {% if story.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>Developer</label>
+    <select name="developer_id">
+      <option value="">&mdash;</option>
+      {% for u in developers %}<option value="{{ u.id }}" {% if story.developer_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>Labels</label>
+    {% for l in all_labels %}
+    <label class="choice">
+      <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
+      <span>{{ l.name }}</span>
+    </label>
+    {% else %}
+    <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
+    {% endfor %}
   </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
