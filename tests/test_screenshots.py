@@ -1,4 +1,5 @@
 import base64
+import re
 from pathlib import Path
 
 PNG_BYTES = base64.b64decode(
@@ -43,7 +44,7 @@ def test_upload_and_delete_screenshot(client):
     testcase_id = _create_testcase(client, "EX-500")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s", "expected_result": "e", "actual_result": "a"})
     page = client.get(f"/testcases/{testcase_id}/execute")
-    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
 
     upload = client.post(
         f"/testcases/{testcase_id}/steps/{step_id}/screenshot",
@@ -54,7 +55,6 @@ def test_upload_and_delete_screenshot(client):
     page2 = client.get(f"/testcases/{testcase_id}/execute")
     assert "/uploads/screenshots/" in page2.text
 
-    import re
     screenshot_id = re.search(r"/screenshots/(\d+)/delete", page2.text).group(1)
     disk_path = _uploaded_path(page2.text)
     assert disk_path.exists()
@@ -68,7 +68,7 @@ def test_deleting_step_removes_screenshot_file(client):
     testcase_id = _create_testcase(client, "EX-501")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s", "expected_result": "e", "actual_result": "a"})
     page = client.get(f"/testcases/{testcase_id}/execute")
-    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
     client.post(
         f"/testcases/{testcase_id}/steps/{step_id}/screenshot",
         files={"file": ("paste.png", PNG_BYTES, "image/png")},
@@ -86,7 +86,7 @@ def test_upload_returns_json_when_requested(client):
     testcase_id = _create_testcase(client, "EX-502")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s"})
     page = client.get(f"/testcases/{testcase_id}/execute")
-    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
 
     response = client.post(
         f"/testcases/{testcase_id}/steps/{step_id}/screenshot",
@@ -109,7 +109,7 @@ def test_upload_still_redirects_for_a_plain_form_post(client):
     testcase_id = _create_testcase(client, "EX-503")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s"})
     page = client.get(f"/testcases/{testcase_id}/execute")
-    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
 
     response = client.post(
         f"/testcases/{testcase_id}/steps/{step_id}/screenshot",

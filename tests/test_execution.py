@@ -1,3 +1,6 @@
+import re
+
+
 def _create_testcase(client, code):
     create = client.post("/stories", data={"display_code": code, "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]
@@ -55,7 +58,7 @@ def test_edit_and_delete_step(client):
     testcase_id = _create_testcase(client, "EX-403")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "PRECONDITION", "step_text": "orig", "expected_result": "e", "actual_result": "a"})
     page = client.get(f"/testcases/{testcase_id}/execute")
-    step_id = page.text.split('/steps/')[1].split('/edit')[0]
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
 
     edited = client.post(
         f"/testcases/{testcase_id}/steps/{step_id}/edit",
