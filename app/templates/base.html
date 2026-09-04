@@ -29,7 +29,7 @@
 </head>
 <body>
 <script>if (document.documentElement.classList.contains('preload-collapsed')) document.body.classList.add('is-collapsed');</script>
-{% from "macros.html" import icon_template, icon_wrench with context %}
+{% from "macros.html" import icon_template, icon_wrench, icon_sliders with context %}
 {% set path = request.url.path %}
 <div class="app">
 
@@ -67,6 +67,12 @@
     <a class="nav-link {% if path.startswith('/utility') %}active{% endif %}" href="/utility" title="Utility Tools">
       {{ icon_wrench() }}
       <span>Tools</span>
+    </a>
+
+    <div class="nav-label">Settings</div>
+    <a class="nav-link {% if path.startswith('/settings') %}active{% endif %}" href="/settings" title="Settings">
+      {{ icon_sliders() }}
+      <span>Settings</span>
     </a>
 
     <button class="sidebar-toggle" type="button" data-theme-toggle
