@@ -38,11 +38,13 @@ def test_add_step_and_ordering(client):
 
 def test_update_section1_fields(client):
     testcase_id = _create_testcase(client, "EX-402")
+    client.post("/settings/test-types", data={"name": "Functional"})
+    test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
             "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority": "High",
-            "test_type": "Functional", "channel": "Mobile App", "iteration": "1",
+            "test_type_id": test_type_id, "channel": "Mobile App", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "msisdn: 62812", "status": "PASS",
         },
@@ -52,6 +54,7 @@ def test_update_section1_fields(client):
     page = client.get(f"/testcases/{testcase_id}/execute")
     assert "Jane Doe" in page.text
     assert "PASS" in page.text
+    assert "Functional" in page.text
 
 
 def test_edit_and_delete_step(client):

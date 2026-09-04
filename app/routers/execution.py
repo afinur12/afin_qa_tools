@@ -4,12 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templating import templates
-from app.models import SECTION_LABELS, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
+from app.models import SECTION_LABELS, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
 
 router = APIRouter()
 
 
-def _render_execute(request: Request, testcase: TestCase, error: str | None = None, status_code: int = 200):
+def _render_execute(request: Request, testcase: TestCase, db: Session, error: str | None = None, status_code: int = 200):
     return templates.TemplateResponse(
         request,
         "testcases/execute.html",
@@ -18,6 +18,7 @@ def _render_execute(request: Request, testcase: TestCase, error: str | None = No
             "statuses": list(TestCaseStatus),
             "section_kinds": list(StepSection),
             "section_labels": SECTION_LABELS,
+            "test_types": db.query(TestType).order_by(TestType.name).all(),
             "error": error,
         },
         status_code=status_code,
@@ -33,7 +34,7 @@ def execute_page(request: Request, testcase_id: int, db: Session = Depends(get_d
     testcase = db.get(TestCase, testcase_id)
     if testcase is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    return _render_execute(request, testcase)
+    return _render_execute(request, testcase, db)
 
 
 @router.post("/testcases/{testcase_id}/section1")
@@ -43,7 +44,7 @@ def update_section1(
     tester: str = Form(""),
     test_date: str = Form(""),
     test_priority: str = Form(""),
-    test_type: str = Form(""),
+    test_type_id: str = Form(""),
     channel: str = Form(""),
     iteration: str = Form("1"),
     balance_before: str = Form("Rp. -"),
@@ -63,7 +64,7 @@ def update_section1(
     testcase.tester = tester
     testcase.test_date = test_date
     testcase.test_priority = test_priority
-    testcase.test_type = test_type
+    testcase.test_type_id = int(test_type_id) if test_type_id.strip().isdigit() else None
     testcase.channel = channel
     testcase.iteration = iteration
     testcase.balance_before = balance_before
@@ -76,7 +77,7 @@ def update_section1(
         status_enum = TestCaseStatus(status)
     except ValueError:
         # Re-render with error, showing submitted values via testcase object
-        return _render_execute(request, testcase, error="Invalid status.", status_code=422)
+        return _render_execute(request, testcase, db, error="Invalid status.", status_code=422)
 
     testcase.status = status_enum
     db.commit()
@@ -101,7 +102,7 @@ def create_step(
     except ValueError:
         # Invalid section (forged POST). Show clear error; submitted step data cannot be preserved
         # in the template since there's no "new step" form slot until the step is created.
-        return _render_execute(request, testcase, error=f'Invalid section "{section}". Valid sections: PRECONDITION, MAIN, POSTCONDITION.', status_code=422)
+        return _render_execute(request, testcase, db, error=f'Invalid section "{section}". Valid sections: PRECONDITION, MAIN, POSTCONDITION.', status_code=422)
 
     # Addressed by kind rather than section id: appends to the LAST section of
     # that kind, creating one if the test case has none. Keeps a plain
@@ -142,7 +143,7 @@ def create_section(
     try:
         kind_enum = StepSection(kind)
     except ValueError:
-        return _render_execute(request, testcase, error=f'Invalid section "{kind}".', status_code=422)
+        return _render_execute(request, testcase, db, error=f'Invalid section "{kind}".', status_code=422)
 
     db.add(TestCaseSection(testcase_id=testcase_id, kind=kind_enum, position=_next_position(testcase)))
     db.commit()
@@ -170,10 +171,10 @@ def reorder_sections(
     try:
         requested = [int(value) for value in order.split(",") if value.strip()]
     except ValueError:
-        return _render_execute(request, testcase, error="Invalid section order.", status_code=422)
+        return _render_execute(request, testcase, db, error="Invalid section order.", status_code=422)
 
     if sorted(requested) != sorted(by_id):
-        return _render_execute(request, testcase, error="Section order does not match this test case.", status_code=422)
+        return _render_execute(request, testcase, db, error="Section order does not match this test case.", status_code=422)
 
     for position, section_id in enumerate(requested):
         by_id[section_id].position = position
@@ -236,10 +237,10 @@ def reorder_steps(
     try:
         requested = [int(value) for value in order.split(",") if value.strip()]
     except ValueError:
-        return _render_execute(request, testcase, error="Invalid step order.", status_code=422)
+        return _render_execute(request, testcase, db, error="Invalid step order.", status_code=422)
 
     if sorted(requested) != sorted(by_id):
-        return _render_execute(request, testcase, error="Step order does not match this section.", status_code=422)
+        return _render_execute(request, testcase, db, error="Step order does not match this section.", status_code=422)
 
     for step_no, step_id in enumerate(requested, start=1):
         by_id[step_id].step_no = step_no

@@ -35,7 +35,7 @@ def test_full_workflow_story_to_docx_export(client):
         f"/testcases/{testcase_id}/section1",
         data={
             "tester": "Andri Firman Nurvianto", "test_date": "2026-08-26", "test_priority": "High",
-            "test_type": "Functional", "channel": "Mobile App", "iteration": "1",
+            "channel": "Mobile App", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "msisdn: 62812", "status": "PASS",
         },

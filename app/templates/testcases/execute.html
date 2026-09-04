@@ -107,15 +107,11 @@
         </select>
       </div>
 
-      {% set test_types = ['POSITIVE', 'NEGATIVE', 'REGRESSION'] %}
       <div class="field">
         <label>Test Type</label>
-        <select name="test_type">
-          <option value="">Select&hellip;</option>
-          {% for o in test_types %}<option value="{{ o }}" {% if testcase.test_type == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-          {% if testcase.test_type and testcase.test_type not in test_types %}
-          <option value="{{ testcase.test_type }}" selected>{{ testcase.test_type }}</option>
-          {% endif %}
+        <select name="test_type_id">
+          <option value="">&mdash;</option>
+          {% for t in test_types %}<option value="{{ t.id }}" {% if testcase.test_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
         </select>
       </div>
 

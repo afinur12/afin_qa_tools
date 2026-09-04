@@ -8,20 +8,20 @@
   <div class="row" style="gap:8px; margin-bottom:8px;">
     <select data-prebuilt-filter="service_name" style="flex:1;">
       <option value="">All services</option>
-      {% for s in prebuilts | map(attribute='service_name') | select | unique | sort %}
-      <option value="{{ s }}">{{ s }}</option>
+      {% for s in prebuilts | map(attribute='service') | select | unique(attribute='name') | sort(attribute='name') %}
+      <option value="{{ s.name }}">{{ s.name }}</option>
       {% endfor %}
     </select>
     <select data-prebuilt-filter="test_type" style="flex:1;">
       <option value="">All test types</option>
-      {% for t in prebuilts | map(attribute='test_type') | select | unique | sort %}
-      <option value="{{ t }}">{{ t }}</option>
+      {% for t in prebuilts | map(attribute='test_type_ref') | select | unique(attribute='name') | sort(attribute='name') %}
+      <option value="{{ t.name }}">{{ t.name }}</option>
       {% endfor %}
     </select>
     <select data-prebuilt-filter="simulate" style="flex:1;">
       <option value="">All simulate types</option>
-      {% for sim in prebuilts | map(attribute='simulate') | select | unique | sort %}
-      <option value="{{ sim }}">{{ sim }}</option>
+      {% for sim in prebuilts | map(attribute='simulate_ref') | select | unique(attribute='name') | sort(attribute='name') %}
+      <option value="{{ sim.name }}">{{ sim.name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -34,12 +34,12 @@
     </label>
     {% for prebuilt in prebuilts %}
     <label class="choice" data-prebuilt-option data-name="{{ prebuilt.name | lower }}"
-           data-service_name="{{ prebuilt.service_name or '' }}" data-test_type="{{ prebuilt.test_type or '' }}"
-           data-simulate="{{ prebuilt.simulate or '' }}">
+           data-service_name="{{ prebuilt.service.name if prebuilt.service else '' }}" data-test_type="{{ prebuilt.test_type_ref.name if prebuilt.test_type_ref else '' }}"
+           data-simulate="{{ prebuilt.simulate_ref.name if prebuilt.simulate_ref else '' }}">
       <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}" data-prebuilt-name="{{ prebuilt.name }}">
       <span><strong>{{ prebuilt.name }}</strong>
         <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
-        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service_name %} &middot; {{ prebuilt.service_name }}{% endif %}{% if prebuilt.test_type %} &middot; {{ prebuilt.test_type }}{% endif %}{% if prebuilt.simulate %} &middot; {{ prebuilt.simulate }}{% endif %}</span>
+        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service %} &middot; {{ prebuilt.service.name }}{% endif %}{% if prebuilt.test_type_ref %} &middot; {{ prebuilt.test_type_ref.name }}{% endif %}{% if prebuilt.simulate_ref %} &middot; {{ prebuilt.simulate_ref.name }}{% endif %}</span>
       </span>
     </label>
     <template data-prebuilt-preview="{{ prebuilt.id }}">
