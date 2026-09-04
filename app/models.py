@@ -67,8 +67,14 @@ class Story(Base):
     internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     status: Mapped[TaskStatus] = mapped_column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.TO_DO)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    tester_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    developer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     phases: Mapped[list["Phase"]] = relationship("Phase", back_populates="story", order_by="Phase.id")
+    assignee: Mapped["User | None"] = relationship("User", foreign_keys=[assignee_id])
+    tester_user: Mapped["User | None"] = relationship("User", foreign_keys=[tester_id])
+    developer: Mapped["User | None"] = relationship("User", foreign_keys=[developer_id])
 
 
 class Phase(Base):
@@ -107,12 +113,18 @@ class Subtask(Base):
     subtask_type: Mapped[SubtaskType] = mapped_column(SAEnum(SubtaskType), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[TaskStatus] = mapped_column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.TO_DO)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    tester_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    developer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     phase: Mapped["Phase"] = relationship("Phase", back_populates="subtasks")
     testcases: Mapped[list["TestCase"]] = relationship(
         "TestCase", back_populates="subtask", order_by="TestCase.id"
     )
     bugs: Mapped[list["Bug"]] = relationship("Bug", back_populates="subtask", order_by="Bug.id")
+    assignee: Mapped["User | None"] = relationship("User", foreign_keys=[assignee_id])
+    tester_user: Mapped["User | None"] = relationship("User", foreign_keys=[tester_id])
+    developer: Mapped["User | None"] = relationship("User", foreign_keys=[developer_id])
 
 
 class TestCaseStatus(str, enum.Enum):
@@ -165,12 +177,18 @@ class TestCase(Base):
     usage: Mapped[str] = mapped_column(String(64), nullable=False, default="Rp. -")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     data_test: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    tester_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    developer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
     test_type_ref: Mapped["TestType | None"] = relationship("TestType")
     sections: Mapped[list["TestCaseSection"]] = relationship(
         "TestCaseSection", back_populates="testcase", order_by="TestCaseSection.position"
     )
+    assignee: Mapped["User | None"] = relationship("User", foreign_keys=[assignee_id])
+    tester_user: Mapped["User | None"] = relationship("User", foreign_keys=[tester_id])
+    developer: Mapped["User | None"] = relationship("User", foreign_keys=[developer_id])
 
     @property
     def all_steps(self) -> list["TestCaseStep"]:
@@ -279,8 +297,58 @@ class Bug(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     severity: Mapped[BugSeverity] = mapped_column(SAEnum(BugSeverity), nullable=False, default=BugSeverity.MEDIUM)
     status: Mapped[BugStatus] = mapped_column(SAEnum(BugStatus), nullable=False, default=BugStatus.OPEN)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    tester_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    developer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="bugs")
+    assignee: Mapped["User | None"] = relationship("User", foreign_keys=[assignee_id])
+    tester_user: Mapped["User | None"] = relationship("User", foreign_keys=[tester_id])
+    developer: Mapped["User | None"] = relationship("User", foreign_keys=[developer_id])
+
+
+class UserType(str, enum.Enum):
+    TESTER = "TESTER"
+    DEVELOPER = "DEVELOPER"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    type: Mapped[UserType] = mapped_column(SAEnum(UserType), nullable=False)
+
+
+class Label(Base):
+    __tablename__ = "labels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+
+
+class LabelAttachType(str, enum.Enum):
+    STORY = "STORY"
+    SUBTASK = "SUBTASK"
+    TESTCASE = "TESTCASE"
+    BUG = "BUG"
+
+
+class LabelAssignment(Base):
+    """Polymorphic label <-> entity join, one row per (label, entity)
+    pair — mirrors Note's attach_type/attach_id pattern above rather
+    than four separate join tables. A dedicated LabelAttachType rather
+    than reusing NoteAttachType: Notes only ever attach to Story/Subtask
+    today, and coupling Label's attach-target set to Note's would
+    silently let Notes attach to TestCase/Bug too.
+    """
+    __tablename__ = "label_assignments"
+    __table_args__ = (UniqueConstraint("label_id", "attach_type", "attach_id", name="uq_label_assignment"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    label_id: Mapped[int] = mapped_column(ForeignKey("labels.id"), nullable=False)
+    attach_type: Mapped[LabelAttachType] = mapped_column(SAEnum(LabelAttachType), nullable=False)
+    attach_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class NoteAttachType(str, enum.Enum):

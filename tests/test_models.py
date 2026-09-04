@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
+from app.models import Bug, BugSeverity, BugStatus, Label, LabelAssignment, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType, User, UserType
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -260,3 +260,99 @@ def test_note_create(db_session):
     db_session.commit()
     db_session.refresh(note)
     assert note.id is not None
+
+
+def test_user_name_is_unique(db_session):
+    db_session.add(User(name="Jane Doe", type=UserType.TESTER))
+    db_session.commit()
+    db_session.add(User(name="Jane Doe", type=UserType.DEVELOPER))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_label_name_is_unique(db_session):
+    db_session.add(Label(name="regression"))
+    db_session.commit()
+    db_session.add(Label(name="regression"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_label_assignment_rejects_exact_duplicate(db_session):
+    label = Label(name="flaky")
+    db_session.add(label)
+    db_session.commit()
+    db_session.add(LabelAssignment(label_id=label.id, attach_type=LabelAttachType.STORY, attach_id=1))
+    db_session.commit()
+    db_session.add(LabelAssignment(label_id=label.id, attach_type=LabelAttachType.STORY, attach_id=1))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_story_assignee_tester_developer_relationships(db_session):
+    tester = User(name="Tess Tester", type=UserType.TESTER)
+    developer = User(name="Dave Dev", type=UserType.DEVELOPER)
+    db_session.add_all([tester, developer])
+    db_session.commit()
+
+    story = Story(
+        display_code="EX-60", title="A", internal_key="k60",
+        tester_id=tester.id, developer_id=developer.id, assignee_id=tester.id,
+    )
+    db_session.add(story)
+    db_session.commit()
+    db_session.refresh(story)
+    assert story.tester_user.name == "Tess Tester"
+    assert story.developer.name == "Dave Dev"
+    assert story.assignee.name == "Tess Tester"
+
+
+def test_story_assignee_tester_developer_default_to_none(db_session):
+    story = Story(display_code="EX-61", title="A", internal_key="k61")
+    db_session.add(story)
+    db_session.commit()
+    db_session.refresh(story)
+    assert story.assignee is None
+    assert story.tester_user is None
+    assert story.developer is None
+
+
+def test_subtask_bug_testcase_have_the_same_three_relationships(db_session):
+    """One combined test covering all three remaining entities — same
+    shape as the Story tests above, just confirming the pattern was
+    applied uniformly rather than re-deriving it three more times."""
+    user = User(name="Ada", type=UserType.TESTER)
+    db_session.add(user)
+    db_session.commit()
+
+    story = Story(display_code="EX-62", title="A", internal_key="k62")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(
+        phase_id=phase.id, display_code="S-1", title="Exec", internal_key="k63",
+        subtask_type=SubtaskType.EXECUTION, tester_id=user.id,
+    )
+    db_session.add(subtask)
+    db_session.commit()
+    tc = TestCase(
+        subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k64",
+        developer_id=user.id,
+    )
+    db_session.add(tc)
+    db_session.commit()
+    bug = Bug(
+        subtask_id=subtask.id, display_code="B-1", title="[ISSUE] a", internal_key="k65",
+        assignee_id=user.id,
+    )
+    db_session.add(bug)
+    db_session.commit()
+
+    db_session.refresh(subtask)
+    db_session.refresh(tc)
+    db_session.refresh(bug)
+    assert subtask.tester_user.name == "Ada"
+    assert tc.developer.name == "Ada"
+    assert bug.assignee.name == "Ada"
