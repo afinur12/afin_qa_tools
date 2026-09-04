@@ -157,6 +157,7 @@ class TestCase(Base):
     test_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
     test_priority: Mapped[str | None] = mapped_column(String(32), nullable=True)
     test_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    test_type_id: Mapped[int | None] = mapped_column(ForeignKey("test_types.id"), nullable=True)
     channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
     iteration: Mapped[str] = mapped_column(String(16), nullable=False, default="1")
     balance_before: Mapped[str] = mapped_column(String(64), nullable=False, default="Rp. -")
@@ -166,6 +167,7 @@ class TestCase(Base):
     data_test: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
+    test_type_ref: Mapped["TestType | None"] = relationship("TestType")
     sections: Mapped[list["TestCaseSection"]] = relationship(
         "TestCaseSection", back_populates="testcase", order_by="TestCaseSection.position"
     )
@@ -302,6 +304,27 @@ class Note(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
+class Service(Base):
+    __tablename__ = "services"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+
+
+class Simulate(Base):
+    __tablename__ = "simulates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+
+
+class TestType(Base):
+    __tablename__ = "test_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+
+
 class PrebuiltTestCase(Base):
     """A reusable skeleton of sections and steps.
 
@@ -320,12 +343,18 @@ class PrebuiltTestCase(Base):
     service_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     test_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     simulate: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("services.id"), nullable=True)
+    simulate_id: Mapped[int | None] = mapped_column(ForeignKey("simulates.id"), nullable=True)
+    test_type_id: Mapped[int | None] = mapped_column(ForeignKey("test_types.id"), nullable=True)
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     sections: Mapped[list["PrebuiltSection"]] = relationship(
         "PrebuiltSection", back_populates="prebuilt", order_by="PrebuiltSection.position"
     )
+    service: Mapped["Service | None"] = relationship("Service")
+    simulate_ref: Mapped["Simulate | None"] = relationship("Simulate")
+    test_type_ref: Mapped["TestType | None"] = relationship("TestType")
 
     @property
     def step_count(self) -> int:

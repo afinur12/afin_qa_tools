@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, Note, NoteAttachType, Phase, PhaseType, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep
+from app.models import Bug, BugSeverity, BugStatus, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -171,6 +171,78 @@ def test_subtask_status_defaults_to_to_do(db_session):
     db_session.commit()
     db_session.refresh(subtask)
     assert subtask.status == TaskStatus.TO_DO
+
+
+def test_service_name_is_unique(db_session):
+    db_session.add(Service(name="payment-service"))
+    db_session.commit()
+    db_session.add(Service(name="payment-service"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_simulate_name_is_unique(db_session):
+    db_session.add(Simulate(name="E2E"))
+    db_session.commit()
+    db_session.add(Simulate(name="E2E"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_test_type_name_is_unique(db_session):
+    db_session.add(TestType(name="POSITIVE"))
+    db_session.commit()
+    db_session.add(TestType(name="POSITIVE"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
+def test_prebuilt_service_simulate_test_type_relationships(db_session):
+    service = Service(name="auth-service")
+    simulate = Simulate(name="E2E")
+    test_type = TestType(name="POSITIVE")
+    db_session.add_all([service, simulate, test_type])
+    db_session.commit()
+
+    prebuilt = PrebuiltTestCase(name="Login", service_id=service.id, simulate_id=simulate.id, test_type_id=test_type.id)
+    db_session.add(prebuilt)
+    db_session.commit()
+    db_session.refresh(prebuilt)
+    assert prebuilt.service.name == "auth-service"
+    assert prebuilt.simulate_ref.name == "E2E"
+    assert prebuilt.test_type_ref.name == "POSITIVE"
+
+
+def test_prebuilt_service_simulate_test_type_default_to_none(db_session):
+    prebuilt = PrebuiltTestCase(name="Untagged")
+    db_session.add(prebuilt)
+    db_session.commit()
+    db_session.refresh(prebuilt)
+    assert prebuilt.service is None
+    assert prebuilt.simulate_ref is None
+    assert prebuilt.test_type_ref is None
+
+
+def test_testcase_test_type_relationship(db_session):
+    story = Story(display_code="EX-40", title="A", internal_key="k40")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k41", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    test_type = TestType(name="REGRESSION")
+    db_session.add(test_type)
+    db_session.commit()
+
+    tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k42", test_type_id=test_type.id)
+    db_session.add(tc)
+    db_session.commit()
+    db_session.refresh(tc)
+    assert tc.test_type_ref.name == "REGRESSION"
 
 
 def test_note_create(db_session):
