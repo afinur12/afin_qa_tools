@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, backfill_column, engine, ensure_columns, migrate_table
-from app.master_data import migrate_free_text_to_master, seed_defaults
+from app.master_data import migrate_free_text_to_master, migrate_testcase_tester_to_user, seed_defaults
 from app.routers import api_client, bugs, prebuilt, notes, dashboard, docx_export, execution, screenshots, settings, stories, subtasks, testcases, utility
 from app.variables import seed_builtin_variables
 
@@ -19,6 +19,10 @@ ensure_columns("prebuilt_testcases", {
     "service_id": "INTEGER", "simulate_id": "INTEGER", "test_type_id": "INTEGER",
 })
 ensure_columns("testcases", {"test_type_id": "INTEGER"})
+ensure_columns("stories", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
+ensure_columns("subtasks", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
+ensure_columns("testcases", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
+ensure_columns("bugs", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
 # service_name was briefly named "category"; carry over any values already saved under that name.
 backfill_column("prebuilt_testcases", dest="service_name", src="category")
 # Note replaces the curl-only CurlCollection; carry over anything already saved there.
@@ -30,6 +34,7 @@ with SessionLocal() as _seed_db:
     seed_builtin_variables(_seed_db)
     seed_defaults(_seed_db)
     migrate_free_text_to_master(_seed_db)
+    migrate_testcase_tester_to_user(_seed_db)
 
 app = FastAPI(title="QA Toolbox")
 

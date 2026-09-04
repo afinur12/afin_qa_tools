@@ -1,8 +1,8 @@
 """app/master_data.py: get-or-create, default seeding, and the one-time
 free-text -> FK backfill migration for Service/Simulate/TestType."""
 
-from app.master_data import get_or_create, migrate_free_text_to_master, seed_defaults
-from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestType
+from app.master_data import get_or_create, migrate_free_text_to_master, migrate_testcase_tester_to_user, seed_defaults
+from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestType, User, UserType
 
 
 def test_get_or_create_returns_none_for_blank_name(db_session):
@@ -133,3 +133,105 @@ def test_migrate_does_not_overwrite_an_already_set_fk(db_session):
     db_session.refresh(prebuilt)
 
     assert prebuilt.service_id == other_service.id, "a row that already has its FK set must not be re-derived from stale free text"
+
+
+def test_get_or_create_passes_through_extra_fields_on_creation(db_session):
+    user = get_or_create(db_session, User, "Jane Doe", type=UserType.TESTER)
+    db_session.commit()
+    assert user.name == "Jane Doe"
+    assert user.type == UserType.TESTER
+
+
+def test_get_or_create_extra_fields_are_ignored_when_reusing_an_existing_row(db_session):
+    existing = User(name="Jane Doe", type=UserType.TESTER)
+    db_session.add(existing)
+    db_session.commit()
+
+    # Reusing by name must not try to change `type` on the existing row —
+    # get_or_create only uses extra_fields when actually creating.
+    found = get_or_create(db_session, User, "Jane Doe", type=UserType.DEVELOPER)
+    db_session.commit()
+    assert found.id == existing.id
+    assert found.type == UserType.TESTER
+
+
+def test_migrate_testcase_tester_creates_a_tester_type_user(db_session):
+    from app.models import Phase, PhaseType, Story, Subtask, SubtaskType
+
+    story = Story(display_code="EX-70", title="A", internal_key="k70")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k71", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k72", tester="Existing Tester")
+    db_session.add(tc)
+    db_session.commit()
+
+    migrate_testcase_tester_to_user(db_session)
+    db_session.refresh(tc)
+
+    assert tc.tester_id is not None
+    assert tc.tester_user.name == "Existing Tester"
+    assert tc.tester_user.type == UserType.TESTER
+    # Old column is untouched.
+    assert tc.tester == "Existing Tester"
+
+
+def test_migrate_testcase_tester_is_idempotent_and_reuses_one_user_per_name(db_session):
+    from app.models import Phase, PhaseType, Story, Subtask, SubtaskType
+
+    story = Story(display_code="EX-71", title="A", internal_key="k73")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k74", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    tc1 = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k75", tester="Same Person")
+    tc2 = TestCase(subtask_id=subtask.id, display_code="TC-2", title="B", internal_key="k76", tester="Same Person")
+    db_session.add_all([tc1, tc2])
+    db_session.commit()
+
+    migrate_testcase_tester_to_user(db_session)
+    migrate_testcase_tester_to_user(db_session)  # second call must be a no-op
+
+    assert db_session.query(User).filter(User.name == "Same Person").count() == 1
+    db_session.refresh(tc1)
+    db_session.refresh(tc2)
+    assert tc1.tester_id == tc2.tester_id
+
+
+def test_migrate_testcase_tester_does_not_overwrite_an_already_set_fk(db_session):
+    from app.models import Phase, PhaseType, Story, Subtask, SubtaskType
+
+    other_user = User(name="Different Person", type=UserType.TESTER)
+    db_session.add(other_user)
+    db_session.commit()
+
+    story = Story(display_code="EX-72", title="A", internal_key="k77")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k78", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k79",
+                   tester="Original", tester_id=other_user.id)
+    db_session.add(tc)
+    db_session.commit()
+
+    migrate_testcase_tester_to_user(db_session)
+    db_session.refresh(tc)
+
+    assert tc.tester_id == other_user.id, "a row that already has its FK set must not be re-derived from stale free text"
