@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import icon_link with context %}
 {% block content %}
 
 <div class="page-head">
@@ -12,7 +13,7 @@
 <div class="card flush">
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+    <thead><tr><th>Code</th><th>Title</th><th>Severity</th><th>Status</th><th></th></tr></thead>
     <tbody>
       {% for bug in bugs %}
       <tr>
@@ -20,9 +21,13 @@
         <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
         <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.label }}</span></td>
         <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.label }}</span></td>
+        <td style="width:1%; white-space:nowrap;">
+          <a class="btn act edit" href="{{ tracker_url(bug.display_code) }}" target="_blank" rel="noopener"
+             title="Open {{ bug.display_code }} in the tracker" aria-label="Open {{ bug.display_code }} in the tracker">{{ icon_link() }}</a>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="empty">No bugs logged. Nice.</td></tr>
+      <tr><td colspan="5" class="empty">No bugs logged. Nice.</td></tr>
       {% endfor %}
     </tbody>
   </table>

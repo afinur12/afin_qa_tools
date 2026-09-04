@@ -96,6 +96,26 @@ def test_edit_story_status(client):
     assert "DONE" in listing.text
 
 
+def test_story_list_shows_tracker_link(client):
+    client.post("/stories", data={"display_code": "EX-108", "title": "A"})
+    response = client.get("/stories")
+    assert "https://collabs.xlsmart.co.id/browse/EX-108" in response.text
+
+
+def test_story_detail_shows_tracker_link_for_subtask(client):
+    create = client.post("/stories", data={"display_code": "EX-109", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+    )
+    detail = client.get(f"/stories/{story_id}")
+    assert "https://collabs.xlsmart.co.id/browse/S-1" in detail.text
+
+
 def test_edit_story_rejects_invalid_status(client):
     create = client.post("/stories", data={"display_code": "EX-107", "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]

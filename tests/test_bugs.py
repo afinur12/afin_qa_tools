@@ -58,3 +58,10 @@ def test_bug_list_route(client):
     response = client.get("/bugs")
     assert response.status_code == 200
     assert "B-1" in response.text
+
+
+def test_bug_list_shows_tracker_link(client):
+    subtask_id = _create_execution_subtask(client, "EX-604")
+    client.post(f"/subtasks/{subtask_id}/bugs", data={"display_code": "B-2", "title": "[ISSUE] a"})
+    response = client.get("/bugs")
+    assert "https://collabs.xlsmart.co.id/browse/B-2" in response.text

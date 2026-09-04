@@ -100,6 +100,26 @@ def test_edit_subtask_status(client):
     assert "DONE" in story_page_after.text
 
 
+def test_subtask_detail_shows_tracker_links_for_testcase_and_bug(client):
+    create = client.post("/stories", data={"display_code": "EX-206", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    sub_resp = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+        follow_redirects=False,
+    )
+    subtask_id = sub_resp.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
+    client.post(f"/subtasks/{subtask_id}/bugs", data={"display_code": "B-1", "title": "[ISSUE] a"})
+
+    detail = client.get(f"/subtasks/{subtask_id}")
+    assert "https://collabs.xlsmart.co.id/browse/TC-1" in detail.text
+    assert "https://collabs.xlsmart.co.id/browse/B-1" in detail.text
+
+
 def test_edit_subtask_rejects_invalid_status(client):
     create = client.post("/stories", data={"display_code": "EX-205", "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]

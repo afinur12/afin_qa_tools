@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload, icon_link with context %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
@@ -162,6 +162,8 @@
         <span class="badge badge--{{ subtask.status.value | lower }}">{{ subtask.status.label }}</span>
         <span class="muted">{{ icon_chevron() }}</span>
       </a>
+      <a class="btn act edit" href="{{ tracker_url(subtask.display_code) }}" target="_blank" rel="noopener"
+         title="Open {{ subtask.display_code }} in the tracker" aria-label="Open {{ subtask.display_code }} in the tracker">{{ icon_link() }}</a>
       <form method="post" action="/subtasks/{{ subtask.id }}/delete"
             data-confirm="Delete {{ subtask.display_code }} and everything inside it?">
         <button class="btn act remove" type="submit" title="Delete subtask" aria-label="Delete subtask {{ subtask.display_code }}">{{ icon_trash() }}</button>

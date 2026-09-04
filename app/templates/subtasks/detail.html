@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -155,8 +155,10 @@
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
         <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
         <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>
-        <td style="width:1%;">
-          <form method="post" action="/testcases/{{ tc.id }}/delete"
+        <td style="width:1%; white-space:nowrap;">
+          <a class="btn act edit" href="{{ tracker_url(tc.display_code) }}" target="_blank" rel="noopener"
+             title="Open {{ tc.display_code }} in the tracker" aria-label="Open {{ tc.display_code }} in the tracker">{{ icon_link() }}</a>
+          <form class="inline-form" method="post" action="/testcases/{{ tc.id }}/delete"
                 data-confirm="Delete {{ tc.display_code }} and all of its steps?">
             <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case {{ tc.display_code }}">{{ icon_trash() }}</button>
           </form>
@@ -209,8 +211,10 @@
         <td><a href="/bugs/{{ bug.id }}" style="color:var(--ink); font-weight:500;">{{ bug.title }}</a></td>
         <td><span class="badge badge--{{ bug.severity.value | lower }}">{{ bug.severity.label }}</span></td>
         <td><span class="badge badge--{{ bug.status.value | lower }}">{{ bug.status.label }}</span></td>
-        <td style="width:1%;">
-          <form method="post" action="/bugs/{{ bug.id }}/delete"
+        <td style="width:1%; white-space:nowrap;">
+          <a class="btn act edit" href="{{ tracker_url(bug.display_code) }}" target="_blank" rel="noopener"
+             title="Open {{ bug.display_code }} in the tracker" aria-label="Open {{ bug.display_code }} in the tracker">{{ icon_link() }}</a>
+          <form class="inline-form" method="post" action="/bugs/{{ bug.id }}/delete"
                 data-confirm="Delete {{ bug.display_code }}?">
             <button class="btn act remove" type="submit" title="Delete bug" aria-label="Delete bug {{ bug.display_code }}">{{ icon_trash() }}</button>
           </form>

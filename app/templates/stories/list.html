@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_upload with context %}
+{% from "macros.html" import modal, icon_link, icon_upload with context %}
 {% block content %}
 
 <div class="page-head">
@@ -45,7 +45,7 @@
 <div class="card flush">
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Status</th><th>Phases</th><th>Created</th></tr></thead>
+    <thead><tr><th>Code</th><th>Title</th><th>Status</th><th>Phases</th><th>Created</th><th></th></tr></thead>
     <tbody>
       {% for s in stories %}
       <tr>
@@ -54,9 +54,13 @@
         <td><span class="badge badge--{{ s.status.value | lower }}">{{ s.status.label }}</span></td>
         <td class="muted">{{ s.phases | length }}</td>
         <td class="muted">{{ s.created_at.strftime("%d %b %Y") }}</td>
+        <td style="width:1%; white-space:nowrap;">
+          <a class="btn act edit" href="{{ tracker_url(s.display_code) }}" target="_blank" rel="noopener"
+             title="Open {{ s.display_code }} in the tracker" aria-label="Open {{ s.display_code }} in the tracker">{{ icon_link() }}</a>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="empty">No stories yet. Create one to get started.</td></tr>
+      <tr><td colspan="6" class="empty">No stories yet. Create one to get started.</td></tr>
       {% endfor %}
     </tbody>
   </table>
