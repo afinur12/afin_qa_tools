@@ -84,6 +84,13 @@
   --shadow-pop:  0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
+/* .btn.act.docx uses --ink-inverse as a solid fill, which is a near-black
+   fixed tone same as the dark-theme page background (same issue already
+   fixed once for .ac-var-token-alt, see below) — it would vanish into the
+   page instead of reading as a button. */
+:root[data-theme="dark"] .btn.act.docx { background: var(--indigo); }
+:root[data-theme="dark"] .btn.act.docx:hover { background: var(--indigo-ink); }
+
 * { box-sizing: border-box; }
 
 body {

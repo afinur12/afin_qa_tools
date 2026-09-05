@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal with context %}
+{% from "macros.html" import modal, icon_pencil, icon_trash with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -21,9 +21,9 @@
     <h1 class="page-title">{{ bug.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/bugs/{{ bug.id }}/edit" data-modal-open="edit-bug">Edit</a>
+  <a class="btn act edit" href="/bugs/{{ bug.id }}/edit" data-modal-open="edit-bug" title="Edit bug" aria-label="Edit bug">{{ icon_pencil() }}</a>
   <form class="inline-form" method="post" action="/bugs/{{ bug.id }}/delete">
-    <button class="btn danger" type="submit">Delete</button>
+    <button class="btn act remove" type="submit" title="Delete bug" aria-label="Delete bug">{{ icon_trash() }}</button>
   </form>
 </div>
 

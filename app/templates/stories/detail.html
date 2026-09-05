@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload, icon_link with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload, icon_link with context %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
@@ -27,9 +27,9 @@
     <h1 class="page-title">{{ story.title }}</h1>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="/stories/{{ story.id }}/edit" data-modal-open="edit-story">Edit</a>
+  <a class="btn act edit" href="/stories/{{ story.id }}/edit" data-modal-open="edit-story" title="Edit task" aria-label="Edit task">{{ icon_pencil() }}</a>
   <form class="inline-form" method="post" action="/stories/{{ story.id }}/delete">
-    <button class="btn danger" type="submit">Delete</button>
+    <button class="btn act remove" type="submit" title="Delete task" aria-label="Delete task">{{ icon_trash() }}</button>
   </form>
   <a class="btn act edit" href="#" data-modal-open="export-task-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
   {% if ns.has_testcases %}
