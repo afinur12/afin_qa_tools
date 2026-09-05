@@ -5,7 +5,7 @@ from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import Bug, BugSeverity, BugStatus, LabelAttachType, Subtask, generate_internal_key
-from app.labels import get_labels, set_labels
+from app.labels import clear_labels, get_labels, set_labels
 from app.routers.stories import _parse_id, _user_dropdowns
 
 router = APIRouter()
@@ -207,6 +207,7 @@ def delete_bug(request: Request, bug_id: int, db: Session = Depends(get_db)):
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     subtask_id = bug.subtask_id
     code = bug.display_code
+    clear_labels(db, LabelAttachType.BUG, bug.id)
     db.delete(bug)
     db.commit()
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"Bug {code} deleted.", category="danger")

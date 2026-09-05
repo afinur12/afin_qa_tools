@@ -10,6 +10,9 @@ Callers commit; these helpers only stage the deletions.
 
 from sqlalchemy.orm import Session
 
+from app.labels import clear_labels
+from app.models import LabelAttachType
+
 
 def _remove_screenshot(db: Session, screenshot) -> None:
     from app.routers.screenshots import UPLOADS_DIR
@@ -35,6 +38,7 @@ def delete_section(db: Session, section) -> None:
 def delete_testcase(db: Session, testcase) -> None:
     for section in list(testcase.sections):
         delete_section(db, section)
+    clear_labels(db, LabelAttachType.TESTCASE, testcase.id)
     db.delete(testcase)
 
 
@@ -42,5 +46,7 @@ def delete_subtask(db: Session, subtask) -> None:
     for testcase in list(subtask.testcases):
         delete_testcase(db, testcase)
     for bug in list(subtask.bugs):
+        clear_labels(db, LabelAttachType.BUG, bug.id)
         db.delete(bug)
+    clear_labels(db, LabelAttachType.SUBTASK, subtask.id)
     db.delete(subtask)

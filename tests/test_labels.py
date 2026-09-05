@@ -1,7 +1,7 @@
 """app/labels.py: get/set an entity's labels through the polymorphic
 LabelAssignment join."""
 
-from app.labels import get_labels, set_labels
+from app.labels import clear_labels, get_labels, set_labels
 from app.models import Label, LabelAssignment, LabelAttachType
 
 
@@ -78,3 +78,22 @@ def test_set_labels_with_empty_list_removes_everything(db_session):
     db_session.commit()
 
     assert get_labels(db_session, LabelAttachType.STORY, 3) == []
+
+
+def test_clear_labels_removes_everything_for_that_entity_only(db_session):
+    label = Label(name="doomed")
+    db_session.add(label)
+    db_session.commit()
+
+    set_labels(db_session, LabelAttachType.TESTCASE, 11, [label.id])
+    set_labels(db_session, LabelAttachType.TESTCASE, 12, [label.id])  # a different entity, same label
+    db_session.commit()
+
+    clear_labels(db_session, LabelAttachType.TESTCASE, 11)
+    db_session.commit()
+
+    assert get_labels(db_session, LabelAttachType.TESTCASE, 11) == []
+    # Sibling entity's assignment is untouched.
+    assert len(get_labels(db_session, LabelAttachType.TESTCASE, 12)) == 1
+    count = db_session.query(LabelAssignment).filter(LabelAssignment.label_id == label.id).count()
+    assert count == 1, "clear_labels must only remove the targeted entity's row"

@@ -40,3 +40,14 @@ def set_labels(db: Session, attach_type: LabelAttachType, attach_id: int, label_
             db.delete(row)
     for label_id in wanted_ids - existing_ids:
         db.add(LabelAssignment(label_id=label_id, attach_type=attach_type, attach_id=attach_id))
+
+
+def clear_labels(db: Session, attach_type: LabelAttachType, attach_id: int) -> None:
+    """Remove every LabelAssignment row for one entity. Call this as part of
+    permanently deleting a Story/Subtask/TestCase/Bug (or a child removed via
+    a parent's cascade) — otherwise a deleted entity's label rows linger
+    forever: they key on (attach_type, attach_id) with no FK constraint, so
+    nothing else ever clears them, which both makes an assigned Label
+    permanently undeletable and lets a future entity that reuses the same id
+    silently inherit the old label chips."""
+    set_labels(db, attach_type, attach_id, [])

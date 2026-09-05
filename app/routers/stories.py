@@ -7,7 +7,7 @@ from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import Label, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, Story, TaskStatus, User, UserType, generate_internal_key
-from app.labels import get_labels, set_labels
+from app.labels import clear_labels, get_labels, set_labels
 from app.testcase_io import dict_to_task
 
 router = APIRouter()
@@ -226,6 +226,7 @@ def delete_story(request: Request, story_id: int, db: Session = Depends(get_db))
             status_code=422,
         )
     code = story.display_code
+    clear_labels(db, LabelAttachType.STORY, story.id)
     db.delete(story)
     db.commit()
     return redirect_with_flash("/stories", f"Story {code} deleted.", category="danger")
