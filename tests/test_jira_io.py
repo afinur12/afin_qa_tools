@@ -124,3 +124,144 @@ def test_subtask_to_jira_json_returns_one_entry_per_testcase_in_order(db_session
 
     result = subtask_to_jira_json(subtask, db_session)
     assert [entry["issue_key"] for entry in result] == ["SND-10058", "SND-10059"]
+
+
+import pytest
+
+from app.jira_io import apply_jira_json_to_subtask
+
+
+def _base_test_case_entry(issue_key="SND-10055", **overrides):
+    entry = {
+        "issue_key": issue_key,
+        "summary": "Verify top-up",
+        "category": "Positive",
+        "planned_cost": "0",
+        "actual_cost": "0",
+        "number_of_iteration": 0,
+        "msisdn": "MSISDN #A: 62812",
+        "assignee": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+        "developer": {"name": "Andi Tune", "username": "ADL.ANDIM"},
+        "tester": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+        "zephyr_steps": [
+            {"order_id": 1, "step_type": "PRE CONDITION", "step": "PRE CONDITION\r\n1. Has account", "expected_result": "1. Ready"},
+            {"order_id": 2, "step_type": "MAIN TEST", "step": "MAIN TEST\r\n1. Do A\r\n2. Do B", "expected_result": "1. A happens\r\n2. B happens"},
+            {"order_id": 3, "step_type": "POST CONDITION", "step": "POST CONDITION\r\n1. Verify", "expected_result": "1. Logged"},
+        ],
+        "execution": {"execution_id": 196724, "status": "PASS", "executed_on": None, "executed_by": None, "cycle_name": "SIT"},
+        "fields": {"description": "Steps to reproduce", "priority": {"name": "Highest"}, "labels": ["SITScenario"]},
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_import_creates_new_testcase_with_all_mapped_fields(db_session):
+    subtask = _make_subtask(db_session, code="SND-9878")
+    data = {
+        "parent_ticket_info": {
+            "assignee": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+            "developer": {"name": "Andi Tune", "username": "ADL.ANDIM"},
+            "tester": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+            "labels": ["SITScenario"],
+        },
+        "test_cases": [_base_test_case_entry()],
+    }
+
+    apply_jira_json_to_subtask(db_session, subtask, data)
+    db_session.commit()
+
+    testcase = next(tc for tc in subtask.testcases if tc.display_code == "SND-10055")
+    assert testcase.title == "Verify top-up"
+    assert testcase.category.value == "Positive"
+    assert testcase.msisdn == "MSISDN #A: 62812"
+    assert testcase.status == TestCaseStatus.PASS
+    assert testcase.jira_execution_id == "196724"
+    assert testcase.tester_user.name == "Andri Firman Nurvianto"
+    assert testcase.tester_user.jira_username == "ADL.ANDRIF"
+    assert testcase.developer.name == "Andi Tune"
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    assert [s.step_text for s in main_section.steps] == ["Do A", "Do B"]
+    assert [s.expected_result for s in main_section.steps] == ["A happens", "B happens"]
+    assert subtask.assignee.name == "Andri Firman Nurvianto"
+    assert [l.name for l in get_labels(db_session, LabelAttachType.SUBTASK, subtask.id)] == ["SITScenario"]
+
+
+def test_import_updates_existing_testcase_matched_by_issue_key(db_session):
+    subtask = _make_subtask(db_session, code="SND-9879")
+    testcase = _make_testcase(db_session, subtask, code="SND-10060", title="Old title")
+    db_session.commit()
+
+    apply_jira_json_to_subtask(
+        db_session, subtask, {"test_cases": [_base_test_case_entry(issue_key="SND-10060", summary="New title")]},
+    )
+    db_session.commit()
+
+    db_session.refresh(testcase)
+    assert testcase.title == "New title"
+    assert testcase.category.value == "Positive"
+
+
+def test_import_skips_placeholder_fields_on_existing_testcase(db_session):
+    subtask = _make_subtask(db_session, code="SND-9880")
+    testcase = _make_testcase(
+        db_session, subtask, code="SND-10061", title="Keep me",
+        msisdn="Already set", category=TestCaseCategory.NEGATIVE,
+    )
+    db_session.commit()
+
+    entry = _base_test_case_entry(
+        issue_key="SND-10061",
+        summary="{{placeholder_test_case_summary}}",
+        category="{{placeholder_category}}",
+        msisdn="{{placeholder_msisdn_value}}",
+    )
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(testcase)
+    assert testcase.title == "Keep me"
+    assert testcase.category == TestCaseCategory.NEGATIVE
+    assert testcase.msisdn == "Already set"
+
+
+def test_import_leaves_section_steps_untouched_when_zephyr_entry_is_all_placeholder(db_session):
+    subtask = _make_subtask(db_session, code="SND-9881")
+    testcase = _make_testcase(db_session, subtask, code="SND-10062")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=1, step_text="Existing step", expected_result="Existing result", actual_result=""))
+    db_session.commit()
+
+    entry = _base_test_case_entry(issue_key="SND-10062", zephyr_steps=[
+        {"order_id": 1, "step_type": "PRE CONDITION", "step": "{{placeholder_pre_condition_step}}", "expected_result": "{{placeholder_pre_condition_expected}}"},
+        {"order_id": 2, "step_type": "MAIN TEST", "step": "{{placeholder_main_test_step}}", "expected_result": "{{placeholder_main_test_expected}}"},
+        {"order_id": 3, "step_type": "POST CONDITION", "step": "{{placeholder_post_condition_step}}", "expected_result": "{{placeholder_post_condition_expected}}"},
+    ])
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(main_section)
+    assert [s.step_text for s in main_section.steps] == ["Existing step"]
+
+
+def test_import_missing_test_cases_key_raises_value_error(db_session):
+    subtask = _make_subtask(db_session, code="SND-9882")
+    with pytest.raises(ValueError):
+        apply_jira_json_to_subtask(db_session, subtask, {})
+
+
+def test_export_then_import_round_trips_steps(db_session):
+    subtask = _make_subtask(db_session, code="SND-9883")
+    testcase = _make_testcase(db_session, subtask, code="SND-10063")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=1, step_text="Do A", expected_result="A happens", actual_result=""))
+    db_session.commit()
+
+    exported = subtask_to_jira_json(subtask, db_session)
+    other_subtask = _make_subtask(db_session, code="SND-9884")
+    apply_jira_json_to_subtask(db_session, other_subtask, {"test_cases": exported})
+    db_session.commit()
+
+    imported_tc = next(tc for tc in other_subtask.testcases if tc.display_code == "SND-10063")
+    imported_main = next(s for s in imported_tc.sections if s.kind.value == "MAIN")
+    assert [s.step_text for s in imported_main.steps] == ["Do A"]
+    assert [s.expected_result for s in imported_main.steps] == ["A happens"]

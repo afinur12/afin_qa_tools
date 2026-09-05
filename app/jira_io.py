@@ -17,11 +17,16 @@ unchanged on this app's output. The same string is how import direction
 overwrite the existing value".
 """
 
+import re
+
 from sqlalchemy.orm import Session
 
-from app.labels import get_labels
+from app.labels import get_labels, set_labels
+from app.master_data import get_or_create
 from app.models import (
-    LabelAttachType, StepSection, Subtask, TestCase, TestCaseSection, TestCaseStatus, User,
+    DEFAULT_SECTION_KINDS, Label, LabelAttachType, StepSection, Subtask, TestCase,
+    TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, User, UserType,
+    generate_internal_key,
 )
 
 _SECTION_LABEL = {
@@ -123,3 +128,147 @@ def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
 
 def subtask_to_jira_json(subtask: "Subtask", db: Session) -> list[dict]:
     return [testcase_to_jira_dict(tc, db) for tc in subtask.testcases]
+
+
+# ── Import: Jira JSON -> model ──────────────────────────────────────────
+
+
+def _split_numbered_block(text: str) -> list[str]:
+    """Reverse of _numbered_block: "1. a\\r\\n2. b" -> ["a", "b"]."""
+    if not text:
+        return []
+    lines = [line for line in text.split("\r\n") if line.strip()]
+    return [re.sub(r"^\d+\.\s*", "", line) for line in lines]
+
+
+def _resolve(entry: dict, key: str, current):
+    """Placeholder-skip resolution for one flat field: `current` unchanged
+    if entry[key] is a {{placeholder_...}} marker or the key is absent,
+    else the JSON's own value — even if that value is empty/blank, since
+    only a placeholder marker means "nothing real here, don't touch"."""
+    if key not in entry:
+        return current
+    value = entry[key]
+    return current if _is_placeholder(value) else value
+
+
+def _resolve_person_id(db: Session, entry: dict, key: str, user_type: "UserType", current_id: int | None) -> int | None:
+    if key not in entry:
+        return current_id
+    person = entry[key]
+    if person is None:
+        return None  # explicitly cleared — null is not a placeholder
+    name = person.get("name") if isinstance(person, dict) else None
+    if not name or _is_placeholder(name):
+        return current_id
+    user = get_or_create(db, User, name, type=user_type)
+    username = person.get("username") if isinstance(person, dict) else None
+    if user is not None and username and not _is_placeholder(username):
+        user.jira_username = username
+    return user.id if user else current_id
+
+
+def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) -> None:
+    step_text = entry.get("step", "")
+    expected_text = entry.get("expected_result", "")
+    if _is_placeholder(step_text) and _is_placeholder(expected_text):
+        return  # nothing real in this section's entry — leave existing steps alone
+
+    body = step_text.split("\r\n", 1)[1] if "\r\n" in step_text and not _is_placeholder(step_text) else ""
+    step_lines = _split_numbered_block(body)
+    expected_lines = _split_numbered_block(expected_text if not _is_placeholder(expected_text) else "")
+
+    for step in list(section.steps):
+        db.delete(step)
+    db.flush()
+    for i, step_line in enumerate(step_lines):
+        db.add(
+            TestCaseStep(
+                section_id=section.id, step_no=i + 1, step_text=step_line,
+                expected_result=expected_lines[i] if i < len(expected_lines) else "",
+                actual_result="",
+            )
+        )
+
+
+def _apply_labels(db: Session, attach_type: "LabelAttachType", attach_id: int, names: list[str]) -> None:
+    label_ids = [get_or_create(db, Label, name).id for name in names if name]
+    set_labels(db, attach_type, attach_id, label_ids)
+
+
+def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) -> None:
+    testcase.title = _resolve(entry, "summary", testcase.title) or testcase.title
+
+    category_raw = entry.get("category")
+    if "category" in entry and not _is_placeholder(category_raw):
+        try:
+            testcase.category = TestCaseCategory(category_raw)
+        except ValueError:
+            pass  # unknown category value — leave whatever was there
+
+    testcase.msisdn = _resolve(entry, "msisdn", testcase.msisdn)
+    testcase.planned_cost = _resolve(entry, "planned_cost", testcase.planned_cost)
+    testcase.actual_cost = _resolve(entry, "actual_cost", testcase.actual_cost)
+    testcase.number_of_iteration = _resolve(entry, "number_of_iteration", testcase.number_of_iteration)
+
+    testcase.assignee_id = _resolve_person_id(db, entry, "assignee", UserType.TESTER, testcase.assignee_id)
+    testcase.developer_id = _resolve_person_id(db, entry, "developer", UserType.DEVELOPER, testcase.developer_id)
+    testcase.tester_id = _resolve_person_id(db, entry, "tester", UserType.TESTER, testcase.tester_id)
+
+    for section in testcase.sections:
+        matching = next(
+            (z for z in entry.get("zephyr_steps") or [] if z.get("step_type") == _SECTION_LABEL[section.kind]),
+            None,
+        )
+        if matching is not None:
+            _apply_zephyr_entry(db, section, matching)
+
+    execution = entry.get("execution") or {}
+    status_raw = execution.get("status")
+    if status_raw and not _is_placeholder(status_raw) and status_raw in _JIRA_TO_STATUS:
+        testcase.status = _JIRA_TO_STATUS[status_raw]
+    if "execution_id" in execution:
+        exec_id = execution["execution_id"]
+        testcase.jira_execution_id = None if exec_id is None else str(exec_id)
+
+    fields = entry.get("fields") or {}
+    testcase.remark = _resolve(fields, "description", testcase.remark)
+    priority = fields.get("priority") or {}
+    testcase.test_priority = _resolve(priority, "name", testcase.test_priority)
+
+    if "labels" in fields:
+        _apply_labels(db, LabelAttachType.TESTCASE, testcase.id, fields.get("labels") or [])
+
+
+def apply_jira_json_to_subtask(db: Session, subtask: "Subtask", data: dict) -> "Subtask":
+    if not isinstance(data, dict):
+        raise ValueError('Expected a JSON object with a "test_cases" list.')
+    test_cases = data.get("test_cases")
+    if not isinstance(test_cases, list):
+        raise ValueError('Missing "test_cases" list.')
+
+    parent_info = data.get("parent_ticket_info") or {}
+    subtask.assignee_id = _resolve_person_id(db, parent_info, "assignee", UserType.TESTER, subtask.assignee_id)
+    subtask.developer_id = _resolve_person_id(db, parent_info, "developer", UserType.DEVELOPER, subtask.developer_id)
+    subtask.tester_id = _resolve_person_id(db, parent_info, "tester", UserType.TESTER, subtask.tester_id)
+    if "labels" in parent_info:
+        _apply_labels(db, LabelAttachType.SUBTASK, subtask.id, parent_info.get("labels") or [])
+
+    for entry in test_cases:
+        issue_key = entry.get("issue_key")
+        if not issue_key:
+            raise ValueError('Each test case entry needs an "issue_key".')
+        testcase = next((tc for tc in subtask.testcases if tc.display_code == issue_key), None)
+        if testcase is None:
+            testcase = TestCase(
+                subtask_id=subtask.id, display_code=issue_key,
+                title=entry.get("summary") or issue_key, internal_key=generate_internal_key(),
+            )
+            db.add(testcase)
+            db.flush()
+            for position, kind in enumerate(DEFAULT_SECTION_KINDS):
+                db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
+            db.flush()
+        _apply_testcase_from_jira(db, testcase, entry)
+
+    return subtask
