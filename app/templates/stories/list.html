@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_link, icon_upload with context %}
+{% from "macros.html" import modal, icon_link, icon_upload, icon_plus with context %}
 {% block content %}
 
 <div class="page-head">
@@ -9,14 +9,8 @@
     <div class="page-sub">{{ stories | length }} stor{{ 'y' if stories | length == 1 else 'ies' }} tracked</div>
   </div>
   <div class="spacer"></div>
-  <a class="btn secondary" href="#" data-modal-open="import-task" title="Import a task from JSON" aria-label="Import a task from JSON">
-    {{ icon_upload() }}
-    Import
-  </a>
-  <a class="btn" href="/stories/new" data-modal-open="new-story">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-    New Story
-  </a>
+  <a class="btn act edit" href="#" data-modal-open="import-task" title="Import a task from JSON" aria-label="Import a task from JSON">{{ icon_upload() }}</a>
+  <a class="btn act add" href="/stories/new" data-modal-open="new-story" title="New story" aria-label="New story">{{ icon_plus() }}</a>
 </div>
 
 {% call modal('new-story', 'New Story', '/stories') %}

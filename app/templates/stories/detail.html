@@ -42,41 +42,45 @@
   {% endif %}
 </div>
 
-{% call modal('edit-story', 'Edit Story', '/stories/' ~ story.id ~ '/edit') %}
-  <div class="field">
-    <label>Code</label>
-    <input name="display_code" value="{{ story.display_code }}" autocomplete="off" required>
+{% call modal('edit-story', 'Edit Story', '/stories/' ~ story.id ~ '/edit', wide=True) %}
+  <div class="grid-2">
+    <div class="field">
+      <label>Code</label>
+      <input name="display_code" value="{{ story.display_code }}" autocomplete="off" required>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s.value }}" {% if story.status == s %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+      </select>
+    </div>
   </div>
   <div class="field">
     <label>Title</label>
     <input name="title" value="{{ story.title }}" required>
   </div>
-  <div class="field">
-    <label>Status</label>
-    <select name="status">
-      {% for s in statuses %}<option value="{{ s.value }}" {% if story.status == s %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label>Assignee</label>
-    <select name="assignee_id">
-      <option value="">&mdash;</option>
-      {% for u in assignees %}<option value="{{ u.id }}" {% if story.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label>Tester</label>
-    <select name="tester_id">
-      <option value="">&mdash;</option>
-      {% for u in testers %}<option value="{{ u.id }}" {% if story.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label>Developer</label>
-    <select name="developer_id">
-      <option value="">&mdash;</option>
-      {% for u in developers %}<option value="{{ u.id }}" {% if story.developer_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-    </select>
+  <div class="grid-3">
+    <div class="field">
+      <label>Assignee</label>
+      <select name="assignee_id">
+        <option value="">&mdash;</option>
+        {% for u in assignees %}<option value="{{ u.id }}" {% if story.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Tester</label>
+      <select name="tester_id">
+        <option value="">&mdash;</option>
+        {% for u in testers %}<option value="{{ u.id }}" {% if story.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Developer</label>
+      <select name="developer_id">
+        <option value="">&mdash;</option>
+        {% for u in developers %}<option value="{{ u.id }}" {% if story.developer_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+      </select>
+    </div>
   </div>
   <div class="field">
     <label>Labels</label>
