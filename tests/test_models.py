@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, Label, LabelAssignment, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType, User, UserType
+from app.models import Bug, BugSeverity, BugStatus, Label, LabelAssignment, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestType, User, UserType
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -387,3 +387,58 @@ def test_subtask_bug_testcase_have_the_same_three_relationships(db_session):
     assert bug.tester_user.name == "Tester3"
     assert bug.developer.name == "Developer3"
     assert bug.assignee.name == "Assignee3"
+
+
+def test_testcase_new_jira_fields_default_to_none(db_session):
+    story = Story(display_code="JR-1", title="A", internal_key="jk1")
+    db_session.add(story)
+    db_session.flush()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.flush()
+    subtask = Subtask(phase_id=phase.id, display_code="JR-1-S1", title="S", internal_key="jk2", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.flush()
+    testcase = TestCase(subtask_id=subtask.id, display_code="JR-1-TC1", title="T", internal_key="jk3")
+    db_session.add(testcase)
+    db_session.commit()
+
+    assert testcase.category is None
+    assert testcase.msisdn is None
+    assert testcase.planned_cost is None
+    assert testcase.actual_cost is None
+    assert testcase.number_of_iteration is None
+    assert testcase.jira_execution_id is None
+
+
+def test_testcase_category_accepts_all_three_values(db_session):
+    story = Story(display_code="JR-2", title="A", internal_key="jk4")
+    db_session.add(story)
+    db_session.flush()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.flush()
+    subtask = Subtask(phase_id=phase.id, display_code="JR-2-S1", title="S", internal_key="jk5", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.flush()
+    for i, category in enumerate(TestCaseCategory):
+        testcase = TestCase(
+            subtask_id=subtask.id, display_code=f"JR-2-TC{i}", title="T", internal_key=f"jk6{i}",
+            category=category,
+        )
+        db_session.add(testcase)
+    db_session.commit()
+
+    values = {tc.category.value for tc in subtask.testcases}
+    assert values == {"Positive", "Negative", "Regression"}
+
+
+def test_user_jira_username_defaults_to_none(db_session):
+    user = User(name="Jira Test User", type=UserType.TESTER)
+    db_session.add(user)
+    db_session.commit()
+    assert user.jira_username is None
+
+    user.jira_username = "ADL.TEST"
+    db_session.commit()
+    assert user.jira_username == "ADL.TEST"

@@ -155,6 +155,15 @@ class StepSection(str, enum.Enum):
     POSTCONDITION = "POSTCONDITION"
 
 
+class TestCaseCategory(str, enum.Enum):
+    """Matches Jira's category field values exactly (title-case, no
+    underscores) — export/import need no translation table for this one,
+    unlike status."""
+    POSITIVE = "Positive"
+    NEGATIVE = "Negative"
+    REGRESSION = "Regression"
+
+
 class TestCase(Base):
     __tablename__ = "testcases"
     __table_args__ = (UniqueConstraint("subtask_id", "display_code", name="uq_testcase_subtask_code"),)
@@ -188,6 +197,17 @@ class TestCase(Base):
     # a user deliberately clearing tester_id back to None would have it
     # silently restored from the untouched `tester` column on every restart.
     tester_migrated: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    # Jira Sync fields (see app/jira_io.py) — all optional, populated either
+    # by hand in Section 1 or by importing a Jira-sourced JSON.
+    category: Mapped[TestCaseCategory | None] = mapped_column(SAEnum(TestCaseCategory), nullable=True)
+    msisdn: Mapped[str | None] = mapped_column(Text, nullable=True)
+    planned_cost: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    actual_cost: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    number_of_iteration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Captured on import from execution.execution_id; echoed back unchanged
+    # on the next export so CodeBuddy updates the same Zephyr execution.
+    jira_execution_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
     test_type_ref: Mapped["TestType | None"] = relationship("TestType")
@@ -326,6 +346,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     type: Mapped[UserType] = mapped_column(SAEnum(UserType), nullable=False)
+    jira_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class Label(Base):
