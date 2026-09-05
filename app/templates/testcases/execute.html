@@ -12,7 +12,7 @@
 </div>
 
 <div class="page-head">
-  <div>
+  <div class="page-head-title">
     <div class="row" style="margin-bottom:6px;">
       <span class="badge code">{{ testcase.display_code }}</span>
       <span class="badge badge--{{ testcase.status.value | lower }}">{{ testcase.status.label }}</span>
@@ -22,26 +22,27 @@
     </div>
     <h1 class="page-title">{{ testcase.title }}</h1>
   </div>
-  <div class="spacer"></div>
-  <a class="btn act edit" href="/testcases/{{ testcase.id }}/edit" data-modal-open="edit-testcase"
-     title="Edit test case" aria-label="Edit test case">{{ icon_pencil() }}</a>
-  <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/save-as-prebuilt">
-    <button class="btn act add" type="submit" title="Save as prebuilt test case"
-            aria-label="Save as prebuilt test case">{{ icon_plus() }}</button>
-  </form>
-  <a class="btn act edit" href="#" data-modal-open="copy-from-prebuilt"
-     title="Copy steps from prebuilt" aria-label="Copy steps from prebuilt">{{ icon_copy() }}</a>
-  <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/delete"
-        data-confirm="Delete this test case and all of its steps?">
-    <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case">{{ icon_trash() }}</button>
-  </form>
-  {% if has_images %}
-  <a class="btn act export" href="/testcases/{{ testcase.id }}/export-images"
-     title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
-  {% endif %}
-  <a class="btn act docx" href="/testcases/{{ testcase.id }}/export-docx"
-     title="Export .docx" aria-label="Export as Word document">{{ icon_doc() }}</a>
-  <a class="btn act edit" href="#" data-modal-open="export-testcase-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
+  <div class="page-head-actions">
+    <a class="btn act edit" href="/testcases/{{ testcase.id }}/edit" data-modal-open="edit-testcase"
+       title="Edit test case" aria-label="Edit test case">{{ icon_pencil() }}</a>
+    <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/save-as-prebuilt">
+      <button class="btn act add" type="submit" title="Save as prebuilt test case"
+              aria-label="Save as prebuilt test case">{{ icon_plus() }}</button>
+    </form>
+    <a class="btn act edit" href="#" data-modal-open="copy-from-prebuilt"
+       title="Copy steps from prebuilt" aria-label="Copy steps from prebuilt">{{ icon_copy() }}</a>
+    <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/delete"
+          data-confirm="Delete this test case and all of its steps?">
+      <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case">{{ icon_trash() }}</button>
+    </form>
+    {% if has_images %}
+    <a class="btn act export" href="/testcases/{{ testcase.id }}/export-images"
+       title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
+    {% endif %}
+    <a class="btn act docx" href="/testcases/{{ testcase.id }}/export-docx"
+       title="Export .docx" aria-label="Export as Word document">{{ icon_doc() }}</a>
+    <a class="btn act edit" href="#" data-modal-open="export-testcase-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
+  </div>
 </div>
 
 {% call modal('export-testcase-json', 'Export Test Case as JSON', '/testcases/' ~ testcase.id ~ '/export-json', method='get') %}
@@ -94,128 +95,143 @@
   </div>
 
   <form method="post" action="/testcases/{{ testcase.id }}/section1" data-autosave>
-    <div class="grid-2">
-      <div class="field">
-        <label>Project</label>
-        <div class="readonly-field">
-          <a href="{{ tracker_url(story.display_code) }}" target="_blank" rel="noopener"
-             class="mono link-code" title="Open {{ story.display_code }} in the tracker">{{ story.display_code }}{{ icon_link() }}</a>
-          <span class="muted">&mdash;</span> {{ story.title }}
-        </div>
-      </div>
-      <div class="field">
-        <label>Scenario</label>
-        <div class="readonly-field">
-          <a href="{{ tracker_url(testcase.display_code) }}" target="_blank" rel="noopener"
-             class="mono link-code" title="Open {{ testcase.display_code }} in the tracker">{{ testcase.display_code }}{{ icon_link() }}</a>
-          <span class="muted">&mdash;</span> {{ testcase.title }}
-        </div>
-      </div>
-    </div>
-
-    <div class="grid-auto">
-      <div class="field">
-        <label>Assignee</label>
-        <select name="assignee_id">
-          <option value="">&mdash;</option>
-          {% for u in assignees %}<option value="{{ u.id }}" {% if testcase.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Developer</label>
-        <select name="developer_id">
-          <option value="">&mdash;</option>
-          {% for u in developers %}<option value="{{ u.id }}" {% if testcase.developer_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Status</label>
-        <select name="status">
-          {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field"><label>Environment</label><input value="{{ testcase.subtask.phase.type.value }}" disabled></div>
-
-      <div class="field">
-        <label>Test Priority</label>
-        <select name="test_priority_id">
-          <option value="">&mdash;</option>
-          {% for p in test_priorities %}<option value="{{ p.id }}" {% if testcase.test_priority_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Test Type</label>
-        <select name="test_type_id">
-          <option value="">&mdash;</option>
-          {% for t in test_types %}<option value="{{ t.id }}" {% if testcase.test_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
-        </select>
-      </div>
-    </div>
-
-    <div class="grid-auto">
-      <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
-
-      <div class="field">
-        <label>Tester (User)</label>
-        <select name="tester_id">
-          <option value="">&mdash;</option>
-          {% for u in testers %}<option value="{{ u.id }}" {% if testcase.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>
-
-      {% set channels = ['myXL', 'AXISnet', 'COMET', 'Other'] %}
-      <div class="field">
-        <label>Channel</label>
-        <select name="channel">
-          <option value="">Select&hellip;</option>
-          {% for o in channels %}<option value="{{ o }}" {% if testcase.channel == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-          {% if testcase.channel and testcase.channel not in channels %}
-          <option value="{{ testcase.channel }}" selected>{{ testcase.channel }}</option>
-          {% endif %}
-        </select>
-      </div>
-
-      <div class="field"><label>Iteration</label><input name="iteration" value="{{ testcase.iteration }}"></div>
-    </div>
-
-    <div class="grid-auto">
-      <div class="field"><label>Balance Before</label><input name="balance_before" value="{{ testcase.balance_before }}"></div>
-      <div class="field"><label>Balance After</label><input name="balance_after" value="{{ testcase.balance_after }}"></div>
-      <div class="field"><label>Usage</label><input name="usage" value="{{ testcase.usage }}"></div>
-      <div class="field"><label>Planned Cost</label><input name="planned_cost" value="{{ testcase.planned_cost or '' }}" inputmode="numeric"></div>
-      <div class="field"><label>Actual Cost</label><input name="actual_cost" value="{{ testcase.actual_cost or '' }}" inputmode="numeric"></div>
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label>MSISDN Configuration</label>
-        <textarea name="msisdn" rows="6" placeholder="e.g. MSISDN #A: 62812...">{{ testcase.msisdn or '' }}</textarea>
-      </div>
-      <div>
+    <div class="subcard">
+      <div class="subcard-title">Project Overview</div>
+      <div class="grid-2">
         <div class="field">
-          <label>Data Test</label>
-          <textarea name="data_test" rows="3" placeholder="One item per line — each line exports as a bullet">{{ testcase.data_test or '' }}</textarea>
+          <label>Project</label>
+          <div class="readonly-field">
+            <a href="{{ tracker_url(story.display_code) }}" target="_blank" rel="noopener"
+               class="mono link-code" title="Open {{ story.display_code }} in the tracker">{{ story.display_code }}{{ icon_link() }}</a>
+            <span class="muted">&mdash;</span> {{ story.title }}
+          </div>
         </div>
-        <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
+        <div class="field">
+          <label>Scenario</label>
+          <div class="readonly-field">
+            <a href="{{ tracker_url(testcase.display_code) }}" target="_blank" rel="noopener"
+               class="mono link-code" title="Open {{ testcase.display_code }} in the tracker">{{ testcase.display_code }}{{ icon_link() }}</a>
+            <span class="muted">&mdash;</span> {{ testcase.title }}
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="field">
-      <label>Labels</label>
-      {% for l in all_labels %}
-      <label class="choice">
-        <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
-        <span>{{ l.name }}</span>
-      </label>
-      {% else %}
-      <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
-      {% endfor %}
+    <div class="subcard">
+      <div class="subcard-title">Team &amp; Assignments</div>
+      <div class="grid-auto">
+        <div class="field">
+          <label>Assignee</label>
+          <select name="assignee_id">
+            <option value="">&mdash;</option>
+            {% for u in assignees %}<option value="{{ u.id }}" {% if testcase.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Developer</label>
+          <select name="developer_id">
+            <option value="">&mdash;</option>
+            {% for u in developers %}<option value="{{ u.id }}" {% if testcase.developer_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Tester</label>
+          <select name="tester_id">
+            <option value="">&mdash;</option>
+            {% for u in testers %}<option value="{{ u.id }}" {% if testcase.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="subcard">
+      <div class="subcard-title">Execution Plan</div>
+      <div class="grid-auto">
+        <div class="field">
+          <label>Status</label>
+          <select name="status">
+            {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="field"><label>Environment</label><input value="{{ testcase.subtask.phase.type.value }}" disabled></div>
+
+        <div class="field">
+          <label>Test Priority</label>
+          <select name="test_priority_id">
+            <option value="">&mdash;</option>
+            {% for p in test_priorities %}<option value="{{ p.id }}" {% if testcase.test_priority_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Test Type</label>
+          <select name="test_type_id">
+            <option value="">&mdash;</option>
+            {% for t in test_types %}<option value="{{ t.id }}" {% if testcase.test_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>
+
+        {% set channels = ['myXL', 'AXISnet', 'COMET', 'Other'] %}
+        <div class="field">
+          <label>Channel</label>
+          <select name="channel">
+            <option value="">Select&hellip;</option>
+            {% for o in channels %}<option value="{{ o }}" {% if testcase.channel == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+            {% if testcase.channel and testcase.channel not in channels %}
+            <option value="{{ testcase.channel }}" selected>{{ testcase.channel }}</option>
+            {% endif %}
+          </select>
+        </div>
+
+        <div class="field"><label>Iteration</label><input name="iteration" value="{{ testcase.iteration }}"></div>
+      </div>
+    </div>
+
+    <div class="subcard">
+      <div class="subcard-title">Financials</div>
+      <div class="grid-auto">
+        <div class="field"><label>Balance Before</label><input name="balance_before" value="{{ testcase.balance_before }}"></div>
+        <div class="field"><label>Balance After</label><input name="balance_after" value="{{ testcase.balance_after }}"></div>
+        <div class="field"><label>Usage</label><input name="usage" value="{{ testcase.usage }}"></div>
+        <div class="field"><label>Planned Cost</label><input name="planned_cost" value="{{ testcase.planned_cost or '' }}" inputmode="numeric"></div>
+        <div class="field"><label>Actual Cost</label><input name="actual_cost" value="{{ testcase.actual_cost or '' }}" inputmode="numeric"></div>
+      </div>
+    </div>
+
+    <div class="subcard">
+      <div class="subcard-title">Configuration &amp; Data</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>MSISDN Configuration</label>
+          <textarea name="msisdn" rows="6" placeholder="e.g. MSISDN #A: 62812...">{{ testcase.msisdn or '' }}</textarea>
+        </div>
+        <div>
+          <div class="field">
+            <label>Data Test</label>
+            <textarea name="data_test" rows="3" placeholder="One item per line — each line exports as a bullet">{{ testcase.data_test or '' }}</textarea>
+          </div>
+          <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subcard">
+      <div class="subcard-title">Labels</div>
+      <div class="field" style="margin-bottom:0;">
+        {% for l in all_labels %}
+        <label class="choice">
+          <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
+          <span>{{ l.name }}</span>
+        </label>
+        {% else %}
+        <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
+        {% endfor %}
+      </div>
     </div>
 
     <div class="form-actions"><button class="btn" type="submit" data-manual-save>Save Description</button></div>

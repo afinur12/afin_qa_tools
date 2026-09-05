@@ -50,7 +50,6 @@ def execute_page(request: Request, testcase_id: int, db: Session = Depends(get_d
 def update_section1(
     request: Request,
     testcase_id: int,
-    tester: str = Form(""),
     test_date: str = Form(""),
     test_priority_id: str = Form(""),
     test_type_id: str = Form(""),
@@ -77,7 +76,6 @@ def update_section1(
 
     # Assign all submitted values to testcase object (in memory only, not yet committed)
     # This ensures validation error re-renders show submitted values, not stale DB values
-    testcase.tester = tester
     testcase.test_date = test_date
     testcase.test_priority_id = int(test_priority_id) if test_priority_id.strip().isdecimal() else None
     testcase.test_type_id = int(test_type_id) if test_type_id.strip().isdecimal() else None

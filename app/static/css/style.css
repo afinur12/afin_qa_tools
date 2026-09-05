@@ -28,6 +28,7 @@
   /* Accents */
   --lime:        #c9f24d;
   --lime-deep:   #b6df36;
+  --lime-soft:   #eef8d1;
   --indigo:      #5b57e8;
   --indigo-ink:  #4a46d6;
   --indigo-soft: #eeedfd;
@@ -263,6 +264,12 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .page-sub { color: var(--ink-2); margin-top: 4px; }
 .spacer { flex-grow: 1; }
 
+/* Lets a long title wrap onto its own lines and, once there's no room left
+   beside it, drop the whole action-button cluster onto its own row below —
+   rather than each button wrapping individually mid-row. */
+.page-head-title { flex: 1 1 320px; min-width: 260px; }
+.page-head-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
+
 .crumbs { font-size: 12.5px; color: var(--ink-3); margin-bottom: 12px; }
 .crumbs a { color: var(--ink-2); }
 .crumbs a:hover { color: var(--ink); }
@@ -305,6 +312,26 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 }
 .card.accent .stat-label,
 .card.accent .stat-foot { color: rgba(255, 255, 255, 0.78); }
+
+/* A labeled group of fields nested inside a .card (e.g. Section 1's
+   "Team & Assignments", "Financials" blocks) — a sunken inset box rather
+   than a recursive .card, so it visually reads as nested. */
+.subcard {
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.subcard:last-child { margin-bottom: 0; }
+.subcard-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 14px;
+}
 
 /* ── Stats ───────────────────────────────────────────────────────────────── */
 
@@ -429,6 +456,8 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .btn.act.docx:hover    { background: #000;        color: #fff; }
 .btn.act.jira    { background: var(--progress-bg); color: var(--progress); }
 .btn.act.jira:hover    { background: #c7dbf7;     color: var(--progress); }
+.btn.act.image   { background: var(--progress-bg); color: var(--progress); }
+.btn.act.image:hover   { background: #c7dbf7;     color: var(--progress); }
 
 /* A clickable row that also carries its own actions: the link fills the row,
    the buttons sit outside it (a form cannot be nested inside an anchor). */
@@ -597,8 +626,8 @@ tbody tr:hover { background: var(--surface-sunk); }
 .field textarea:focus,
 .step-head input:focus {
   outline: none;
-  border-color: var(--indigo);
-  box-shadow: 0 0 0 3px rgba(91, 87, 232, 0.13);
+  border-color: var(--lime-deep);
+  box-shadow: 0 0 0 3px rgba(182, 223, 54, 0.35);
 }
 
 .field input:disabled,
@@ -642,7 +671,13 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 
 /* Read-only value shown as text (so a code inside it can be a link, which an
-   <input> cannot contain). */
+   <input> cannot contain). The grid row already stretches sibling .fields to
+   equal height (CSS Grid's default align-items: stretch); making the .field
+   itself a flex column and this box flex:1 carries that height down to the
+   visible bordered box too, so a short value (e.g. Project) matches a
+   neighboring value that wraps to two lines (e.g. Scenario) instead of
+   leaving empty space below a short box. */
+.field:has(.readonly-field) { display: flex; flex-direction: column; }
 .readonly-field {
   padding: 9px 12px;
   border: 1px solid var(--line);
@@ -651,6 +686,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   color: var(--ink-2);
   font-size: 14px;
   min-height: 38px;
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -902,7 +938,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   margin-bottom: -1px;
 }
 .tabgroup-btn:hover { color: var(--ink); }
-.tabgroup-btn.is-active { color: var(--indigo-ink); border-bottom-color: var(--indigo); }
+.tabgroup-btn.is-active { color: var(--ink); border-bottom-color: var(--lime-deep); }
 .tabgroup-panel { display: none; }
 .tabgroup-panel.is-active { display: block; }
 
@@ -919,8 +955,13 @@ tbody tr:hover { background: var(--surface-sunk); }
   border: none;
   cursor: pointer;
 }
-.pill:hover { background: var(--indigo-soft); color: var(--indigo-ink); }
-.pill.is-active { background: var(--indigo-soft); color: var(--indigo-ink); }
+/* Same solid-fill treatment as the sidebar's active nav item: soft tint on
+   hover, full --lime once active. Paired with the fixed dark --ink-inverse
+   (not --ink, which turns near-white in dark mode and would go invisible
+   against these light green fills). */
+.pill:hover { background: var(--lime-soft); color: var(--ink-inverse); }
+.pill.is-active { background: var(--lime); color: var(--ink-inverse); font-weight: 650; }
+.pill.is-active:hover { background: var(--lime-deep); color: var(--ink-inverse); }
 .pill-count { opacity: 0.7; margin-left: 3px; }
 
 /* ── Floating "View Images" trigger + full-screen slideshow ─────────────── */
@@ -1190,8 +1231,11 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 .choice:hover { border-color: var(--line-strong); background: var(--surface-sunk); }
 .choice[hidden] { display: none; }
-.choice input { width: auto; margin-top: 2px; flex-shrink: 0; accent-color: var(--indigo); }
-.choice:has(input:checked) { border-color: var(--indigo); background: var(--indigo-soft); }
+.choice input { width: auto; margin-top: 2px; flex-shrink: 0; accent-color: var(--lime-deep); }
+/* --lime-soft is a fixed pale tint, not themed — pair with fixed dark
+   --ink-inverse (--ink turns near-white in dark mode and would be
+   invisible against this light background). */
+.choice:has(input:checked) { border-color: var(--lime-deep); background: var(--lime-soft); color: var(--ink-inverse); }
 
 /* ── Utility tools ───────────────────────────────────────────────────────── */
 

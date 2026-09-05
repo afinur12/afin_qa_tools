@@ -1034,21 +1034,27 @@ document.addEventListener("click", (event) => {
   rows.forEach((row) => tbody.appendChild(row));
 });
 
-// ── Currency-formatted cost fields ───────────────────────────────────────
-// Planned/Actual Cost are free-text fields (like Balance Before/After), but
-// typing "1000000" should read back as "Rp 1.000.000". Formatting only
+// ── Currency-formatted cost/balance fields ───────────────────────────────
+// Planned/Actual Cost and Balance Before/After/Usage are free-text fields,
+// but typing "1000000" should read back as "Rp 1.000.000". Formatting only
 // happens once the field is left (not on every keystroke, which would
 // fight the cursor), and unformats back to plain digits on focus so it's
-// easy to keep typing.
+// easy to keep typing. Balance fields default to the literal placeholder
+// text "Rp. -" (no digits) — that's left completely untouched rather than
+// blanked out, since it's a deliberate "not applicable" value, not a number.
 function formatRupiah(raw) {
   const digits = (raw || "").replace(/\D/g, "");
-  return digits ? `Rp ${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}` : "";
+  return digits ? `Rp ${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}` : raw;
 }
 
-document.querySelectorAll('input[name="planned_cost"], input[name="actual_cost"]').forEach((field) => {
+document.querySelectorAll(
+  'input[name="planned_cost"], input[name="actual_cost"], ' +
+  'input[name="balance_before"], input[name="balance_after"], input[name="usage"]'
+).forEach((field) => {
   field.value = formatRupiah(field.value);
   field.addEventListener("focusin", () => {
-    field.value = field.value.replace(/\D/g, "");
+    const digits = field.value.replace(/\D/g, "");
+    if (digits) field.value = digits;
   });
   field.addEventListener("focusout", () => {
     field.value = formatRupiah(field.value);

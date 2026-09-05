@@ -69,6 +69,7 @@ class _TestCase:
         self.display_code = "TC-1"
         self.title = "Verify top-up RO balance"
         self.tester = "Andri Firman Nurvianto"
+        self.tester_user = None
         self.test_date = "2026-08-26"
         self.test_priority = "High"
         self.test_priority_ref = None
@@ -117,6 +118,10 @@ def test_build_docx_header_and_single_step(tmp_path):
     # Project identifies the task (story), Scenario the test case itself.
     assert header_table.rows[0].cells[3].text == "EX-142 - Payments"  # project (row 0)
     assert header_table.rows[1].cells[3].text == "TC-1 - Verify top-up RO balance"  # scenario (row 1)
+    # tester_user is None (FK cleared) while the stub's stale free-text
+    # tester ("Andri Firman Nurvianto") is still populated — export must
+    # not fall back to it, matching the fix in app/docx/builder.py.
+    assert header_table.rows[2].cells[3].text == ""  # tester (row 2)
     assert header_table.rows[4].cells[3].text == "SIT"  # environment (row 4, affected by flat-index bug if using .cell())
     # test_type_ref is None (FK cleared) while the stub's stale free-text
     # test_type ("Functional") is still populated — export must not fall
@@ -130,6 +135,20 @@ def test_build_docx_header_and_single_step(tmp_path):
     assert doc.tables[1].cell(0, 5).text == "pre text"
     assert doc.tables[2].cell(1, 2).text == "main actual"
     assert doc.tables[3].cell(1, 5).text == "post expected"
+
+
+def test_build_docx_uppercases_test_priority(tmp_path):
+    from types import SimpleNamespace
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "text", "expected", "actual")]
+    tc.test_priority_ref = SimpleNamespace(name="Highest")
+    output_path = str(tmp_path / "out.docx")
+    build_docx(tc, output_path)
+
+    doc = Document(output_path)
+    header_table = doc.tables[0]
+    assert header_table.rows[5].cells[3].text == "HIGHEST"  # test_priority (row 5)
 
 
 def test_build_docx_clones_tables_for_multiple_steps(tmp_path):

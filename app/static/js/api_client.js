@@ -1430,9 +1430,19 @@
     }
   });
 
-  // ── Copy as cURL ──────────────────────────────────────────────────────────
+  // ── View as cURL ──────────────────────────────────────────────────────────
+  // build_curl (app/curl_tools.py) returns one long single-line command —
+  // good for round-tripping through parse_curl, bad for reading. Break it
+  // onto one line per -H/-d flag purely for display; the raw single-line
+  // string (kept on the element) is still what gets copied to the
+  // clipboard, since that's the form already proven to paste cleanly.
+  function formatCurlForDisplay(curl) {
+    return curl.replace(/ (-H|-d) /g, " \\\n  $1 ");
+  }
+
   document.querySelector("[data-ac-copy-curl]")?.addEventListener("click", async (event) => {
-    const button = event.currentTarget;
+    const modal = document.getElementById("view-curl");
+    const codeEl = modal?.querySelector("[data-ac-curl-code]");
     try {
       const response = await fetch("/api-client/resolve", {
         method: "POST",
@@ -1440,11 +1450,32 @@
         body: JSON.stringify(currentPayload()),
       });
       const data = await response.json();
-      await copyText(data.curl);
-      toast("curl copied");
+      if (codeEl) {
+        codeEl.textContent = formatCurlForDisplay(data.curl);
+        codeEl.dataset.rawCurl = data.curl;
+        if (window.hljs) {
+          // highlightElement refuses to re-run once dataset.highlighted is
+          // set (from a previous open of this same reused modal), so clear
+          // it and let highlightElement itself add the hljs/language-bash
+          // classes — matching the one place in this file already proven
+          // to highlight correctly (the response body's [data-snippet-code]
+          // block), rather than pre-setting them by hand.
+          codeEl.className = "";
+          delete codeEl.dataset.highlighted;
+          codeEl.classList.add("language-bash");
+          window.hljs.highlightElement(codeEl);
+        }
+      }
+      if (modal) openModal(modal, event.currentTarget);
     } catch {
       toast("Couldn't build the curl command", "danger");
     }
+  });
+
+  document.querySelector("[data-ac-curl-copy]")?.addEventListener("click", async () => {
+    const codeEl = document.querySelector("#view-curl [data-ac-curl-code]");
+    await copyText(codeEl?.dataset.rawCurl || codeEl?.textContent || "");
+    toast("curl copied");
   });
 
   // ── Export image (download + copy to clipboard) ──────────────────────────
@@ -1467,6 +1498,26 @@
     srcFields.forEach((src, i) => {
       if (dstFields[i]) dstFields[i].value = src.value;
     });
+  }
+
+  // An unfilled-in Query Parameters/Headers table or an empty Request Body
+  // is noise in an exported image — drop those whole sections (subhead +
+  // table/editor + its "Add ..." button, grouped via display:contents
+  // wrappers in the template) rather than exporting empty placeholder rows.
+  function removeEmptyRequestSections(cloneRoot) {
+    const isBlank = (el) => !el || !el.value.trim();
+
+    const hasParams = Array.from(cloneRoot.querySelectorAll("[data-ac-param-row]")).some(
+      (row) => !isBlank(row.querySelector("[data-ac-param-key]")) || !isBlank(row.querySelector("[data-ac-param-value]"))
+    );
+    const hasHeaders = Array.from(cloneRoot.querySelectorAll("[data-ac-header-row]")).some(
+      (row) => !isBlank(row.querySelector("[data-ac-header-key]")) || !isBlank(row.querySelector("[data-ac-header-value]"))
+    );
+    const hasBody = !isBlank(cloneRoot.querySelector("[data-ac-body]"));
+
+    if (!hasParams) cloneRoot.querySelector('[data-ac-section="params"]')?.remove();
+    if (!hasHeaders) cloneRoot.querySelector('[data-ac-section="headers"]')?.remove();
+    if (!hasBody) cloneRoot.querySelector('[data-ac-section="body"]')?.remove();
   }
 
   function maskSensitiveValues(cloneRoot, maskValues) {
@@ -1668,6 +1719,7 @@
     copyLiveFormValues(topbar, topbarClone);
     copyLiveFormValues(requestCard, requestClone);
     copyLiveFormValues(responsePanel, responseClone);
+    removeEmptyRequestSections(requestClone);
     expandScrollCaps(requestClone);
     expandScrollCaps(responseClone);
 
@@ -1689,8 +1741,14 @@
     columns.appendChild(requestClone);
     columns.appendChild(responseClone);
 
+    // Read the live theme's page background rather than hardcoding one —
+    // the export used to always render on a fixed light-cream backdrop,
+    // which looked wrong (mismatched panel) when the page itself was in
+    // dark theme.
+    const pageBg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#faf9f5";
+
     const wrapper = document.createElement("div");
-    wrapper.style.cssText = "display:flex;flex-direction:column;gap:18px;padding:18px;background:#faf9f5;position:fixed;left:-99999px;top:0;";
+    wrapper.style.cssText = `display:flex;flex-direction:column;gap:18px;padding:18px;background:${pageBg};position:fixed;left:-99999px;top:0;`;
     wrapper.appendChild(topbarClone);
     wrapper.appendChild(columns);
     document.body.appendChild(wrapper);
@@ -1700,7 +1758,7 @@
     const previewImg = modal.querySelector("[data-ac-export-preview-img]");
 
     try {
-      const canvas = await window.html2canvas(wrapper, { backgroundColor: "#faf9f5", scale: 2 });
+      const canvas = await window.html2canvas(wrapper, { backgroundColor: pageBg, scale: 2 });
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!blob) throw new Error("canvas.toBlob returned null");
 

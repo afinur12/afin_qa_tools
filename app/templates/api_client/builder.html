@@ -97,8 +97,8 @@
       <span class="card-title" data-ac-current-name>{{ current.name }}</span>
       <div class="ac-tools">
         <button type="button" class="btn ac-collections-trigger" data-modal-open="collections-drawer" title="Collections" aria-label="Collections">{{ icon_folder(14) }} Collections</button>
-        <button type="button" class="btn act edit" data-ac-copy-curl title="Copy as cURL" aria-label="Copy as cURL">{{ icon_terminal(15) }}</button>
-        <button type="button" class="btn act edit" data-ac-export-image title="Export request/response as image" aria-label="Export as image">{{ icon_image(15) }}</button>
+        <button type="button" class="btn act export" data-ac-copy-curl title="View as cURL" aria-label="View as cURL">{{ icon_terminal(15) }}</button>
+        <button type="button" class="btn act image" data-ac-export-image title="Export request/response as image" aria-label="Export as image">{{ icon_image(15) }}</button>
         <div class="ac-layout-toggle">
           <button type="button" data-ac-layout-btn="stacked" title="Stacked">{{ icon_stacked_layout() }}</button>
           <button type="button" class="is-active" data-ac-layout-btn="split" title="Split">{{ icon_split_layout() }}</button>
@@ -135,42 +135,48 @@
         <span class="badge code">PARAMS <span data-ac-param-count>0</span> &middot; HEADERS <span data-ac-header-count>{{ current.headers | length }}</span></span>
       </div>
 
-      <div class="ac-report-subhead">1. Query Parameters</div>
-      <div class="ac-report-table-wrap">
-        <table class="ac-report-table">
-          <thead><tr><th>KEY</th><th>VALUE</th><th class="ac-th-actions"></th></tr></thead>
-          <tbody data-ac-params></tbody>
-        </table>
+      <div data-ac-section="params" style="display:contents;">
+        <div class="ac-report-subhead">1. Query Parameters</div>
+        <div class="ac-report-table-wrap">
+          <table class="ac-report-table">
+            <thead><tr><th>KEY</th><th>VALUE</th><th class="ac-th-actions"></th></tr></thead>
+            <tbody data-ac-params></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn secondary sm" data-ac-add-param>{{ icon_plus(12) }} Add Param</button>
       </div>
-      <button type="button" class="btn secondary sm" data-ac-add-param>{{ icon_plus(12) }} Add Param</button>
 
-      <div class="ac-report-subhead">2. Request Headers</div>
-      <div class="ac-report-table-wrap">
-        <table class="ac-report-table">
-          <thead><tr><th>HEADER</th><th>VALUE</th><th class="ac-th-actions"></th></tr></thead>
-          <tbody data-ac-headers>
-            {% for key, value in current.headers %}
-            <tr data-ac-header-row>
-              <td><input class="ac-kv-key" data-ac-header-key placeholder="Key" value="{{ key }}"></td>
-              <td><input data-ac-header-value placeholder="Value" value="{{ value }}"></td>
-              <td class="ac-kv-actions">
-                <button type="button" class="btn act edit ac-sensitive-flag" data-ac-sensitive-toggle title="Mark sensitive &mdash; masked in exported images">{{ icon_lock(12) }}</button>
-                <button type="button" class="btn act remove" data-ac-remove-header title="Remove header" aria-label="Remove header">{{ icon_trash(12) }}</button>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div data-ac-section="headers" style="display:contents;">
+        <div class="ac-report-subhead">2. Request Headers</div>
+        <div class="ac-report-table-wrap">
+          <table class="ac-report-table">
+            <thead><tr><th>HEADER</th><th>VALUE</th><th class="ac-th-actions"></th></tr></thead>
+            <tbody data-ac-headers>
+              {% for key, value in current.headers %}
+              <tr data-ac-header-row>
+                <td><input class="ac-kv-key" data-ac-header-key placeholder="Key" value="{{ key }}"></td>
+                <td><input data-ac-header-value placeholder="Value" value="{{ value }}"></td>
+                <td class="ac-kv-actions">
+                  <button type="button" class="btn act edit ac-sensitive-flag" data-ac-sensitive-toggle title="Mark sensitive &mdash; masked in exported images">{{ icon_lock(12) }}</button>
+                  <button type="button" class="btn act remove" data-ac-remove-header title="Remove header" aria-label="Remove header">{{ icon_trash(12) }}</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="btn secondary sm" data-ac-add-header>{{ icon_plus(12) }} Add Header</button>
       </div>
-      <button type="button" class="btn secondary sm" data-ac-add-header>{{ icon_plus(12) }} Add Header</button>
 
-      <div class="ac-report-subhead">3. Request Body</div>
-      <div class="code-block ac-code-editor">
-        <div class="snippet-code ac-code-scroll">
-          <div class="snippet-gutter" data-ac-body-gutter><span>1</span></div>
-          <div class="ac-code-editor-inner">
-            <pre class="snippet-pre ac-code-overlay" data-ac-body-overlay aria-hidden="true"><code class="hljs"></code></pre>
-            <textarea class="ac-code-textarea" data-ac-body spellcheck="false" placeholder="Request body (raw)">{{ current.body }}</textarea>
+      <div data-ac-section="body" style="display:contents;">
+        <div class="ac-report-subhead">3. Request Body</div>
+        <div class="code-block ac-code-editor">
+          <div class="snippet-code ac-code-scroll">
+            <div class="snippet-gutter" data-ac-body-gutter><span>1</span></div>
+            <div class="ac-code-editor-inner">
+              <pre class="snippet-pre ac-code-overlay" data-ac-body-overlay aria-hidden="true"><code class="hljs"></code></pre>
+              <textarea class="ac-code-textarea" data-ac-body spellcheck="false" placeholder="Request body (raw)">{{ current.body }}</textarea>
+            </div>
           </div>
         </div>
       </div>
@@ -267,6 +273,25 @@
       <button class="btn secondary" type="button" data-modal-close>Close</button>
       <button class="btn secondary" type="button" data-ac-export-copy-again>Copy Again</button>
       <button class="btn lime" type="button" data-ac-export-download>Download PNG</button>
+    </div>
+  </div>
+</div>
+
+{# Built by hand, not the `modal` macro — no form to submit, just a code
+   block populated from JS once "View as cURL" is clicked. #}
+<div class="modal-backdrop" id="view-curl" data-modal hidden>
+  <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="view-curl-title">
+    <div class="modal-head">
+      <div class="modal-title" id="view-curl-title">cURL Snippet</div>
+      <div class="spacer"></div>
+      <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <pre class="snippet-pre"><code data-ac-curl-code></code></pre>
+    <div class="form-actions" style="justify-content: flex-end; margin-top: 14px;">
+      <button class="btn secondary" type="button" data-modal-close>Close</button>
+      <button class="btn lime" type="button" data-ac-curl-copy>Copy</button>
     </div>
   </div>
 </div>

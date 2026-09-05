@@ -43,10 +43,12 @@ def test_update_section1_fields(client):
     client.post("/settings/test-priorities", data={"name": "HIGH"})
     priority_page = client.get("/settings/test-priorities")
     priority_id = re.search(r'value="HIGH"[\s\S]*?/settings/test-priorities/(\d+)/delete', priority_page.text).group(1)
+    client.post("/settings/users", data={"name": "Jane Doe", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority_id": priority_id,
+            "tester_id": tester_id, "test_date": "2026-08-26", "test_priority_id": priority_id,
             "test_type_id": test_type_id, "channel": "Mobile App", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "msisdn: 62812", "status": "PASS",
@@ -55,10 +57,10 @@ def test_update_section1_fields(client):
     )
     assert response.status_code == 303
     page = client.get(f"/testcases/{testcase_id}/execute")
-    assert "Jane Doe" in page.text
     assert "PASS" in page.text
     assert f'value="{test_type_id}" selected' in page.text
     assert f'value="{priority_id}" selected' in page.text
+    assert f'value="{tester_id}" selected' in page.text
 
 
 def test_update_section1_status_in_progress(client):
@@ -66,7 +68,7 @@ def test_update_section1_status_in_progress(client):
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "2026-08-26",
+            "test_date": "2026-08-26",
             "channel": "Mobile App", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "", "status": "IN_PROGRESS",
@@ -148,7 +150,7 @@ def test_update_section1_sets_jira_fields(client, db_session):
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "2026-08-26",
+            "test_date": "2026-08-26",
             "channel": "Mobile App", "iteration": "3",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "", "status": "PASS",
@@ -210,7 +212,7 @@ def test_update_section1_jira_fields_are_optional(client):
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "",
+            "test_date": "",
             "channel": "", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "", "status": "TO_DO",

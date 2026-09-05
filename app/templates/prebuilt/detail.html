@@ -5,7 +5,7 @@
 <div class="crumbs"><a href="/prebuilt">Prebuilt</a><span class="sep">/</span>{{ prebuilt.name }}</div>
 
 <div class="page-head">
-  <div>
+  <div class="page-head-title">
     <h1 class="page-title">{{ prebuilt.name }}</h1>
     {% if prebuilt.description %}<div class="page-sub">{{ prebuilt.description }}</div>{% endif %}
     {% if prebuilt.service or prebuilt.test_type_ref or prebuilt.simulate_ref or prebuilt.remark %}
@@ -17,12 +17,13 @@
     </div>
     {% endif %}
   </div>
-  <div class="spacer"></div>
-  <a class="btn act edit" href="#" data-modal-open="edit-prebuilt" title="Edit template" aria-label="Edit template">{{ icon_pencil() }}</a>
-  <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
-        data-confirm="Delete this template?">
-    <button class="btn act remove" type="submit" title="Delete template" aria-label="Delete template">{{ icon_trash() }}</button>
-  </form>
+  <div class="page-head-actions">
+    <a class="btn act edit" href="#" data-modal-open="edit-prebuilt" title="Edit template" aria-label="Edit template">{{ icon_pencil() }}</a>
+    <form class="inline-form" method="post" action="/prebuilt/{{ prebuilt.id }}/delete"
+          data-confirm="Delete this template?">
+      <button class="btn act remove" type="submit" title="Delete template" aria-label="Delete template">{{ icon_trash() }}</button>
+    </form>
+  </div>
 </div>
 
 {% call modal('edit-prebuilt', 'Edit Template', '/prebuilt/' ~ prebuilt.id ~ '/edit') %}
