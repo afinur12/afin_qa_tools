@@ -100,3 +100,11 @@ def test_import_jira_json_404_for_missing_subtask(client):
     files = {"file": ("import.json", json.dumps({"test_cases": []}), "application/json")}
     response = client.post("/subtasks/999999/import-jira-json", files=files)
     assert response.status_code == 404
+
+
+def test_subtask_detail_shows_jira_sync_button_and_modal(client):
+    subtask_id = _create_subtask(client, "SND-9905")
+    page = client.get(f"/subtasks/{subtask_id}")
+    assert 'data-modal-open="jira-sync"' in page.text
+    assert f"/subtasks/{subtask_id}/export-jira-json" in page.text
+    assert f"/subtasks/{subtask_id}/import-jira-json" in page.text

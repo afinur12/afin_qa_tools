@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link, icon_sync with context %}
 {% block content %}
 
 <div class="crumbs">
@@ -27,6 +27,7 @@
     <h1 class="page-title">{{ subtask.title }}</h1>
   </div>
   <div class="spacer"></div>
+  <a class="btn act jira" href="#" data-modal-open="jira-sync" title="Sync with Jira" aria-label="Sync with Jira">{{ icon_sync() }}</a>
   <a class="btn act edit" href="/subtasks/{{ subtask.id }}/edit" data-modal-open="edit-subtask" title="Edit subtask" aria-label="Edit subtask">{{ icon_pencil() }}</a>
   <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/delete"
         data-confirm="Delete this subtask, and all of its test cases and bugs?">
@@ -42,6 +43,27 @@
      title="Download all docx (.zip)" aria-label="Download all docx as a zip">{{ icon_doc() }}</a>
   {% endif %}
 </div>
+
+{% call modal('jira-sync', 'Jira Sync', '/subtasks/' ~ subtask.id ~ '/import-jira-json', enctype='multipart/form-data') %}
+  <div class="field">
+    <label>Export</label>
+    <div class="muted" style="font-size:12.5px; margin-bottom:8px;">
+      Download this subtask's test cases as a Jira-ready JSON file for CodeBuddy.
+    </div>
+    <a class="btn secondary" href="/subtasks/{{ subtask.id }}/export-jira-json">Download JSON</a>
+  </div>
+  <div class="field" style="margin-top:20px;">
+    <label>Import</label>
+    <div class="muted" style="font-size:12.5px; margin-bottom:8px;">
+      Upload a Jira-sourced JSON file to create or update this subtask's test cases.
+    </div>
+    <input type="file" name="file" accept="application/json" required>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Upload</button>
+  </div>
+{% endcall %}
 
 {% call modal('export-subtask-json', 'Export Subtask as JSON', '/subtasks/' ~ subtask.id ~ '/export-json', method='get') %}
   <label class="choice">

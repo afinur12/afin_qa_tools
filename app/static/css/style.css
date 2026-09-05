@@ -427,6 +427,8 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .btn.act.export:hover  { background: #f8e6bf;     color: var(--warn); }
 .btn.act.docx    { background: var(--ink-inverse); color: #fff; }
 .btn.act.docx:hover    { background: #000;        color: #fff; }
+.btn.act.jira    { background: var(--progress-bg); color: var(--progress); }
+.btn.act.jira:hover    { background: #c7dbf7;     color: var(--progress); }
 
 /* A clickable row that also carries its own actions: the link fills the row,
    the buttons sit outside it (a form cannot be nested inside an anchor). */
