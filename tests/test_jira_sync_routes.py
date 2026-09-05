@@ -15,7 +15,7 @@ def _create_subtask(client, code="SND-9900"):
     return sub_resp.headers["location"].rstrip("/").split("/")[-1]
 
 
-def test_export_jira_json_returns_array_with_one_entry_per_testcase(client):
+def test_export_jira_json_returns_envelope_with_one_entry_per_testcase(client):
     subtask_id = _create_subtask(client, "SND-9901")
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "SND-10070", "title": "A"})
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "SND-10071", "title": "B"})
@@ -24,7 +24,78 @@ def test_export_jira_json_returns_array_with_one_entry_per_testcase(client):
     assert response.status_code == 200
     assert "application/json" in response.headers["content-type"]
     data = response.json()
-    assert [entry["issue_key"] for entry in data] == ["SND-10070", "SND-10071"]
+    assert data["parent_ticket"] == "SND-9901"
+    assert data["test_suite"] == "Subtask"
+    assert data["total_test_cases"] == 2
+    assert "parent_ticket_info" in data
+    assert [entry["issue_key"] for entry in data["test_cases"]] == ["SND-10070", "SND-10071"]
+
+
+def test_export_then_import_the_same_json_round_trips_end_to_end(client):
+    """Proves the real workflow this feature exists for: download an export,
+    upload that exact file into a different subtask, and it just works —
+    no manual re-wrapping needed, since export now produces the same
+    envelope shape import expects."""
+    source_id = _create_subtask(client, "SND-9906")
+    client.post(f"/subtasks/{source_id}/testcases", data={"display_code": "SND-20001", "title": "Round trip case"})
+
+    exported = client.get(f"/subtasks/{source_id}/export-jira-json").json()
+
+    target_id = _create_subtask(client, "SND-9907")
+    files = {"file": ("export.json", json.dumps(exported), "application/json")}
+    response = client.post(f"/subtasks/{target_id}/import-jira-json", files=files, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.cookies.get("flash_type") != "danger"
+
+    page = client.get(f"/subtasks/{target_id}")
+    assert "Round trip case" in page.text
+
+
+def test_import_tolerates_extra_top_level_keys_from_a_real_jira_read_file(client):
+    """A real file produced by an external Jira-read tool carries
+    parent_ticket/test_suite/total_test_cases alongside parent_ticket_info
+    and test_cases — the same 5 keys this app's own export now produces.
+    Import must not choke on the 3 keys it doesn't itself need."""
+    subtask_id = _create_subtask(client, "SND-9908")
+    payload = {
+        "parent_ticket": "SND-9908",
+        "test_suite": "SIT - Some Feature",
+        "total_test_cases": 1,
+        "parent_ticket_info": {
+            "assignee": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+            "developer": {"name": "Andi Tune", "username": "ADL.ANDIM"},
+            "tester": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+            "labels": ["SITScenario"],
+        },
+        "test_cases": [
+            {
+                "issue_key": "SND-30001",
+                "summary": "Imported from a real Jira-read file",
+                "category": "Positive",
+                "planned_cost": "0",
+                "actual_cost": "-",
+                "number_of_iteration": 0,
+                "msisdn": "MSISDN #A: 6285959097385",
+                "assignee": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+                "developer": {"name": "Andi Tune", "username": "ADL.ANDIM"},
+                "tester": {"name": "Andri Firman Nurvianto", "username": "ADL.ANDRIF"},
+                "zephyr_steps": [
+                    {"order_id": 1, "step_type": "PRE CONDITION", "step": "PRE CONDITION\r\n1. Ready", "expected_result": "Ready"},
+                    {"order_id": 2, "step_type": "MAIN TEST", "step": "MAIN TEST\r\n1. Do it", "expected_result": "Done"},
+                    {"order_id": 3, "step_type": "POST CONDITION", "step": "POST CONDITION\r\n1. Verify", "expected_result": "Verified"},
+                ],
+                "execution": {"execution_id": 999999, "status": "UNEXECUTED", "executed_on": None, "executed_by": None, "cycle_name": "SIT"},
+                "fields": {"description": "{{placeholder_description}}", "priority": {"name": "Highest"}, "labels": ["SITScenario"]},
+            },
+        ],
+    }
+    files = {"file": ("real-jira-read.json", json.dumps(payload), "application/json")}
+    response = client.post(f"/subtasks/{subtask_id}/import-jira-json", files=files, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.cookies.get("flash_type") != "danger"
+
+    page = client.get(f"/subtasks/{subtask_id}")
+    assert "Imported from a real Jira-read file" in page.text
 
 
 def test_export_jira_json_404_for_missing_subtask(client):

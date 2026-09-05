@@ -46,7 +46,7 @@
 
 {% call modal('jira-sync', 'Jira Sync', '/subtasks/' ~ subtask.id ~ '/import-jira-json', enctype='multipart/form-data') %}
   <div class="muted" style="font-size:12.5px; margin-bottom:14px;">
-    Export and Import use different file shapes for different tools — they are not a round-trip pair; do not upload a file you just downloaded from Export.
+    Export is meant for CodeBuddy (pushes updates to Jira) and Import is meant for a file read from Jira — but both share the same shape, so uploading an exported file works too (e.g. to copy test cases into another subtask). Fields Jira has no concept of, like a step's recorded actual result, won't carry over into a fresh destination.
   </div>
   <div class="field">
     <label>Export</label>
@@ -58,7 +58,7 @@
   <div class="field" style="margin-top:20px;">
     <label>Import</label>
     <div class="muted" style="font-size:12.5px; margin-bottom:8px;">
-      Upload a Jira-sourced JSON file to create or update this subtask's test cases.
+      Upload a Jira-sourced (or previously exported) JSON file to create or update this subtask's test cases.
     </div>
     <input type="file" name="file" accept="application/json" required>
   </div>

@@ -71,10 +71,14 @@ def _numbered_block(lines: list[str]) -> str:
     return "\r\n".join(f"{i}. {text}" for i, text in enumerate(lines, start=1))
 
 
-def _person(user: "User | None") -> dict | None:
+def _person(user: "User | None", field: str) -> dict:
+    """Always an object — never null — matching the reference template's
+    shape for assignee/developer/tester exactly (each is `{name, username}`
+    with placeholder markers standing in for whatever this app has no real
+    value for, same as every other field in this export)."""
     if user is None:
-        return None
-    return {"name": user.name, "username": user.jira_username or _placeholder("username")}
+        return {"name": _placeholder(f"{field}_display_name"), "username": _placeholder(f"{field}_username")}
+    return {"name": user.name, "username": user.jira_username or _placeholder(f"{field}_username")}
 
 
 # Jira's data model has exactly one Pre/Main/Post section each, unlike this
@@ -127,9 +131,9 @@ def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
             else _placeholder("number_of_iteration_value")
         ),
         "msisdn": testcase.msisdn or _placeholder("msisdn_value"),
-        "assignee": _person(testcase.assignee),
-        "developer": _person(testcase.developer),
-        "tester": _person(testcase.tester_user),
+        "assignee": _person(testcase.assignee, "assignee"),
+        "developer": _person(testcase.developer, "developer"),
+        "tester": _person(testcase.tester_user, "tester"),
         "zephyr_steps": [_zephyr_entry(section) for section in _first_section_per_kind(testcase.sections)],
         "execution": {
             "execution_id": testcase.jira_execution_id or _placeholder("execution_id_numeric_or_placeholder"),
@@ -146,8 +150,20 @@ def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
     }
 
 
-def subtask_to_jira_json(subtask: "Subtask", db: Session) -> list[dict]:
-    return [testcase_to_jira_dict(tc, db) for tc in subtask.testcases]
+def subtask_to_jira_json(subtask: "Subtask", db: Session) -> dict:
+    test_cases = [testcase_to_jira_dict(tc, db) for tc in subtask.testcases]
+    return {
+        "parent_ticket": subtask.display_code,
+        "test_suite": subtask.title,
+        "total_test_cases": len(test_cases),
+        "parent_ticket_info": {
+            "assignee": _person(subtask.assignee, "assignee"),
+            "developer": _person(subtask.developer, "developer"),
+            "tester": _person(subtask.tester_user, "tester"),
+            "labels": [l.name for l in get_labels(db, LabelAttachType.SUBTASK, subtask.id)],
+        },
+        "test_cases": test_cases,
+    }
 
 
 # ── Import: Jira JSON -> model ──────────────────────────────────────────

@@ -58,9 +58,9 @@ def test_export_blank_testcase_uses_placeholders_for_every_unset_field(db_sessio
     assert data["planned_cost"] == "{{placeholder_planned_cost_value}}"
     assert data["actual_cost"] == "{{placeholder_actual_cost_value}}"
     assert data["number_of_iteration"] == "{{placeholder_number_of_iteration_value}}"
-    assert data["assignee"] is None
-    assert data["developer"] is None
-    assert data["tester"] is None
+    assert data["assignee"] == {"name": "{{placeholder_assignee_display_name}}", "username": "{{placeholder_assignee_username}}"}
+    assert data["developer"] == {"name": "{{placeholder_developer_display_name}}", "username": "{{placeholder_developer_username}}"}
+    assert data["tester"] == {"name": "{{placeholder_tester_display_name}}", "username": "{{placeholder_tester_username}}"}
     assert data["execution"]["status"] == "UNEXECUTED"
     assert data["execution"]["execution_id"] == "{{placeholder_execution_id_numeric_or_placeholder}}"
     assert data["fields"]["labels"] == []
@@ -116,14 +116,21 @@ def test_export_concatenates_steps_into_one_numbered_zephyr_entry(db_session):
     assert pre_entry["step"] == "{{placeholder_precondition_step}}"
 
 
-def test_subtask_to_jira_json_returns_one_entry_per_testcase_in_order(db_session):
+def test_subtask_to_jira_json_returns_envelope_with_one_entry_per_testcase_in_order(db_session):
     subtask = _make_subtask(db_session, code="SND-9877")
     _make_testcase(db_session, subtask, code="SND-10058")
     _make_testcase(db_session, subtask, code="SND-10059")
     db_session.commit()
 
     result = subtask_to_jira_json(subtask, db_session)
-    assert [entry["issue_key"] for entry in result] == ["SND-10058", "SND-10059"]
+    assert result["parent_ticket"] == "SND-9877"
+    assert result["test_suite"] == "SIT Subtask"
+    assert result["total_test_cases"] == 2
+    assert result["parent_ticket_info"]["assignee"] == {
+        "name": "{{placeholder_assignee_display_name}}", "username": "{{placeholder_assignee_username}}",
+    }
+    assert result["parent_ticket_info"]["labels"] == []
+    assert [entry["issue_key"] for entry in result["test_cases"]] == ["SND-10058", "SND-10059"]
 
 
 import pytest
@@ -258,7 +265,7 @@ def test_export_then_import_round_trips_steps(db_session):
 
     exported = subtask_to_jira_json(subtask, db_session)
     other_subtask = _make_subtask(db_session, code="SND-9884")
-    apply_jira_json_to_subtask(db_session, other_subtask, {"test_cases": exported})
+    apply_jira_json_to_subtask(db_session, other_subtask, exported)
     db_session.commit()
 
     imported_tc = next(tc for tc in other_subtask.testcases if tc.display_code == "SND-10063")
