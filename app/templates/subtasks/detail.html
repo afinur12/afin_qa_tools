@@ -45,6 +45,9 @@
 </div>
 
 {% call modal('jira-sync', 'Jira Sync', '/subtasks/' ~ subtask.id ~ '/import-jira-json', enctype='multipart/form-data') %}
+  <div class="muted" style="font-size:12.5px; margin-bottom:14px;">
+    Export and Import use different file shapes for different tools — they are not a round-trip pair; do not upload a file you just downloaded from Export.
+  </div>
   <div class="field">
     <label>Export</label>
     <div class="muted" style="font-size:12.5px; margin-bottom:8px;">

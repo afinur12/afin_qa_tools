@@ -287,14 +287,19 @@ def test_import_zephyr_entry_with_placeholder_step_keeps_real_expected_result(db
     db_session.commit()
 
     db_session.refresh(main_section)
-    assert [s.step_text for s in main_section.steps] == ["", ""]
+    # step_text is preserved by position from the old row: position 0 keeps
+    # "Old step" (the only old row that existed); position 1 has no old row
+    # to preserve so it comes back blank.
+    assert [s.step_text for s in main_section.steps] == ["Old step", ""]
     assert [s.expected_result for s in main_section.steps] == ["A happens", "B happens"]
 
 
 def test_import_zephyr_entry_with_placeholder_expected_result_keeps_real_step(db_session):
-    # Companion test for the already-working direction: real `step`,
-    # placeholder `expected_result` -> real step text survives, expected
-    # result comes back blank.
+    # Companion test, symmetric with the one above: real `step`, placeholder
+    # `expected_result` -> real step text is written, and expected_result is
+    # preserved BY POSITION from the old row (not blanked) — this is Bug 3
+    # from the final whole-branch review: the mirror direction used to blank
+    # expected_result to "" instead of preserving it.
     subtask = _make_subtask(db_session, code="SND-9886")
     testcase = _make_testcase(db_session, subtask, code="SND-10065")
     main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
@@ -311,4 +316,137 @@ def test_import_zephyr_entry_with_placeholder_expected_result_keeps_real_step(db
 
     db_session.refresh(main_section)
     assert [s.step_text for s in main_section.steps] == ["Do A", "Do B"]
-    assert [s.expected_result for s in main_section.steps] == ["", ""]
+    assert [s.expected_result for s in main_section.steps] == ["Old result", ""]
+
+
+def test_import_zephyr_entry_always_preserves_actual_result_by_position(db_session):
+    # Regression (Bug 2, final whole-branch review): export never carries
+    # actual_result (Jira's schema has no field for it), and the old code
+    # ALWAYS wrote "" for it on import — silently wiping every
+    # tester-recorded actual_result on any section an import touched, even
+    # when the step/expected_result content was otherwise real and unrelated.
+    subtask = _make_subtask(db_session, code="SND-9887")
+    testcase = _make_testcase(db_session, subtask, code="SND-10066")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=1, step_text="Old step", expected_result="Old result", actual_result="Recorded by tester"))
+    db_session.commit()
+
+    entry = _base_test_case_entry(issue_key="SND-10066")  # real step + expected_result content
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(main_section)
+    assert [s.step_text for s in main_section.steps] == ["Do A", "Do B"]
+    assert [s.expected_result for s in main_section.steps] == ["A happens", "B happens"]
+    assert [s.actual_result for s in main_section.steps] == ["Recorded by tester", ""]
+
+
+def test_import_zephyr_entry_with_matching_step_counts_preserves_expected_result_cleanly(db_session):
+    # A cleaner companion to the placeholder-expected_result test above:
+    # same old-step count as new-step count, so the "preserve by position"
+    # behavior reads unambiguously for every position, not just the first.
+    subtask = _make_subtask(db_session, code="SND-9888")
+    testcase = _make_testcase(db_session, subtask, code="SND-10067")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=1, step_text="Old A", expected_result="Old expected A", actual_result=""))
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=2, step_text="Old B", expected_result="Old expected B", actual_result=""))
+    db_session.commit()
+
+    entry = _base_test_case_entry(issue_key="SND-10067", zephyr_steps=[
+        {"order_id": 1, "step_type": "PRE CONDITION", "step": "{{placeholder_pre_condition_step}}", "expected_result": "{{placeholder_pre_condition_expected}}"},
+        {"order_id": 2, "step_type": "MAIN TEST", "step": "MAIN TEST\r\n1. New A\r\n2. New B", "expected_result": "{{placeholder_main_test_expected}}"},
+        {"order_id": 3, "step_type": "POST CONDITION", "step": "{{placeholder_post_condition_step}}", "expected_result": "{{placeholder_post_condition_expected}}"},
+    ])
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(main_section)
+    assert [s.step_text for s in main_section.steps] == ["New A", "New B"]
+    assert [s.expected_result for s in main_section.steps] == ["Old expected A", "Old expected B"]
+
+
+def test_import_over_section_with_screenshot_cleans_up_instead_of_crashing(db_session):
+    # Regression (Bug 1, final whole-branch review, Critical): _apply_zephyr_
+    # entry used to call db.delete(step) directly, bypassing
+    # app.deletion.delete_step's screenshot cleanup. Importing over a section
+    # whose step has a Screenshot child row raised an uncaught IntegrityError
+    # (NOT NULL constraint on screenshots.step_id), which propagated past the
+    # route's `except ValueError` as an unhandled 500, and left the
+    # screenshot's file orphaned on disk.
+    from app.models import Screenshot
+    from app.routers.screenshots import UPLOADS_DIR
+
+    subtask = _make_subtask(db_session, code="SND-9889")
+    testcase = _make_testcase(db_session, subtask, code="SND-10068")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    step = TestCaseStep(section_id=main_section.id, step_no=1, step_text="Old step", expected_result="Old result", actual_result="")
+    db_session.add(step)
+    db_session.commit()
+
+    relative_path = f"screenshots/jira_io_test/{testcase.id}_{step.id}.png"
+    disk_path = UPLOADS_DIR / relative_path
+    disk_path.parent.mkdir(parents=True, exist_ok=True)
+    disk_path.write_bytes(b"fake-image-bytes")
+    screenshot = Screenshot(step_id=step.id, file_path=relative_path)
+    db_session.add(screenshot)
+    db_session.commit()
+    screenshot_id = screenshot.id
+
+    entry = _base_test_case_entry(issue_key="SND-10068")
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})  # must not raise
+    db_session.commit()
+
+    assert db_session.get(Screenshot, screenshot_id) is None
+    assert not disk_path.exists()
+
+
+def test_export_repeated_section_kind_emits_only_first_section_of_that_kind(db_session):
+    # Regression (Bug 4, final whole-branch review): a TestCase can have more
+    # than one section of the same `kind` (a real, existing local feature —
+    # see TestCaseSection's docstring), but Jira has no equivalent. Exporting
+    # every section used to emit two "MAIN TEST" entries sharing the same
+    # order_id/step_type — malformed/ambiguous output.
+    subtask = _make_subtask(db_session, code="SND-9890")
+    testcase = _make_testcase(db_session, subtask, code="SND-10069")
+    extra_main = TestCaseSection(testcase_id=testcase.id, kind=next(s.kind for s in testcase.sections if s.kind.value == "MAIN"), position=99)
+    db_session.add(extra_main)
+    db_session.flush()
+    db_session.expire(testcase, ["sections"])
+    main_sections = [s for s in testcase.sections if s.kind.value == "MAIN"]
+    assert len(main_sections) == 2
+    db_session.add(TestCaseStep(section_id=main_sections[0].id, step_no=1, step_text="First main", expected_result="e1", actual_result=""))
+    db_session.add(TestCaseStep(section_id=main_sections[1].id, step_no=1, step_text="Second main", expected_result="e2", actual_result=""))
+    db_session.commit()
+
+    data = dump_testcase_jira(testcase, db_session)
+    main_entries = [z for z in data["zephyr_steps"] if z["step_type"] == "MAIN TEST"]
+    assert len(main_entries) == 1
+    assert "First main" in main_entries[0]["step"]
+    assert "Second main" not in main_entries[0]["step"]
+
+
+def test_import_repeated_section_kind_touches_only_first_section_of_that_kind(db_session):
+    # Regression (Bug 4): matching by step_type alone made `next(...)` return
+    # the SAME first matching zephyr_steps entry for every section of that
+    # kind, so a second MAIN section got silently overwritten with the FIRST
+    # MAIN section's content, discarding whatever was actually there.
+    subtask = _make_subtask(db_session, code="SND-9891")
+    testcase = _make_testcase(db_session, subtask, code="SND-10070")
+    extra_main = TestCaseSection(testcase_id=testcase.id, kind=next(s.kind for s in testcase.sections if s.kind.value == "MAIN"), position=99)
+    db_session.add(extra_main)
+    db_session.flush()
+    db_session.expire(testcase, ["sections"])
+    main_sections = [s for s in testcase.sections if s.kind.value == "MAIN"]
+    db_session.add(TestCaseStep(section_id=main_sections[0].id, step_no=1, step_text="First old", expected_result="e1", actual_result=""))
+    db_session.add(TestCaseStep(section_id=main_sections[1].id, step_no=1, step_text="Second old", expected_result="e2", actual_result=""))
+    db_session.commit()
+
+    entry = _base_test_case_entry(issue_key="SND-10070")  # one MAIN TEST entry: "Do A" / "Do B"
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(main_sections[0])
+    db_session.refresh(main_sections[1])
+    assert [s.step_text for s in main_sections[0].steps] == ["Do A", "Do B"]
+    assert [s.step_text for s in main_sections[1].steps] == ["Second old"]
+    assert [s.expected_result for s in main_sections[1].steps] == ["e2"]

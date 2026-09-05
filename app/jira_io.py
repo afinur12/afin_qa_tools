@@ -21,6 +21,7 @@ import re
 
 from sqlalchemy.orm import Session
 
+from app import deletion
 from app.labels import get_labels, set_labels
 from app.master_data import get_or_create
 from app.models import (
@@ -76,6 +77,12 @@ def _person(user: "User | None") -> dict | None:
     return {"name": user.name, "username": user.jira_username or _placeholder("username")}
 
 
+# Jira's data model has exactly one Pre/Main/Post section each, unlike this
+# app where a TestCase can hold multiple sections of the same `kind` (see
+# TestCaseSection's own docstring in app/models.py). So Jira Sync — in both
+# directions — only ever looks at the FIRST section of each kind, in
+# testcase.sections' existing position order. Any additional section of a
+# kind already seen is local-only: never exported, never touched on import.
 def _zephyr_entry(section: "TestCaseSection") -> dict:
     label = _SECTION_LABEL[section.kind]
     steps = section.steps
@@ -94,6 +101,19 @@ def _zephyr_entry(section: "TestCaseSection") -> dict:
     }
 
 
+def _first_section_per_kind(sections: list["TestCaseSection"]) -> list["TestCaseSection"]:
+    """First section of each kind, in position order — see the comment above
+    _zephyr_entry for why repeats beyond the first are excluded."""
+    seen = set()
+    result = []
+    for section in sections:
+        if section.kind in seen:
+            continue
+        seen.add(section.kind)
+        result.append(section)
+    return result
+
+
 def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
     labels = [l.name for l in get_labels(db, LabelAttachType.TESTCASE, testcase.id)]
     return {
@@ -110,7 +130,7 @@ def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
         "assignee": _person(testcase.assignee),
         "developer": _person(testcase.developer),
         "tester": _person(testcase.tester_user),
-        "zephyr_steps": [_zephyr_entry(section) for section in testcase.sections],
+        "zephyr_steps": [_zephyr_entry(section) for section in _first_section_per_kind(testcase.sections)],
         "execution": {
             "execution_id": testcase.jira_execution_id or _placeholder("execution_id_numeric_or_placeholder"),
             "status": _STATUS_TO_JIRA[testcase.status],
@@ -169,25 +189,57 @@ def _resolve_person_id(db: Session, entry: dict, key: str, user_type: "UserType"
 
 
 def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) -> None:
+    """Replace a section's steps from one Jira zephyr_steps entry.
+
+    Jira never supplies actual_result at all, and either side (step text or
+    expected result) may be a placeholder marker meaning "nothing real here".
+    In both cases the OLD row's value at that same position is preserved
+    rather than blanked to "" — matching this module's own placeholder rule
+    (see the module docstring): a placeholder must never overwrite real data
+    already recorded locally, and a field Jira has no concept of at all
+    (actual_result) must never be touched by an import.
+    """
     step_text = entry.get("step", "")
     expected_text = entry.get("expected_result", "")
     if _is_placeholder(step_text) and _is_placeholder(expected_text):
         return  # nothing real in this section's entry — leave existing steps alone
 
-    body = step_text.split("\r\n", 1)[1] if "\r\n" in step_text and not _is_placeholder(step_text) else ""
-    step_lines = _split_numbered_block(body)
-    expected_lines = _split_numbered_block(expected_text if not _is_placeholder(expected_text) else "")
+    old_steps = list(section.steps)
 
-    for step in list(section.steps):
-        db.delete(step)
+    if _is_placeholder(step_text):
+        step_lines = None  # no real step data supplied — preserve old step_text by position
+    else:
+        body = step_text.split("\r\n", 1)[1] if "\r\n" in step_text else ""
+        step_lines = _split_numbered_block(body)
+
+    expected_lines = None if _is_placeholder(expected_text) else _split_numbered_block(expected_text)
+
+    step_count = len(step_lines) if step_lines is not None else len(old_steps)
+    expected_count = len(expected_lines) if expected_lines is not None else len(old_steps)
+    count = max(step_count, expected_count)
+
+    new_rows = []
+    for i in range(count):
+        old = old_steps[i] if i < len(old_steps) else None
+        if step_lines is not None:
+            step_value = step_lines[i] if i < len(step_lines) else ""
+        else:
+            step_value = old.step_text if old else ""
+        if expected_lines is not None:
+            expected_value = expected_lines[i] if i < len(expected_lines) else ""
+        else:
+            expected_value = old.expected_result if old else ""
+        actual_value = old.actual_result if old else ""
+        new_rows.append((step_value, expected_value, actual_value))
+
+    for step in old_steps:
+        deletion.delete_step(db, step)
     db.flush()
-    for i in range(max(len(step_lines), len(expected_lines))):
+    for i, (step_value, expected_value, actual_value) in enumerate(new_rows):
         db.add(
             TestCaseStep(
                 section_id=section.id, step_no=i + 1,
-                step_text=step_lines[i] if i < len(step_lines) else "",
-                expected_result=expected_lines[i] if i < len(expected_lines) else "",
-                actual_result="",
+                step_text=step_value, expected_result=expected_value, actual_result=actual_value,
             )
         )
 
@@ -216,15 +268,31 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
     testcase.developer_id = _resolve_person_id(db, entry, "developer", UserType.DEVELOPER, testcase.developer_id)
     testcase.tester_id = _resolve_person_id(db, entry, "tester", UserType.TESTER, testcase.tester_id)
 
+    zephyr_steps = entry.get("zephyr_steps") or []
+    if not isinstance(zephyr_steps, list):
+        raise ValueError('"zephyr_steps" must be a list.')
+    # Only the FIRST section of each kind is ever touched by an import — see
+    # the comment above _zephyr_entry for why (Jira has no equivalent of a
+    # repeated section kind). Sections beyond the first of their kind are
+    # skipped entirely and left completely untouched.
+    applied_kinds = set()
     for section in testcase.sections:
+        if section.kind in applied_kinds:
+            continue
+        applied_kinds.add(section.kind)
         matching = next(
-            (z for z in entry.get("zephyr_steps") or [] if z.get("step_type") == _SECTION_LABEL[section.kind]),
+            (
+                z for z in zephyr_steps
+                if isinstance(z, dict) and z.get("step_type") == _SECTION_LABEL[section.kind]
+            ),
             None,
         )
         if matching is not None:
             _apply_zephyr_entry(db, section, matching)
 
     execution = entry.get("execution") or {}
+    if not isinstance(execution, dict):
+        raise ValueError('"execution" must be a JSON object.')
     status_raw = execution.get("status")
     if status_raw and not _is_placeholder(status_raw) and status_raw in _JIRA_TO_STATUS:
         testcase.status = _JIRA_TO_STATUS[status_raw]
@@ -233,8 +301,12 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
         testcase.jira_execution_id = None if exec_id is None else str(exec_id)
 
     fields = entry.get("fields") or {}
+    if not isinstance(fields, dict):
+        raise ValueError('"fields" must be a JSON object.')
     testcase.remark = _resolve(fields, "description", testcase.remark)
     priority = fields.get("priority") or {}
+    if not isinstance(priority, dict):
+        raise ValueError('"fields.priority" must be a JSON object.')
     testcase.test_priority = _resolve(priority, "name", testcase.test_priority)
 
     if "labels" in fields:
@@ -249,6 +321,8 @@ def apply_jira_json_to_subtask(db: Session, subtask: "Subtask", data: dict) -> "
         raise ValueError('Missing "test_cases" list.')
 
     parent_info = data.get("parent_ticket_info") or {}
+    if not isinstance(parent_info, dict):
+        raise ValueError('"parent_ticket_info" must be a JSON object.')
     subtask.assignee_id = _resolve_person_id(db, parent_info, "assignee", UserType.TESTER, subtask.assignee_id)
     subtask.developer_id = _resolve_person_id(db, parent_info, "developer", UserType.DEVELOPER, subtask.developer_id)
     subtask.tester_id = _resolve_person_id(db, parent_info, "tester", UserType.TESTER, subtask.tester_id)
@@ -256,6 +330,8 @@ def apply_jira_json_to_subtask(db: Session, subtask: "Subtask", data: dict) -> "
         _apply_labels(db, LabelAttachType.SUBTASK, subtask.id, parent_info.get("labels") or [])
 
     for entry in test_cases:
+        if not isinstance(entry, dict):
+            raise ValueError("Each test case entry must be a JSON object.")
         issue_key = entry.get("issue_key")
         if not issue_key:
             raise ValueError('Each test case entry needs an "issue_key".')

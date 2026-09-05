@@ -96,6 +96,50 @@ def test_import_jira_json_flashes_error_on_missing_test_cases_key(client):
     assert response.cookies.get("flash_type") == "danger"
 
 
+def test_import_jira_json_flashes_error_when_test_case_entry_is_not_an_object(client):
+    # Regression (Bug 5, final whole-branch review): well-formed JSON with the
+    # wrong internal shape (a list of strings instead of objects) used to
+    # crash with an uncaught AttributeError (entry.get(...) on a str) -> 500.
+    subtask_id = _create_subtask(client, "SND-9906")
+    files = {"file": ("import.json", json.dumps({"test_cases": ["oops"]}), "application/json")}
+    response = client.post(f"/subtasks/{subtask_id}/import-jira-json", files=files, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.cookies.get("flash_type") == "danger"
+
+
+def test_import_jira_json_flashes_error_when_zephyr_steps_is_not_a_list(client):
+    # Regression (Bug 5): a malformed nested value inside an otherwise-valid
+    # entry (zephyr_steps as a plain string) used to crash instead of
+    # producing a graceful flash message.
+    subtask_id = _create_subtask(client, "SND-9907")
+    payload = {
+        "test_cases": [
+            {"issue_key": "SND-10090", "summary": "Bad shape", "zephyr_steps": "not-a-list"},
+        ],
+    }
+    files = {"file": ("import.json", json.dumps(payload), "application/json")}
+    response = client.post(f"/subtasks/{subtask_id}/import-jira-json", files=files, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.cookies.get("flash_type") == "danger"
+
+
+def test_import_jira_json_does_not_crash_when_a_zephyr_step_entry_is_a_string(client):
+    # Regression (Bug 5): a zephyr_steps list whose entries are strings
+    # instead of objects used to crash on z.get(...) -> 500. A non-object
+    # entry is simply skipped (it can never match a step_type), so this
+    # succeeds rather than flashing an error — the point is that it must not
+    # crash.
+    subtask_id = _create_subtask(client, "SND-9908")
+    payload = {
+        "test_cases": [
+            {"issue_key": "SND-10091", "summary": "Bad shape", "zephyr_steps": ["not-an-object"]},
+        ],
+    }
+    files = {"file": ("import.json", json.dumps(payload), "application/json")}
+    response = client.post(f"/subtasks/{subtask_id}/import-jira-json", files=files, follow_redirects=False)
+    assert response.status_code == 303
+
+
 def test_import_jira_json_404_for_missing_subtask(client):
     files = {"file": ("import.json", json.dumps({"test_cases": []}), "application/json")}
     response = client.post("/subtasks/999999/import-jira-json", files=files)
