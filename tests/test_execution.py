@@ -135,3 +135,39 @@ def test_testcase_create_form_does_not_collect_assignee_tester_developer(client)
     # nothing to assert on testcases/form.html itself since it never
     # collected them even before this task (only display_code/title/
     # prebuilt_id), so there's no regression risk to check there.
+
+
+def test_update_section1_sets_jira_fields(client):
+    testcase_id = _create_testcase(client, "EX-404")
+    response = client.post(
+        f"/testcases/{testcase_id}/section1",
+        data={
+            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority": "High",
+            "channel": "Mobile App", "iteration": "1",
+            "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
+            "remark": "", "data_test": "", "status": "PASS",
+            "category": "Positive", "msisdn": "MSISDN #A: 62812", "planned_cost": "0",
+            "actual_cost": "0", "number_of_iteration": "3",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    assert "Positive" in page.text
+    assert "62812" in page.text
+    assert 'value="3"' in page.text
+
+
+def test_update_section1_jira_fields_are_optional(client):
+    testcase_id = _create_testcase(client, "EX-405")
+    response = client.post(
+        f"/testcases/{testcase_id}/section1",
+        data={
+            "tester": "Jane Doe", "test_date": "", "test_priority": "",
+            "channel": "", "iteration": "1",
+            "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
+            "remark": "", "data_test": "", "status": "TO_DO",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303

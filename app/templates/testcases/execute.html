@@ -160,6 +160,17 @@
       <div class="field"><label>Usage</label><input name="usage" value="{{ testcase.usage }}"></div>
 
       <div class="field">
+        <label>Category</label>
+        <select name="category">
+          <option value="">&mdash;</option>
+          {% for c in categories %}<option value="{{ c.value }}" {% if testcase.category == c %}selected{% endif %}>{{ c.value }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Planned Cost</label><input name="planned_cost" value="{{ testcase.planned_cost or '' }}"></div>
+      <div class="field"><label>Actual Cost</label><input name="actual_cost" value="{{ testcase.actual_cost or '' }}"></div>
+      <div class="field"><label># Iterations</label><input type="number" name="number_of_iteration" value="{{ testcase.number_of_iteration if testcase.number_of_iteration is not none else '' }}"></div>
+
+      <div class="field">
         <label>Final Status</label>
         <select name="status">
           {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
@@ -171,6 +182,11 @@
     <div class="field">
       <label>Data Test</label>
       <textarea name="data_test" rows="3" placeholder="One item per line — each line exports as a bullet">{{ testcase.data_test or '' }}</textarea>
+    </div>
+
+    <div class="field">
+      <label>MSISDN</label>
+      <textarea name="msisdn" rows="2" placeholder="e.g. MSISDN #A: 62812...">{{ testcase.msisdn or '' }}</textarea>
     </div>
 
     <div class="field">

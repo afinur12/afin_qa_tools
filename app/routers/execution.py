@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templating import templates
-from app.models import SECTION_LABELS, LabelAttachType, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
+from app.models import SECTION_LABELS, LabelAttachType, StepSection, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
 from app.labels import get_labels, set_labels
 from app.routers.stories import _parse_id, _user_dropdowns
 
@@ -18,6 +18,7 @@ def _render_execute(request: Request, testcase: TestCase, db: Session, error: st
         {
             "testcase": testcase,
             "statuses": list(TestCaseStatus),
+            "categories": list(TestCaseCategory),
             "section_kinds": list(StepSection),
             "section_labels": SECTION_LABELS,
             "test_types": db.query(TestType).order_by(TestType.name).all(),
@@ -62,6 +63,11 @@ def update_section1(
     tester_id: str = Form(""),
     developer_id: str = Form(""),
     label_ids: list[int] = Form([]),
+    category: str = Form(""),
+    msisdn: str = Form(""),
+    planned_cost: str = Form(""),
+    actual_cost: str = Form(""),
+    number_of_iteration: str = Form(""),
     db: Session = Depends(get_db),
 ):
     testcase = db.get(TestCase, testcase_id)
@@ -85,6 +91,14 @@ def update_section1(
     testcase.tester_id = _parse_id(tester_id)
     testcase.developer_id = _parse_id(developer_id)
     set_labels(db, LabelAttachType.TESTCASE, testcase.id, label_ids)
+    try:
+        testcase.category = TestCaseCategory(category) if category.strip() else None
+    except ValueError:
+        return _render_execute(request, testcase, db, error="Invalid category.", status_code=422)
+    testcase.msisdn = msisdn or None
+    testcase.planned_cost = planned_cost or None
+    testcase.actual_cost = actual_cost or None
+    testcase.number_of_iteration = int(number_of_iteration) if number_of_iteration.strip().isdecimal() else None
 
     try:
         status_enum = TestCaseStatus(status)
