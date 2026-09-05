@@ -235,3 +235,45 @@ def test_migrate_testcase_tester_does_not_overwrite_an_already_set_fk(db_session
     db_session.refresh(tc)
 
     assert tc.tester_id == other_user.id, "a row that already has its FK set must not be re-derived from stale free text"
+
+
+def test_migrate_testcase_tester_does_not_restore_a_deliberately_cleared_fk(db_session):
+    """Simulates an app restart after a user clears Section 1's Tester
+    dropdown back to blank: the legacy `tester` text column is untouched,
+    so a naive `tester_id IS NULL` migration would silently re-derive and
+    restore the old value. Once a row has been considered (tester_migrated),
+    it must never be reconsidered, even if tester_id later goes back to
+    None."""
+    from app.models import Phase, PhaseType, Story, Subtask, SubtaskType
+
+    story = Story(display_code="EX-73", title="A", internal_key="k80")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k81", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k82",
+                   tester="Legacy Name")
+    db_session.add(tc)
+    db_session.commit()
+
+    # First run (e.g. first startup after the FK column was introduced):
+    # backfills tester_id from the legacy text, same as any fresh migration.
+    migrate_testcase_tester_to_user(db_session)
+    db_session.refresh(tc)
+    assert tc.tester_id is not None
+
+    # The user then deliberately clears the Tester dropdown on Section 1's
+    # edit form. The legacy `tester` column is never touched by that edit.
+    tc.tester_id = None
+    db_session.commit()
+
+    # Simulates the next app restart re-running the migration.
+    migrate_testcase_tester_to_user(db_session)
+    db_session.refresh(tc)
+
+    assert tc.tester_id is None, "a deliberately cleared tester_id must not be resurrected from stale legacy text"

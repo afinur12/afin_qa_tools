@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -180,6 +180,12 @@ class TestCase(Base):
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     tester_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     developer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # Set once the legacy `tester` text has been considered for backfilling
+    # tester_id (whether or not a match was actually found) — see
+    # migrate_testcase_tester_to_user in app/master_data.py. Without this,
+    # a user deliberately clearing tester_id back to None would have it
+    # silently restored from the untouched `tester` column on every restart.
+    tester_migrated: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
     test_type_ref: Mapped["TestType | None"] = relationship("TestType")

@@ -23,6 +23,7 @@ ensure_columns("stories", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "de
 ensure_columns("subtasks", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
 ensure_columns("testcases", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
 ensure_columns("bugs", {"assignee_id": "INTEGER", "tester_id": "INTEGER", "developer_id": "INTEGER"})
+ensure_columns("testcases", {"tester_migrated": "BOOLEAN"})
 # service_name was briefly named "category"; carry over any values already saved under that name.
 backfill_column("prebuilt_testcases", dest="service_name", src="category")
 # Note replaces the curl-only CurlCollection; carry over anything already saved there.

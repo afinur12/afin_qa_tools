@@ -70,10 +70,22 @@ def migrate_testcase_tester_to_user(db: Session) -> None:
     free-text tester column. Kept separate from migrate_free_text_to_master
     / _migrate_column above: those assume a bare (id, name) master model,
     but User also needs `type` set on creation, which get_or_create's
-    extra_fields now supports directly."""
-    rows = db.query(TestCase).filter(TestCase.tester_id.is_(None)).all()
+    extra_fields now supports directly.
+
+    Gated on `tester_migrated` rather than `tester_id IS NULL`: unlike the
+    *_id columns _migrate_column backfills, tester_id is user-editable after
+    the fact (Section 1's edit form lets someone clear it back to blank).
+    Gating on tester_id being NULL would silently restore the old free-text
+    value from the still-untouched `tester` column on every app restart,
+    undoing a deliberate edit. tester_migrated is set on every row this
+    function considers, whether or not a match was found, so each row is
+    looked at at most once, ever.
+    """
+    rows = db.query(TestCase).filter(TestCase.tester_migrated.isnot(True)).all()
     for row in rows:
-        user = get_or_create(db, User, row.tester, type=UserType.TESTER)
-        if user is not None:
-            row.tester_id = user.id
+        if row.tester_id is None:
+            user = get_or_create(db, User, row.tester, type=UserType.TESTER)
+            if user is not None:
+                row.tester_id = user.id
+        row.tester_migrated = True
     db.commit()
