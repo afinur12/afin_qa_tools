@@ -40,10 +40,13 @@ def test_update_section1_fields(client):
     testcase_id = _create_testcase(client, "EX-402")
     client.post("/settings/test-types", data={"name": "Functional"})
     test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
+    client.post("/settings/test-priorities", data={"name": "HIGH"})
+    priority_page = client.get("/settings/test-priorities")
+    priority_id = re.search(r'value="HIGH"[\s\S]*?/settings/test-priorities/(\d+)/delete', priority_page.text).group(1)
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority": "High",
+            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority_id": priority_id,
             "test_type_id": test_type_id, "channel": "Mobile App", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "msisdn: 62812", "status": "PASS",
@@ -55,6 +58,7 @@ def test_update_section1_fields(client):
     assert "Jane Doe" in page.text
     assert "PASS" in page.text
     assert f'value="{test_type_id}" selected' in page.text
+    assert f'value="{priority_id}" selected' in page.text
 
 
 def test_update_section1_status_in_progress(client):
@@ -62,7 +66,7 @@ def test_update_section1_status_in_progress(client):
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority": "High",
+            "tester": "Jane Doe", "test_date": "2026-08-26",
             "channel": "Mobile App", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "", "status": "IN_PROGRESS",
@@ -137,25 +141,68 @@ def test_testcase_create_form_does_not_collect_assignee_tester_developer(client)
     # prebuilt_id), so there's no regression risk to check there.
 
 
-def test_update_section1_sets_jira_fields(client):
+def test_update_section1_sets_jira_fields(client, db_session):
+    from app.models import TestCase
+
     testcase_id = _create_testcase(client, "EX-404")
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority": "High",
-            "channel": "Mobile App", "iteration": "1",
+            "tester": "Jane Doe", "test_date": "2026-08-26",
+            "channel": "Mobile App", "iteration": "3",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "", "status": "PASS",
-            "category": "Positive", "msisdn": "MSISDN #A: 62812", "planned_cost": "0",
-            "actual_cost": "0", "number_of_iteration": "3",
+            "msisdn": "MSISDN #A: 62812", "planned_cost": "0",
+            "actual_cost": "0",
         },
         follow_redirects=False,
     )
     assert response.status_code == 303
     page = client.get(f"/testcases/{testcase_id}/execute")
-    assert "Positive" in page.text
     assert "62812" in page.text
     assert 'value="3"' in page.text
+
+    # A single "Iteration" field feeds both the docx-facing string column
+    # and Jira Sync's numeric one.
+    tc = db_session.get(TestCase, int(testcase_id))
+    assert tc.iteration == "3"
+    assert tc.number_of_iteration == 3
+
+
+def _make_prebuilt_with_step(client, name, step_text="Enter amount"):
+    resp = client.post("/prebuilt", data={"name": name, "description": "d"}, follow_redirects=False)
+    prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
+    section = re.findall(r"/sections/(\d+)/delete", client.get(f"/prebuilt/{prebuilt_id}").text)[1]
+    client.post(f"/prebuilt/{prebuilt_id}/sections/{section}/steps",
+                data={"step_text": step_text, "expected_result": "Accepted"})
+    return prebuilt_id
+
+
+def test_copy_from_prebuilt_replaces_existing_steps(client):
+    testcase_id = _create_testcase(client, "EX-406")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "old step", "expected_result": "e", "actual_result": "a"})
+    prebuilt_id = _make_prebuilt_with_step(client, "Copy source", "new step from template")
+
+    response = client.post(f"/testcases/{testcase_id}/copy-from-prebuilt", data={"prebuilt_id": prebuilt_id}, follow_redirects=False)
+    assert response.status_code == 303
+
+    page = client.get(f"/testcases/{testcase_id}/execute").text
+    assert "new step from template" in page
+    assert "old step" not in page
+
+
+def test_copy_from_prebuilt_blank_option_clears_steps(client):
+    testcase_id = _create_testcase(client, "EX-407")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "old step", "expected_result": "e", "actual_result": "a"})
+
+    response = client.post(f"/testcases/{testcase_id}/copy-from-prebuilt", data={"prebuilt_id": ""}, follow_redirects=False)
+    assert response.status_code == 303
+
+    page = client.get(f"/testcases/{testcase_id}/execute").text
+    assert "old step" not in page
+    assert "Pre Condition" in page
+    assert "Main Test" in page
+    assert "Post Condition" in page
 
 
 def test_update_section1_jira_fields_are_optional(client):
@@ -163,7 +210,7 @@ def test_update_section1_jira_fields_are_optional(client):
     response = client.post(
         f"/testcases/{testcase_id}/section1",
         data={
-            "tester": "Jane Doe", "test_date": "", "test_priority": "",
+            "tester": "Jane Doe", "test_date": "",
             "channel": "", "iteration": "1",
             "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
             "remark": "", "data_test": "", "status": "TO_DO",

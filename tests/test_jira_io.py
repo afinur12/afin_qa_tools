@@ -11,7 +11,7 @@ from app.master_data import get_or_create
 from app.models import (
     DEFAULT_SECTION_KINDS, Label, LabelAttachType, Phase, PhaseType, Story, Subtask,
     SubtaskType, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep,
-    User, UserType, generate_internal_key,
+    TestPriority, User, UserType, generate_internal_key,
 )
 
 
@@ -72,12 +72,13 @@ def test_export_populated_testcase_has_real_values(db_session):
     subtask = _make_subtask(db_session, code="SND-9875")
     tester = get_or_create(db_session, User, "Andri Firman Nurvianto", type=UserType.TESTER)
     tester.jira_username = "ADL.ANDRIF"
+    priority = get_or_create(db_session, TestPriority, "Highest")
     testcase = _make_testcase(
         db_session, subtask, code="SND-10056",
         category=TestCaseCategory.POSITIVE, msisdn="MSISDN #A: 62812",
         planned_cost="0", actual_cost="0", number_of_iteration=1,
         tester_id=tester.id, status=TestCaseStatus.PASS, jira_execution_id="196724",
-        remark="Steps to reproduce", test_priority="Highest",
+        remark="Steps to reproduce", test_priority_id=priority.id,
     )
     label = get_or_create(db_session, Label, "SITScenario")
     set_labels(db_session, LabelAttachType.TESTCASE, testcase.id, [label.id])
@@ -181,6 +182,7 @@ def test_import_creates_new_testcase_with_all_mapped_fields(db_session):
     assert testcase.title == "Verify top-up"
     assert testcase.category.value == "Positive"
     assert testcase.msisdn == "MSISDN #A: 62812"
+    assert testcase.test_priority_ref.name == "Highest"
     assert testcase.status == TestCaseStatus.PASS
     assert testcase.jira_execution_id == "196724"
     assert testcase.tester_user.name == "Andri Firman Nurvianto"
@@ -210,9 +212,10 @@ def test_import_updates_existing_testcase_matched_by_issue_key(db_session):
 
 def test_import_skips_placeholder_fields_on_existing_testcase(db_session):
     subtask = _make_subtask(db_session, code="SND-9880")
+    existing_priority = get_or_create(db_session, TestPriority, "Medium")
     testcase = _make_testcase(
         db_session, subtask, code="SND-10061", title="Keep me",
-        msisdn="Already set", category=TestCaseCategory.NEGATIVE,
+        msisdn="Already set", category=TestCaseCategory.NEGATIVE, test_priority_id=existing_priority.id,
     )
     db_session.commit()
 
@@ -221,6 +224,7 @@ def test_import_skips_placeholder_fields_on_existing_testcase(db_session):
         summary="{{placeholder_test_case_summary}}",
         category="{{placeholder_category}}",
         msisdn="{{placeholder_msisdn_value}}",
+        fields={"description": "Steps to reproduce", "priority": {"name": "{{placeholder_priority_name}}"}, "labels": ["SITScenario"]},
     )
     apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
     db_session.commit()
@@ -229,6 +233,7 @@ def test_import_skips_placeholder_fields_on_existing_testcase(db_session):
     assert testcase.title == "Keep me"
     assert testcase.category == TestCaseCategory.NEGATIVE
     assert testcase.msisdn == "Already set"
+    assert testcase.test_priority_ref.name == "Medium"
 
 
 def test_import_leaves_section_steps_untouched_when_zephyr_entry_is_all_placeholder(db_session):

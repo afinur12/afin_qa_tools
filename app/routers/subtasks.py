@@ -1,13 +1,13 @@
 import json
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, TaskStatus, generate_internal_key
+from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, TaskStatus, TestCase, generate_internal_key
 from app.labels import get_labels, set_labels
 from app.routers.stories import _parse_id, _user_dropdowns
 from app.testcase_io import dict_to_subtask
@@ -127,7 +127,10 @@ async def import_subtask(request: Request, phase_id: int, file: UploadFile = Fil
 
 @router.get("/subtasks/{subtask_id}")
 def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_db)):
-    subtask = db.get(Subtask, subtask_id)
+    subtask = db.get(
+        Subtask, subtask_id,
+        options=[selectinload(Subtask.testcases).selectinload(TestCase.test_priority_ref)],
+    )
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     notes = db.query(Note).filter(

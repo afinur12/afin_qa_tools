@@ -394,7 +394,7 @@ def build_docx(testcase, output_path: str) -> str:
         "tester": testcase.tester,
         "test_date": _format_test_date(testcase.test_date),
         "environment": testcase.subtask.phase.type.value,
-        "test_priority": testcase.test_priority,
+        "test_priority": testcase.test_priority_ref.name if testcase.test_priority_ref else None,
         "test_type": testcase.test_type_ref.name if testcase.test_type_ref else None,
         "channel": testcase.channel,
         "iteration": testcase.iteration,

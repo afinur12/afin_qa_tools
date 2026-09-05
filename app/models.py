@@ -179,6 +179,7 @@ class TestCase(Base):
     tester: Mapped[str] = mapped_column(String(255), nullable=False, default="Andri Firman Nurvianto")
     test_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
     test_priority: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    test_priority_id: Mapped[int | None] = mapped_column(ForeignKey("test_priorities.id"), nullable=True)
     test_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     test_type_id: Mapped[int | None] = mapped_column(ForeignKey("test_types.id"), nullable=True)
     channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -211,6 +212,7 @@ class TestCase(Base):
 
     subtask: Mapped["Subtask"] = relationship("Subtask", back_populates="testcases")
     test_type_ref: Mapped["TestType | None"] = relationship("TestType")
+    test_priority_ref: Mapped["TestPriority | None"] = relationship("TestPriority")
     sections: Mapped[list["TestCaseSection"]] = relationship(
         "TestCaseSection", back_populates="testcase", order_by="TestCaseSection.position"
     )
@@ -417,6 +419,13 @@ class Simulate(Base):
 
 class TestType(Base):
     __tablename__ = "test_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+
+
+class TestPriority(Base):
+    __tablename__ = "test_priorities"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)

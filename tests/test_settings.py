@@ -122,6 +122,33 @@ def test_delete_blocked_when_test_type_used_by_testcase(client, db_session):
     assert response.status_code == 422
 
 
+def test_test_priorities_seeded_with_defaults(client, db_session):
+    from app.master_data import seed_defaults
+
+    seed_defaults(db_session)
+    page = client.get("/settings/test-priorities")
+    assert page.status_code == 200
+    for name in ["HIGHEST", "HIGH", "MEDIUM", "LOW"]:
+        assert name in page.text
+
+
+def test_delete_blocked_when_test_priority_used_by_testcase(client, db_session):
+    from app.models import TestCase
+
+    client.post("/settings/test-priorities", data={"name": "URGENT"})
+    row_id = re.search(r"/settings/test-priorities/(\d+)/delete", client.get("/settings/test-priorities").text).group(1)
+    subtask_id = _make_subtask(client)
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+
+    tc = db_session.get(TestCase, int(testcase_id))
+    tc.test_priority_id = int(row_id)
+    db_session.commit()
+
+    response = client.post(f"/settings/test-priorities/{row_id}/delete")
+    assert response.status_code == 422
+
+
 def test_nav_shows_settings_link(client):
     page = client.get("/stories")
     # Points straight at the default settings sub-page, skipping the

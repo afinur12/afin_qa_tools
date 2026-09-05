@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app import deletion
 from app.database import get_db
+from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import SECTION_LABELS, LabelAttachType, StepSection, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
+from app.models import SECTION_LABELS, DEFAULT_SECTION_KINDS, LabelAttachType, PrebuiltTestCase, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, TestType
 from app.labels import get_labels, set_labels
 from app.routers.stories import _parse_id, _user_dropdowns
 
@@ -18,10 +20,11 @@ def _render_execute(request: Request, testcase: TestCase, db: Session, error: st
         {
             "testcase": testcase,
             "statuses": list(TestCaseStatus),
-            "categories": list(TestCaseCategory),
             "section_kinds": list(StepSection),
             "section_labels": SECTION_LABELS,
             "test_types": db.query(TestType).order_by(TestType.name).all(),
+            "test_priorities": db.query(TestPriority).order_by(TestPriority.name).all(),
+            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.TESTCASE, testcase.id)],
             "testcase_labels": get_labels(db, LabelAttachType.TESTCASE, testcase.id),
             "error": error,
@@ -49,7 +52,7 @@ def update_section1(
     testcase_id: int,
     tester: str = Form(""),
     test_date: str = Form(""),
-    test_priority: str = Form(""),
+    test_priority_id: str = Form(""),
     test_type_id: str = Form(""),
     channel: str = Form(""),
     iteration: str = Form("1"),
@@ -63,11 +66,9 @@ def update_section1(
     tester_id: str = Form(""),
     developer_id: str = Form(""),
     label_ids: list[int] = Form([]),
-    category: str = Form(""),
     msisdn: str = Form(""),
     planned_cost: str = Form(""),
     actual_cost: str = Form(""),
-    number_of_iteration: str = Form(""),
     db: Session = Depends(get_db),
 ):
     testcase = db.get(TestCase, testcase_id)
@@ -78,10 +79,14 @@ def update_section1(
     # This ensures validation error re-renders show submitted values, not stale DB values
     testcase.tester = tester
     testcase.test_date = test_date
-    testcase.test_priority = test_priority
+    testcase.test_priority_id = int(test_priority_id) if test_priority_id.strip().isdecimal() else None
     testcase.test_type_id = int(test_type_id) if test_type_id.strip().isdecimal() else None
     testcase.channel = channel
-    testcase.iteration = iteration
+    # One "Iteration" field in the UI feeds both the docx header's free-text
+    # iteration column and Jira Sync's numeric number_of_iteration — kept as
+    # two DB columns since each downstream export expects its own shape.
+    testcase.iteration = iteration or "1"
+    testcase.number_of_iteration = int(iteration) if iteration.strip().isdecimal() else None
     testcase.balance_before = balance_before
     testcase.balance_after = balance_after
     testcase.usage = usage
@@ -91,14 +96,9 @@ def update_section1(
     testcase.tester_id = _parse_id(tester_id)
     testcase.developer_id = _parse_id(developer_id)
     set_labels(db, LabelAttachType.TESTCASE, testcase.id, label_ids)
-    try:
-        testcase.category = TestCaseCategory(category) if category.strip() else None
-    except ValueError:
-        return _render_execute(request, testcase, db, error="Invalid category.", status_code=422)
     testcase.msisdn = msisdn or None
     testcase.planned_cost = planned_cost or None
     testcase.actual_cost = actual_cost or None
-    testcase.number_of_iteration = int(number_of_iteration) if number_of_iteration.strip().isdecimal() else None
 
     try:
         status_enum = TestCaseStatus(status)
@@ -211,8 +211,6 @@ def reorder_sections(
 
 @router.post("/testcases/{testcase_id}/sections/{section_id}/delete")
 def delete_section(request: Request, testcase_id: int, section_id: int, db: Session = Depends(get_db)):
-    from app import deletion
-
     section = db.get(TestCaseSection, section_id)
     if section is None or section.testcase_id != testcase_id:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
@@ -297,11 +295,44 @@ def edit_step(
 
 @router.post("/testcases/{testcase_id}/steps/{step_id}/delete")
 def delete_step(request: Request, testcase_id: int, step_id: int, db: Session = Depends(get_db)):
-    from app import deletion
-
     step = db.get(TestCaseStep, step_id)
     if step is None or step.testcase_id != testcase_id:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     deletion.delete_step(db, step)
     db.commit()
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
+
+
+@router.post("/testcases/{testcase_id}/copy-from-prebuilt")
+def copy_from_prebuilt(request: Request, testcase_id: int, prebuilt_id: str = Form(""), db: Session = Depends(get_db)):
+    testcase = db.get(TestCase, testcase_id)
+    if testcase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+
+    for section in list(testcase.sections):
+        deletion.delete_section(db, section)
+    db.flush()
+
+    prebuilt = db.get(PrebuiltTestCase, int(prebuilt_id)) if prebuilt_id.strip().isdigit() else None
+    if prebuilt is not None:
+        # Steps/text only — this replaces the test case's steps, it doesn't
+        # touch other fields (test type, remark, etc). Screenshots are never
+        # part of a template, so the case ends up with none either way.
+        for source in prebuilt.sections:
+            section = TestCaseSection(testcase_id=testcase.id, kind=source.kind, position=source.position)
+            db.add(section)
+            db.flush()
+            for step in source.steps:
+                db.add(
+                    TestCaseStep(
+                        section_id=section.id, step_no=step.step_no, step_text=step.step_text,
+                        expected_result=step.expected_result, actual_result=step.actual_result,
+                    )
+                )
+        db.commit()
+        return redirect_with_flash(f"/testcases/{testcase_id}/execute", f"Steps copied from {prebuilt.name}.")
+
+    for position, kind in enumerate(DEFAULT_SECTION_KINDS):
+        db.add(TestCaseSection(testcase_id=testcase.id, kind=kind, position=position))
+    db.commit()
+    return redirect_with_flash(f"/testcases/{testcase_id}/execute", "Steps reset to blank.")

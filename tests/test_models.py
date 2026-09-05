@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bug, BugSeverity, BugStatus, Label, LabelAssignment, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestType, User, UserType
+from app.models import Bug, BugSeverity, BugStatus, Label, LabelAssignment, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Service, Simulate, Story, Subtask, SubtaskType, StepSection, TaskStatus, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, TestType, User, UserType
 
 
 def test_story_display_code_globally_unique(db_session):
@@ -197,6 +197,14 @@ def test_test_type_name_is_unique(db_session):
         db_session.commit()
 
 
+def test_test_priority_name_is_unique(db_session):
+    db_session.add(TestPriority(name="HIGH"))
+    db_session.commit()
+    db_session.add(TestPriority(name="HIGH"))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+
+
 def test_prebuilt_service_simulate_test_type_relationships(db_session):
     service = Service(name="auth-service")
     simulate = Simulate(name="E2E")
@@ -243,6 +251,28 @@ def test_testcase_test_type_relationship(db_session):
     db_session.commit()
     db_session.refresh(tc)
     assert tc.test_type_ref.name == "REGRESSION"
+
+
+def test_testcase_test_priority_relationship(db_session):
+    story = Story(display_code="EX-43", title="A", internal_key="k43")
+    db_session.add(story)
+    db_session.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db_session.add(phase)
+    db_session.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key="k44", subtask_type=SubtaskType.EXECUTION)
+    db_session.add(subtask)
+    db_session.commit()
+    priority = TestPriority(name="HIGHEST")
+    db_session.add(priority)
+    db_session.commit()
+
+    tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k45", test_priority_id=priority.id)
+    db_session.add(tc)
+    db_session.commit()
+    db_session.refresh(tc)
+    assert tc.test_priority_ref.name == "HIGHEST"
 
 
 def test_note_create(db_session):

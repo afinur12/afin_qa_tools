@@ -8,10 +8,11 @@ known value gets its own row rather than being rejected).
 
 from sqlalchemy.orm import Session
 
-from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestType, User, UserType
+from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestPriority, TestType, User, UserType
 
 DEFAULT_TEST_TYPES = ["POSITIVE", "NEGATIVE", "REGRESSION"]
 DEFAULT_SIMULATES = ["E2E", "API Testing"]
+DEFAULT_TEST_PRIORITIES = ["HIGHEST", "HIGH", "MEDIUM", "LOW"]
 
 
 def get_or_create(db: Session, model, name: str | None, **extra_fields):
@@ -33,15 +34,19 @@ def get_or_create(db: Session, model, name: str | None, **extra_fields):
 
 
 def seed_defaults(db: Session) -> None:
-    """Insert the default Test Types and Simulate values once, on an empty
-    table. From then on they're ordinary rows the user can rename or
-    delete freely, so this never runs again once either table has a row."""
+    """Insert the default Test Type, Simulate, and Test Priority values
+    once, on an empty table. From then on they're ordinary rows the user
+    can rename or delete freely, so this never runs again once a table
+    already has a row."""
     if not db.query(TestType).first():
         for name in DEFAULT_TEST_TYPES:
             db.add(TestType(name=name))
     if not db.query(Simulate).first():
         for name in DEFAULT_SIMULATES:
             db.add(Simulate(name=name))
+    if not db.query(TestPriority).first():
+        for name in DEFAULT_TEST_PRIORITIES:
+            db.add(TestPriority(name=name))
     db.commit()
 
 
@@ -62,6 +67,7 @@ def migrate_free_text_to_master(db: Session) -> None:
     _migrate_column(db, PrebuiltTestCase, "simulate", "simulate_id", Simulate)
     _migrate_column(db, PrebuiltTestCase, "test_type", "test_type_id", TestType)
     _migrate_column(db, TestCase, "test_type", "test_type_id", TestType)
+    _migrate_column(db, TestCase, "test_priority", "test_priority_id", TestPriority)
     db.commit()
 
 

@@ -1,7 +1,9 @@
-"""Settings: Service, Simulate, and Test Type master-data management.
+"""Settings: Service, Simulate, Test Type, and Test Priority master-data
+management.
 
-One generic, slug-driven set of routes handles all three tables instead
-of tripling near-identical CRUD code — see TABLES below. User does NOT
+One generic, slug-driven set of routes handles all of these tables
+instead of duplicating near-identical CRUD code — see TABLES below. User
+does NOT
 extend this dict: it has an extra required `type` column and a
 delete-block check spanning 12 (model, column) pairs across 4 models,
 neither of which fits this dict's one-model-per-slug shape, so it gets
@@ -14,7 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestType
+from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestPriority, TestType
 from app.templating import templates
 
 router = APIRouter(prefix="/settings")
@@ -34,6 +36,10 @@ TABLES = {
             (PrebuiltTestCase, "test_type_id", "prebuilt template"),
             (TestCase, "test_type_id", "test case"),
         ],
+    },
+    "test-priorities": {
+        "model": TestPriority, "label": "Test Priority", "label_plural": "Test Priorities",
+        "refs": [(TestCase, "test_priority_id", "test case")],
     },
 }
 

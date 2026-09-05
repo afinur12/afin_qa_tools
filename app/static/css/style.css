@@ -489,6 +489,14 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .badge--open, .badge--low                 { background: var(--idle-bg); color: var(--idle); }
 .badge--back_log                          { background: var(--indigo-soft); color: var(--indigo-ink); }
 
+/* Test-priority badges — own `priority-*` classes (not `badge--*`) so they
+   don't collide with the status/severity values that already claim
+   badge--high/--medium/--low for unrelated entities. */
+.priority-highest             { background: var(--fail-bg); color: var(--fail); }
+.priority-high                { background: var(--warn-bg); color: var(--warn); }
+.priority-medium              { background: var(--warn-bg); color: var(--warn); }
+.priority-low, .priority-lowest { background: var(--progress-bg); color: var(--progress); }
+
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 
 /* Lets a wide table scroll horizontally inside its card instead of being
@@ -506,6 +514,7 @@ th {
   text-transform: uppercase;
   color: var(--ink-3);
   border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 td {
   text-align: left;
@@ -529,6 +538,33 @@ tbody tr:hover { background: var(--surface-sunk); }
   font-size: 13.5px;
 }
 
+/* Click-to-sort table headers — a CSS-drawn triangle rather than a text
+   glyph, so it lines up on the same baseline as the uppercase label at
+   any font/zoom instead of drifting the way Unicode arrow glyphs do. */
+[data-sortable-table] th[data-sort-key] {
+  cursor: pointer;
+  user-select: none;
+}
+[data-sortable-table] th[data-sort-key]:hover { color: var(--ink-2); }
+[data-sortable-table] th[data-sort-key]::after {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 6px;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4.5px solid currentColor;
+  opacity: 0.3;
+  vertical-align: 1px;
+}
+[data-sortable-table] th[data-sort-key][data-sort-dir="asc"]::after {
+  border-top: none;
+  border-bottom: 4.5px solid currentColor;
+  opacity: 1;
+}
+[data-sortable-table] th[data-sort-key][data-sort-dir="desc"]::after { opacity: 1; }
+
 /* ── Forms ───────────────────────────────────────────────────────────────── */
 
 .field { margin-bottom: 16px; }
@@ -542,7 +578,8 @@ tbody tr:hover { background: var(--surface-sunk); }
 
 .field input,
 .field select,
-.field textarea {
+.field textarea,
+.step-head input {
   width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--line-strong);
@@ -557,7 +594,8 @@ tbody tr:hover { background: var(--surface-sunk); }
 
 .field input:focus,
 .field select:focus,
-.field textarea:focus {
+.field textarea:focus,
+.step-head input:focus {
   outline: none;
   border-color: var(--indigo);
   box-shadow: 0 0 0 3px rgba(91, 87, 232, 0.13);
@@ -581,6 +619,10 @@ tbody tr:hover { background: var(--surface-sunk); }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 20px; }
+/* Packs as many fields per row as fit (landscape/wide forms) instead of a
+   fixed column count — collapses toward one column on narrow viewports on
+   its own, no separate breakpoint override needed. */
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 2px 20px; }
 
 .form-actions {
   display: flex;
@@ -814,6 +856,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   background: var(--surface);
 }
 .step-head { display: flex; gap: 11px; align-items: center; margin-bottom: 12px; }
+.step.is-collapsed .step-head { margin-bottom: 0; }
 .step-no {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -826,7 +869,104 @@ tbody tr:hover { background: var(--surface-sunk); }
   color: var(--indigo-ink);
   flex-shrink: 0;
 }
+/* Dark theme only: same green-on-near-black combination the sidebar's
+   active nav item uses, for a more legible step-number chip. */
+:root[data-theme="dark"] .step-no { background: var(--lime); color: var(--ink-inverse); }
 .step-head input { flex-grow: 1; }
+
+.step-toggle {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 22px; height: 22px;
+  transition: transform 140ms ease;
+}
+.step.is-collapsed .step-toggle { transform: rotate(-90deg); }
+.step-body { margin-top: 12px; }
+.step.is-collapsed .step-body { display: none; }
+
+/* ── Tabs (page-level: e.g. Description / Testing Steps) ────────────────── */
+
+.tabgroup-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.tabgroup-btn {
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tabgroup-btn:hover { color: var(--ink); }
+.tabgroup-btn.is-active { color: var(--indigo-ink); border-bottom-color: var(--indigo); }
+.tabgroup-panel { display: none; }
+.tabgroup-panel.is-active { display: block; }
+
+/* ── Pill quick-jump nav (Pre / Main / Post — scrolls, doesn't filter) ───── */
+
+.pillbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.pill {
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: var(--r-pill);
+  background: var(--idle-bg);
+  color: var(--ink-2);
+  border: none;
+  cursor: pointer;
+}
+.pill:hover { background: var(--indigo-soft); color: var(--indigo-ink); }
+.pill.is-active { background: var(--indigo-soft); color: var(--indigo-ink); }
+.pill-count { opacity: 0.7; margin-left: 3px; }
+
+/* ── Floating "View Images" trigger + full-screen slideshow ─────────────── */
+
+.images-trigger { position: absolute; top: 0; right: 0; }
+
+.slideshow-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.92);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.slideshow-overlay[hidden] { display: none; }
+.slideshow-close {
+  position: absolute;
+  top: 20px; right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: none;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  font-size: 18px;
+  cursor: pointer;
+}
+.slideshow-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: none;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  font-size: 22px;
+  cursor: pointer;
+}
+.slideshow-arrow:disabled { opacity: 0.3; cursor: default; }
+.slideshow-arrow.prev { left: 20px; }
+.slideshow-arrow.next { right: 20px; }
+.slideshow-body { max-width: min(90vw, 1100px); max-height: 90vh; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.slideshow-body img { max-width: 100%; max-height: 70vh; border-radius: 10px; object-fit: contain; }
+.slideshow-caption { color: #f2f1ec; text-align: center; font-size: 13.5px; }
+.slideshow-caption .label { color: #9b9aa4; margin-bottom: 4px; }
 
 /* ── Section reordering ──────────────────────────────────────────────────── */
 

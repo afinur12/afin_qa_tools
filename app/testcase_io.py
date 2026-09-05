@@ -37,6 +37,7 @@ from app.models import (
     TestCaseSection,
     TestCaseStatus,
     TestCaseStep,
+    TestPriority,
     TestType,
     generate_internal_key,
 )
@@ -86,7 +87,7 @@ def _testcase_fields(tc: TestCase, include_screenshots: bool) -> dict:
         "status": tc.status.value,
         "tester": tc.tester,
         "test_date": tc.test_date,
-        "test_priority": tc.test_priority,
+        "test_priority": tc.test_priority_ref.name if tc.test_priority_ref else None,
         "test_type": tc.test_type_ref.name if tc.test_type_ref else None,
         "channel": tc.channel,
         "iteration": tc.iteration,
@@ -246,12 +247,14 @@ def dict_to_testcase(db: Session, subtask_id: int, data: dict) -> TestCase:
     title = _require(fields, "title", "test case")
     status = _parse_enum(TestCaseStatus, fields.get("status") or TestCaseStatus.TO_DO.value, "test case status")
     test_type_row = get_or_create(db, TestType, fields.get("test_type"))
+    test_priority_row = get_or_create(db, TestPriority, fields.get("test_priority"))
 
     testcase = TestCase(
         subtask_id=subtask_id, display_code=display_code, title=title, internal_key=generate_internal_key(),
         status=status,
         tester=fields.get("tester") or "Andri Firman Nurvianto",
-        test_date=fields.get("test_date"), test_priority=fields.get("test_priority"),
+        test_date=fields.get("test_date"),
+        test_priority=fields.get("test_priority"), test_priority_id=test_priority_row.id if test_priority_row else None,
         test_type=fields.get("test_type"), test_type_id=test_type_row.id if test_type_row else None,
         channel=fields.get("channel"),
         iteration=fields.get("iteration") or "1",

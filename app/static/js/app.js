@@ -864,3 +864,193 @@ document.querySelectorAll("[data-snippet-code]").forEach((block) => {
   block.classList.add(`language-${lang}`);
   window.hljs.highlightElement(block);
 });
+
+// ── Page tabs (e.g. Description / Testing Steps) ─────────────────────────────
+// One [data-tabgroup] container holds [data-tab-target] buttons and matching
+// [data-tab-panel] panels; clicking a button shows its panel and hides the rest.
+document.querySelectorAll("[data-tabgroup]").forEach((group) => {
+  const buttons = Array.from(group.querySelectorAll("[data-tab-target]"));
+  const panels = Array.from(group.querySelectorAll("[data-tab-panel]"));
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      buttons.forEach((b) => b.classList.toggle("is-active", b === button));
+      panels.forEach((p) => p.classList.toggle("is-active", p.dataset.tabPanel === button.dataset.tabTarget));
+    });
+  });
+});
+
+// ── Pill quick-jump nav (Pre/Main/Post — scrolls to the first section of that
+// kind rather than filtering, so section drag-reorder across kinds still sees
+// every section at once) ──────────────────────────────────────────────────────
+document.querySelectorAll("[data-pillnav]").forEach((nav) => {
+  const pills = Array.from(nav.querySelectorAll("[data-pill-target]"));
+  pills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      pills.forEach((p) => p.classList.toggle("is-active", p === pill));
+      const target = document.querySelector(`.section-card[data-kind="${pill.dataset.pillTarget}"]`);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+});
+
+// ── Step accordion ────────────────────────────────────────────────────────────
+// Every step starts collapsed. Clicking the toggle (or anywhere in the header
+// besides the drag handle and the step-text input) expands/collapses it.
+document.addEventListener("click", (event) => {
+  const head = event.target.closest(".step-head");
+  if (!head) return;
+  if (event.target.closest("[data-drag-handle], input")) return;
+  const step = head.closest(".step");
+  if (step) step.classList.toggle("is-collapsed");
+});
+
+// Focusing any real field inside a step (step_text, or expected/actual
+// result once expanded) expands that step and collapses every other step in
+// the same section, so only one step is open for editing at a time — on
+// both the test-case execute page and the Prebuilt editor.
+document.addEventListener("focusin", (event) => {
+  const field = event.target.closest(".step input, .step textarea");
+  if (!field) return;
+  const step = field.closest(".step");
+  const container = step && step.closest("[data-steps]");
+  if (!container) return;
+  container.querySelectorAll(":scope > .step").forEach((s) => {
+    s.classList.toggle("is-collapsed", s !== step);
+  });
+});
+
+// ── Full-screen image slideshow ───────────────────────────────────────────────
+// Built from whatever [data-steps] .shot images already exist on the page —
+// no separate data source, so it can never drift from what's actually shown.
+document.querySelectorAll("[data-images-trigger]").forEach((trigger) => {
+  trigger.addEventListener("click", () => openSlideshow());
+});
+
+function collectSlideshowSlides() {
+  const slides = [];
+  document.querySelectorAll("[data-sections] .step").forEach((step) => {
+    const section = step.closest(".section-card");
+    const sectionLabel = section ? section.dataset.sectionLabel || "" : "";
+    const stepNo = step.querySelector("[data-step-index]");
+    const stepTextInput = step.querySelector('input[name="step_text"]');
+    const expectedField = step.querySelector('textarea[name="expected_result"]');
+    step.querySelectorAll(".shot img").forEach((img) => {
+      slides.push({
+        src: img.src,
+        stepNo: stepNo ? stepNo.textContent : "",
+        sectionLabel,
+        stepText: stepTextInput ? stepTextInput.value : "",
+        expected: expectedField ? expectedField.value : "",
+      });
+    });
+  });
+  return slides;
+}
+
+let slideshowSlides = [];
+let slideshowIndex = 0;
+
+function renderSlideshowSlide() {
+  const overlay = document.getElementById("slideshow-overlay");
+  if (!overlay) return;
+  const slide = slideshowSlides[slideshowIndex];
+  if (!slide) return;
+  overlay.querySelector(".slideshow-body img").src = slide.src;
+  overlay.querySelector(".slideshow-caption .label").textContent =
+    `STEP ${slide.stepNo} OF ${slideshowSlides.length} — ${slide.sectionLabel.toUpperCase()}`;
+  overlay.querySelector(".slideshow-caption .name").textContent = slide.stepText;
+  overlay.querySelector(".slideshow-caption .expected").textContent = slide.expected ? `Expected: ${slide.expected}` : "";
+  overlay.querySelector(".slideshow-arrow.prev").disabled = slideshowIndex === 0;
+  overlay.querySelector(".slideshow-arrow.next").disabled = slideshowIndex === slideshowSlides.length - 1;
+}
+
+function openSlideshow() {
+  slideshowSlides = collectSlideshowSlides();
+  if (slideshowSlides.length === 0) return;
+  slideshowIndex = 0;
+  renderSlideshowSlide();
+  document.getElementById("slideshow-overlay").hidden = false;
+}
+
+function closeSlideshow() {
+  const overlay = document.getElementById("slideshow-overlay");
+  if (overlay) overlay.hidden = true;
+}
+
+document.addEventListener("click", (event) => {
+  const overlay = document.getElementById("slideshow-overlay");
+  if (!overlay || overlay.hidden) return;
+  if (event.target.closest("[data-slideshow-close]")) closeSlideshow();
+  if (event.target.closest("[data-slideshow-prev]") && slideshowIndex > 0) {
+    slideshowIndex -= 1;
+    renderSlideshowSlide();
+  }
+  if (event.target.closest("[data-slideshow-next]") && slideshowIndex < slideshowSlides.length - 1) {
+    slideshowIndex += 1;
+    renderSlideshowSlide();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  const overlay = document.getElementById("slideshow-overlay");
+  if (!overlay || overlay.hidden) return;
+  if (event.key === "Escape") closeSlideshow();
+  if (event.key === "ArrowLeft" && slideshowIndex > 0) {
+    slideshowIndex -= 1;
+    renderSlideshowSlide();
+  }
+  if (event.key === "ArrowRight" && slideshowIndex < slideshowSlides.length - 1) {
+    slideshowIndex += 1;
+    renderSlideshowSlide();
+  }
+});
+
+// ── Click-to-sort tables ─────────────────────────────────────────────────
+// Rows carry a `data-sort-<key>` attribute per sortable column; a header's
+// `data-sort-key` says which one to read. Values compare numerically when
+// every visible row's value for that column parses as a number (e.g. the
+// test-priority column sorts by the priority's id, not its label text).
+function sortTableCompare(a, b, numeric) {
+  if (numeric) return parseFloat(a) - parseFloat(b);
+  return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+}
+
+document.addEventListener("click", (event) => {
+  const th = event.target.closest("[data-sortable-table] th[data-sort-key]");
+  if (!th) return;
+  const table = th.closest("[data-sortable-table]");
+  const tbody = table.tBodies[0];
+  const key = th.dataset.sortKey;
+  const attr = `data-sort-${key}`;
+  const rows = Array.from(tbody.querySelectorAll(`tr[${attr}]`));
+  if (!rows.length) return;
+
+  const numeric = rows.every((row) => row.getAttribute(attr).trim() !== "" && !Number.isNaN(Number(row.getAttribute(attr))));
+  const asc = th.dataset.sortDir !== "asc";
+  rows.sort((r1, r2) => sortTableCompare(r1.getAttribute(attr), r2.getAttribute(attr), numeric) * (asc ? 1 : -1));
+
+  table.querySelectorAll("th[data-sort-key]").forEach((h) => delete h.dataset.sortDir);
+  th.dataset.sortDir = asc ? "asc" : "desc";
+  rows.forEach((row) => tbody.appendChild(row));
+});
+
+// ── Currency-formatted cost fields ───────────────────────────────────────
+// Planned/Actual Cost are free-text fields (like Balance Before/After), but
+// typing "1000000" should read back as "Rp 1.000.000". Formatting only
+// happens once the field is left (not on every keystroke, which would
+// fight the cursor), and unformats back to plain digits on focus so it's
+// easy to keep typing.
+function formatRupiah(raw) {
+  const digits = (raw || "").replace(/\D/g, "");
+  return digits ? `Rp ${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}` : "";
+}
+
+document.querySelectorAll('input[name="planned_cost"], input[name="actual_cost"]').forEach((field) => {
+  field.value = formatRupiah(field.value);
+  field.addEventListener("focusin", () => {
+    field.value = field.value.replace(/\D/g, "");
+  });
+  field.addEventListener("focusout", () => {
+    field.value = formatRupiah(field.value);
+  });
+});

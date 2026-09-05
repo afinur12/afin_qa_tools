@@ -71,6 +71,7 @@ class _TestCase:
         self.tester = "Andri Firman Nurvianto"
         self.test_date = "2026-08-26"
         self.test_priority = "High"
+        self.test_priority_ref = None
         self.test_type = "Functional"
         self.test_type_ref = None
         self.channel = "Mobile App"

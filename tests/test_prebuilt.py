@@ -115,8 +115,12 @@ def test_editing_a_prebuilt_does_not_change_cases_already_created_from_it(client
     client.post(f"/prebuilt/{prebuilt_id}/steps/{step_id}/edit", data={"step_text": "changed text"})
 
     page = client.get(f"/testcases/{testcase_id}/execute").text
-    assert "original text" in page, "an existing case is a copy, not a live reference"
-    assert "changed text" not in page
+    # The page also embeds a live preview of every prebuilt in its "copy
+    # steps from prebuilt" picker, so check the step's own input value
+    # rather than raw page text (which would still contain "changed text"
+    # in that picker's unrelated preview markup).
+    assert 'value="original text"' in page, "an existing case is a copy, not a live reference"
+    assert 'value="changed text"' not in page
 
 
 def test_prebuilt_service_simulate_test_type_round_trip(client):

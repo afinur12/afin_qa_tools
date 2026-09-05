@@ -26,7 +26,7 @@ from app.labels import get_labels, set_labels
 from app.master_data import get_or_create
 from app.models import (
     DEFAULT_SECTION_KINDS, Label, LabelAttachType, StepSection, Subtask, TestCase,
-    TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, User, UserType,
+    TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, User, UserType,
     generate_internal_key,
 )
 
@@ -144,7 +144,7 @@ def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
         },
         "fields": {
             "description": testcase.remark or _placeholder("description_text_or_placeholder"),
-            "priority": {"name": testcase.test_priority or _placeholder("priority_name")},
+            "priority": {"name": testcase.test_priority_ref.name if testcase.test_priority_ref else _placeholder("priority_name")},
             "labels": labels,
         },
     }
@@ -323,7 +323,10 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
     priority = fields.get("priority") or {}
     if not isinstance(priority, dict):
         raise ValueError('"fields.priority" must be a JSON object.')
-    testcase.test_priority = _resolve(priority, "name", testcase.test_priority)
+    priority_name = priority.get("name")
+    if "name" in priority and not _is_placeholder(priority_name):
+        priority_row = get_or_create(db, TestPriority, priority_name)
+        testcase.test_priority_id = priority_row.id if priority_row else None
 
     if "labels" in fields:
         _apply_labels(db, LabelAttachType.TESTCASE, testcase.id, fields.get("labels") or [])

@@ -29,6 +29,7 @@ ensure_columns("testcases", {
     "actual_cost": "VARCHAR(64)", "number_of_iteration": "INTEGER", "jira_execution_id": "VARCHAR(32)",
 })
 ensure_columns("users", {"jira_username": "VARCHAR(64)"})
+ensure_columns("testcases", {"test_priority_id": "INTEGER"})
 # service_name was briefly named "category"; carry over any values already saved under that name.
 backfill_column("prebuilt_testcases", dest="service_name", src="category")
 # Note replaces the curl-only CurlCollection; carry over anything already saved there.

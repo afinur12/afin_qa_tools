@@ -67,9 +67,22 @@
   </div>
 {% endcall %}
 
+{% if prebuilt.sections %}
+<div class="pillbar" data-pillnav>
+  {% for kind in section_kinds %}
+  {% if prebuilt.sections | selectattr('kind', 'equalto', kind) | list | length %}
+  <button type="button" class="pill{% if loop.first %} is-active{% endif %}" data-pill-target="{{ kind.value }}">
+    {{ section_labels[kind] }}
+    <span class="pill-count">{{ prebuilt.sections | selectattr('kind', 'equalto', kind) | list | length }}</span>
+  </button>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
 <div data-sections data-reorder-action="/prebuilt/{{ prebuilt.id }}/sections/reorder">
 {% for section in prebuilt.sections %}
-<div class="card section-card" data-section-id="{{ section.id }}">
+<div class="card section-card" data-section-id="{{ section.id }}" data-kind="{{ section.kind.value }}" data-section-label="{{ section.label }}">
   <div class="card-head">
     <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
@@ -86,7 +99,7 @@
 
   <div data-steps data-reorder-action="/prebuilt/{{ prebuilt.id }}/sections/{{ section.id }}/steps/reorder">
   {% for step in section.steps %}
-  <div class="step" data-step-id="{{ step.id }}">
+  <div class="step is-collapsed" data-step-id="{{ step.id }}">
     <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/edit" data-autosave>
       <div class="step-head">
         <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
@@ -96,7 +109,11 @@
         <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
         <span class="save-state" data-save-state></span>
         <span class="save-state" data-reorder-state></span>
+        <span class="step-toggle" data-step-toggle title="Expand/collapse" aria-label="Expand or collapse this step">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </span>
       </div>
+      <div class="step-body">
       <div class="grid-2" style="gap:2px 16px;">
         <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
         <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result or 'Same as expected' }}</textarea></div>
@@ -104,8 +121,9 @@
       <div class="form-actions">
         <button class="btn secondary sm" type="submit" data-manual-save>Save Step</button>
       </div>
+      </div>
     </form>
-    <div class="form-actions" style="margin-top:10px;">
+    <div class="form-actions step-body" style="margin-top:10px;">
       <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/delete">
         <button class="btn act remove" type="submit" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash() }}</button>
       </form>

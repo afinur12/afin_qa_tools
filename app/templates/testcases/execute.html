@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces, icon_image, icon_copy with context %}
 {% block content %}
 
 {% set story = testcase.subtask.phase.story %}
+{% set has_images = testcase.all_steps | map(attribute='screenshots') | select | first is defined %}
 <div class="crumbs">
   <a href="/stories">Tasks</a><span class="sep">/</span>
   <a href="/stories/{{ story.id }}">{{ story.display_code }}</a><span class="sep">/</span>
@@ -28,11 +29,13 @@
     <button class="btn act add" type="submit" title="Save as prebuilt test case"
             aria-label="Save as prebuilt test case">{{ icon_plus() }}</button>
   </form>
+  <a class="btn act edit" href="#" data-modal-open="copy-from-prebuilt"
+     title="Copy steps from prebuilt" aria-label="Copy steps from prebuilt">{{ icon_copy() }}</a>
   <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/delete"
         data-confirm="Delete this test case and all of its steps?">
     <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case">{{ icon_trash() }}</button>
   </form>
-  {% if testcase.all_steps | map(attribute='screenshots') | select | first is defined %}
+  {% if has_images %}
   <a class="btn act export" href="/testcases/{{ testcase.id }}/export-images"
      title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
   {% endif %}
@@ -52,6 +55,15 @@
   </div>
 {% endcall %}
 
+{% call modal('copy-from-prebuilt', 'Copy Steps From Prebuilt', '/testcases/' ~ testcase.id ~ '/copy-from-prebuilt', wide=True,
+              confirm='This will erase all existing steps and screenshots in this test case and replace them with the selected template\'s steps. This cannot be undone. Continue?') %}
+  {% include "testcases/_prebuilt_picker.html" %}
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Copy Steps</button>
+  </div>
+{% endcall %}
+
 {% call modal('edit-testcase', 'Edit Test Case', '/testcases/' ~ testcase.id ~ '/edit') %}
   <div class="field">
     <label>Code</label>
@@ -67,7 +79,14 @@
   </div>
 {% endcall %}
 
-<div class="card">
+<div data-tabgroup>
+  <div class="tabgroup-nav">
+    <button type="button" class="tabgroup-btn is-active" data-tab-target="description">Description</button>
+    <button type="button" class="tabgroup-btn" data-tab-target="testing">Testing Steps</button>
+  </div>
+
+  <div data-tab-panel="description" class="tabgroup-panel is-active">
+  <div class="card">
   <div class="card-head">
     <div class="card-title">1. Description</div>
     <div class="spacer"></div>
@@ -92,45 +111,14 @@
           <span class="muted">&mdash;</span> {{ testcase.title }}
         </div>
       </div>
+    </div>
 
-      <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
-      <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>
-
-      <div class="field"><label>Environment</label><input value="{{ testcase.subtask.phase.type.value }}" disabled></div>
-
-      {% set priorities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] %}
-      <div class="field">
-        <label>Test Priority</label>
-        <select name="test_priority">
-          <option value="">Select&hellip;</option>
-          {% for o in priorities %}<option value="{{ o }}" {% if testcase.test_priority == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-          {% if testcase.test_priority and testcase.test_priority not in priorities %}
-          <option value="{{ testcase.test_priority }}" selected>{{ testcase.test_priority }}</option>
-          {% endif %}
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Test Type</label>
-        <select name="test_type_id">
-          <option value="">&mdash;</option>
-          {% for t in test_types %}<option value="{{ t.id }}" {% if testcase.test_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
-        </select>
-      </div>
-
+    <div class="grid-auto">
       <div class="field">
         <label>Assignee</label>
         <select name="assignee_id">
           <option value="">&mdash;</option>
           {% for u in assignees %}<option value="{{ u.id }}" {% if testcase.assignee_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Tester (User)</label>
-        <select name="tester_id">
-          <option value="">&mdash;</option>
-          {% for u in testers %}<option value="{{ u.id }}" {% if testcase.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
         </select>
       </div>
 
@@ -141,6 +129,45 @@
           {% for u in developers %}<option value="{{ u.id }}" {% if testcase.developer_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
         </select>
       </div>
+
+      <div class="field">
+        <label>Status</label>
+        <select name="status">
+          {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="field"><label>Environment</label><input value="{{ testcase.subtask.phase.type.value }}" disabled></div>
+
+      <div class="field">
+        <label>Test Priority</label>
+        <select name="test_priority_id">
+          <option value="">&mdash;</option>
+          {% for p in test_priorities %}<option value="{{ p.id }}" {% if testcase.test_priority_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Test Type</label>
+        <select name="test_type_id">
+          <option value="">&mdash;</option>
+          {% for t in test_types %}<option value="{{ t.id }}" {% if testcase.test_type_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-auto">
+      <div class="field"><label>Tester (PIC)</label><input name="tester" value="{{ testcase.tester }}"></div>
+
+      <div class="field">
+        <label>Tester (User)</label>
+        <select name="tester_id">
+          <option value="">&mdash;</option>
+          {% for u in testers %}<option value="{{ u.id }}" {% if testcase.tester_id == u.id %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="field"><label>Test Date</label><input type="date" name="test_date" value="{{ testcase.test_date or '' }}"></div>
 
       {% set channels = ['myXL', 'AXISnet', 'COMET', 'Other'] %}
       <div class="field">
@@ -155,38 +182,28 @@
       </div>
 
       <div class="field"><label>Iteration</label><input name="iteration" value="{{ testcase.iteration }}"></div>
+    </div>
+
+    <div class="grid-auto">
       <div class="field"><label>Balance Before</label><input name="balance_before" value="{{ testcase.balance_before }}"></div>
       <div class="field"><label>Balance After</label><input name="balance_after" value="{{ testcase.balance_after }}"></div>
       <div class="field"><label>Usage</label><input name="usage" value="{{ testcase.usage }}"></div>
-
-      <div class="field">
-        <label>Category</label>
-        <select name="category">
-          <option value="">&mdash;</option>
-          {% for c in categories %}<option value="{{ c.value }}" {% if testcase.category == c %}selected{% endif %}>{{ c.value }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field"><label>Planned Cost</label><input name="planned_cost" value="{{ testcase.planned_cost or '' }}"></div>
-      <div class="field"><label>Actual Cost</label><input name="actual_cost" value="{{ testcase.actual_cost or '' }}"></div>
-      <div class="field"><label># Iterations</label><input type="number" name="number_of_iteration" value="{{ testcase.number_of_iteration if testcase.number_of_iteration is not none else '' }}"></div>
-
-      <div class="field">
-        <label>Final Status</label>
-        <select name="status">
-          {% for s in statuses %}<option value="{{ s.value }}" {% if s == testcase.status %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
+      <div class="field"><label>Planned Cost</label><input name="planned_cost" value="{{ testcase.planned_cost or '' }}" inputmode="numeric"></div>
+      <div class="field"><label>Actual Cost</label><input name="actual_cost" value="{{ testcase.actual_cost or '' }}" inputmode="numeric"></div>
     </div>
 
-    <div class="field">
-      <label>Data Test</label>
-      <textarea name="data_test" rows="3" placeholder="One item per line — each line exports as a bullet">{{ testcase.data_test or '' }}</textarea>
-    </div>
-
-    <div class="field">
-      <label>MSISDN</label>
-      <textarea name="msisdn" rows="2" placeholder="e.g. MSISDN #A: 62812...">{{ testcase.msisdn or '' }}</textarea>
+    <div class="grid-2">
+      <div class="field">
+        <label>MSISDN Configuration</label>
+        <textarea name="msisdn" rows="6" placeholder="e.g. MSISDN #A: 62812...">{{ testcase.msisdn or '' }}</textarea>
+      </div>
+      <div>
+        <div class="field">
+          <label>Data Test</label>
+          <textarea name="data_test" rows="3" placeholder="One item per line — each line exports as a bullet">{{ testcase.data_test or '' }}</textarea>
+        </div>
+        <div class="field"><label>Remark</label><input name="remark" value="{{ testcase.remark or '' }}"></div>
+      </div>
     </div>
 
     <div class="field">
@@ -203,10 +220,26 @@
 
     <div class="form-actions"><button class="btn" type="submit" data-manual-save>Save Description</button></div>
   </form>
-</div>
+  </div>
+  </div>
+
+  <div data-tab-panel="testing" class="tabgroup-panel">
+  <div style="position:relative;">
+    <div class="pillbar" data-pillnav>
+      {% for kind in section_kinds %}
+      <button type="button" class="pill{% if loop.first %} is-active{% endif %}" data-pill-target="{{ kind.value }}">
+        {{ section_labels[kind] }}
+        <span class="pill-count">{{ testcase.sections | selectattr('kind', 'equalto', kind) | list | length }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    {% if has_images %}
+    <a class="btn secondary images-trigger" href="#" data-images-trigger title="View all images" aria-label="View all images">{{ icon_image() }} View Images</a>
+    {% endif %}
+  </div>
 
 {% macro step_block(step) %}
-<div class="step" data-step-id="{{ step.id }}">
+<div class="step is-collapsed" data-step-id="{{ step.id }}">
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit" data-autosave>
     <div class="step-head">
       <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
@@ -216,7 +249,11 @@
       <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
       <span class="save-state" data-save-state></span>
       <span class="save-state" data-reorder-state></span>
+      <span class="step-toggle" data-step-toggle title="Expand/collapse" aria-label="Expand or collapse this step">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+      </span>
     </div>
+    <div class="step-body">
     <div class="grid-2" style="gap:2px 16px;">
       <div class="field"><label>Expected Result</label><textarea name="expected_result" rows="2">{{ step.expected_result }}</textarea></div>
       <div class="field"><label>Actual Result</label><textarea name="actual_result" rows="2">{{ step.actual_result or 'Same as expected' }}</textarea></div>
@@ -247,12 +284,13 @@
       <button class="btn act remove" type="submit" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash() }}</button>
     </form>
   </div>
+  </div>
 </div>
 {% endmacro %}
 
 <div data-sections data-reorder-action="/testcases/{{ testcase.id }}/sections/reorder" data-index-offset="2">
 {% for section in testcase.sections %}
-  <div class="card section-card" data-section-id="{{ section.id }}">
+  <div class="card section-card" data-section-id="{{ section.id }}" data-kind="{{ section.kind.value }}" data-section-label="{{ section.label }}">
     <div class="card-head">
       <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
@@ -294,6 +332,24 @@
     <button class="btn secondary" type="submit">+ Add Section</button>
   </form>
 </div>
+  </div>
+</div>
+
+{% if has_images %}
+<div class="slideshow-overlay" id="slideshow-overlay" hidden>
+  <button type="button" class="slideshow-close" data-slideshow-close aria-label="Close">&times;</button>
+  <button type="button" class="slideshow-arrow prev" data-slideshow-prev aria-label="Previous image">&lsaquo;</button>
+  <div class="slideshow-body">
+    <img src="" alt="Step screenshot">
+    <div class="slideshow-caption">
+      <div class="label"></div>
+      <div class="name" style="font-weight:600;"></div>
+      <div class="expected muted"></div>
+    </div>
+  </div>
+  <button type="button" class="slideshow-arrow next" data-slideshow-next aria-label="Next image">&rsaquo;</button>
+</div>
+{% endif %}
 
 {% endblock %}
 
