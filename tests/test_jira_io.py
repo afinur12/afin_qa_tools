@@ -265,3 +265,50 @@ def test_export_then_import_round_trips_steps(db_session):
     imported_main = next(s for s in imported_tc.sections if s.kind.value == "MAIN")
     assert [s.step_text for s in imported_main.steps] == ["Do A"]
     assert [s.expected_result for s in imported_main.steps] == ["A happens"]
+
+
+def test_import_zephyr_entry_with_placeholder_step_keeps_real_expected_result(db_session):
+    # Regression test: _apply_zephyr_entry used to derive the number of
+    # TestCaseStep rows to create from step_lines alone, so a placeholder
+    # `step` (real `expected_result`) produced zero step_lines and silently
+    # discarded the real expected_result content entirely.
+    subtask = _make_subtask(db_session, code="SND-9885")
+    testcase = _make_testcase(db_session, subtask, code="SND-10064")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=1, step_text="Old step", expected_result="Old result", actual_result=""))
+    db_session.commit()
+
+    entry = _base_test_case_entry(issue_key="SND-10064", zephyr_steps=[
+        {"order_id": 1, "step_type": "PRE CONDITION", "step": "{{placeholder_pre_condition_step}}", "expected_result": "{{placeholder_pre_condition_expected}}"},
+        {"order_id": 2, "step_type": "MAIN TEST", "step": "{{placeholder_main_test_step}}", "expected_result": "1. A happens\r\n2. B happens"},
+        {"order_id": 3, "step_type": "POST CONDITION", "step": "{{placeholder_post_condition_step}}", "expected_result": "{{placeholder_post_condition_expected}}"},
+    ])
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(main_section)
+    assert [s.step_text for s in main_section.steps] == ["", ""]
+    assert [s.expected_result for s in main_section.steps] == ["A happens", "B happens"]
+
+
+def test_import_zephyr_entry_with_placeholder_expected_result_keeps_real_step(db_session):
+    # Companion test for the already-working direction: real `step`,
+    # placeholder `expected_result` -> real step text survives, expected
+    # result comes back blank.
+    subtask = _make_subtask(db_session, code="SND-9886")
+    testcase = _make_testcase(db_session, subtask, code="SND-10065")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    db_session.add(TestCaseStep(section_id=main_section.id, step_no=1, step_text="Old step", expected_result="Old result", actual_result=""))
+    db_session.commit()
+
+    entry = _base_test_case_entry(issue_key="SND-10065", zephyr_steps=[
+        {"order_id": 1, "step_type": "PRE CONDITION", "step": "{{placeholder_pre_condition_step}}", "expected_result": "{{placeholder_pre_condition_expected}}"},
+        {"order_id": 2, "step_type": "MAIN TEST", "step": "MAIN TEST\r\n1. Do A\r\n2. Do B", "expected_result": "{{placeholder_main_test_expected}}"},
+        {"order_id": 3, "step_type": "POST CONDITION", "step": "{{placeholder_post_condition_step}}", "expected_result": "{{placeholder_post_condition_expected}}"},
+    ])
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(main_section)
+    assert [s.step_text for s in main_section.steps] == ["Do A", "Do B"]
+    assert [s.expected_result for s in main_section.steps] == ["", ""]

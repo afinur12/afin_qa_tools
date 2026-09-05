@@ -181,10 +181,11 @@ def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) ->
     for step in list(section.steps):
         db.delete(step)
     db.flush()
-    for i, step_line in enumerate(step_lines):
+    for i in range(max(len(step_lines), len(expected_lines))):
         db.add(
             TestCaseStep(
-                section_id=section.id, step_no=i + 1, step_text=step_line,
+                section_id=section.id, step_no=i + 1,
+                step_text=step_lines[i] if i < len(step_lines) else "",
                 expected_result=expected_lines[i] if i < len(expected_lines) else "",
                 actual_result="",
             )
