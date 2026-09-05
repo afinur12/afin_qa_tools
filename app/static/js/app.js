@@ -442,17 +442,33 @@ document.querySelectorAll('select[name="assignee_id"]').forEach((select) => {
   if (select.value) select.dataset.touched = "1";
 });
 
-document.addEventListener("change", (event) => {
-  if (event.target.matches('select[name="assignee_id"]')) {
-    event.target.dataset.touched = "1";
-    return;
-  }
-  if (event.target.matches('select[name="tester_id"]')) {
-    const form = event.target.closest("form");
-    const assignee = form?.querySelector('select[name="assignee_id"]');
-    if (assignee && !assignee.dataset.touched) assignee.value = event.target.value;
-  }
-});
+// Registered on the capture phase (not the default bubble phase) so this
+// runs BEFORE any bubble-phase "change" listener on a nearer ancestor —
+// notably testcases/execute.html's per-form autosave listener, which reads
+// the form's current field values via FormData as soon as the event reaches
+// the <form>. On the bubble phase this listener (bound to `document`, the
+// farthest ancestor) would fire last, after autosave already captured the
+// stale Assignee value — and since setting `.value` via JS never fires its
+// own "change" event, autosave would never re-run to pick up the mirrored
+// value. Capture-phase listeners on an ancestor always run before
+// bubble-phase listeners on a descendant for the same event, so mirroring
+// Assignee here guarantees the form's own change handlers (autosave
+// included) see the updated value.
+document.addEventListener(
+  "change",
+  (event) => {
+    if (event.target.matches('select[name="assignee_id"]')) {
+      event.target.dataset.touched = "1";
+      return;
+    }
+    if (event.target.matches('select[name="tester_id"]')) {
+      const form = event.target.closest("form");
+      const assignee = form?.querySelector('select[name="assignee_id"]');
+      if (assignee && !assignee.dataset.touched) assignee.value = event.target.value;
+    }
+  },
+  true
+);
 
 // ── Prebuilt picker: search/filter, pagination, and title autofill ──────────
 // "Blank" is pinned — always visible, never paginated or filtered away.
