@@ -45,6 +45,7 @@ class TaskStatus(str, enum.Enum):
     never "done") never affects TestCase's own status options.
     """
     TO_DO = "TO_DO"
+    IN_PROGRESS = "IN_PROGRESS"
     BACK_LOG = "BACK_LOG"
     PASS = "PASS"
     FAIL = "FAIL"
@@ -131,6 +132,7 @@ class TestCaseStatus(str, enum.Enum):
     # Stored with underscores so the value stays safe in CSS class names and
     # filenames; `label` is what the UI and the exported document show.
     TO_DO = "TO_DO"
+    IN_PROGRESS = "IN_PROGRESS"
     BACK_LOG = "BACK_LOG"
     PASS = "PASS"
     FAIL = "FAIL"

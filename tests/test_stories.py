@@ -96,6 +96,23 @@ def test_edit_story_status(client):
     assert "DONE" in listing.text
 
 
+def test_edit_story_status_in_progress(client):
+    create = client.post("/stories", data={"display_code": "EX-107", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/stories/{story_id}/edit",
+        data={"display_code": "EX-107", "title": "A", "status": "IN_PROGRESS"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    detail = client.get(f"/stories/{story_id}")
+    assert "IN PROGRESS" in detail.text
+
+    listing = client.get("/stories")
+    assert "IN PROGRESS" in listing.text
+
+
 def test_story_list_shows_tracker_link(client):
     client.post("/stories", data={"display_code": "EX-108", "title": "A"})
     response = client.get("/stories")

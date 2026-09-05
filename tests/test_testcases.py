@@ -85,7 +85,7 @@ def test_status_dropdown_offers_to_do_and_back_log(client):
     from app.models import TestCaseStatus
 
     assert [s.value for s in TestCaseStatus] == [
-        "TO_DO", "BACK_LOG", "PASS", "FAIL", "BLOCKED", "CANCELLED", "POSTPONED",
+        "TO_DO", "IN_PROGRESS", "BACK_LOG", "PASS", "FAIL", "BLOCKED", "CANCELLED", "POSTPONED",
     ]
     # Underscores are an implementation detail; the UI shows them spaced.
     assert TestCaseStatus.TO_DO.label == "TO DO"

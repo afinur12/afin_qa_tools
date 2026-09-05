@@ -57,6 +57,23 @@ def test_update_section1_fields(client):
     assert f'value="{test_type_id}" selected' in page.text
 
 
+def test_update_section1_status_in_progress(client):
+    testcase_id = _create_testcase(client, "EX-403")
+    response = client.post(
+        f"/testcases/{testcase_id}/section1",
+        data={
+            "tester": "Jane Doe", "test_date": "2026-08-26", "test_priority": "High",
+            "channel": "Mobile App", "iteration": "1",
+            "balance_before": "Rp. -", "balance_after": "Rp. -", "usage": "Rp. -",
+            "remark": "", "data_test": "", "status": "IN_PROGRESS",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    assert "IN PROGRESS" in page.text
+
+
 def test_edit_and_delete_step(client):
     testcase_id = _create_testcase(client, "EX-403")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "PRECONDITION", "step_text": "orig", "expected_result": "e", "actual_result": "a"})
