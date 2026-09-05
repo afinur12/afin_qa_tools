@@ -24,6 +24,9 @@
         <option value="DEVELOPER">Developer</option>
       </select>
     </div>
+    <div class="field" style="margin-bottom:0; flex:1;">
+      <input name="jira_username" placeholder="Jira Username (optional)">
+    </div>
     <button class="btn secondary" type="submit">+ Add</button>
   </form>
 </div>
@@ -31,16 +34,18 @@
 <div class="card flush">
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Name</th><th>Type</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Jira Username</th><th>Type</th><th></th></tr></thead>
     <tbody>
       {% for user in users %}
       <tr>
-        <td style="width:100%;">
+        <td style="width:60%;">
           <form method="post" action="/settings/users/{{ user.id }}/edit" class="row" style="gap:8px;">
             <input name="name" value="{{ user.name }}" style="flex:1;" required>
+            <input name="jira_username" value="{{ user.jira_username or '' }}" placeholder="Jira Username" style="flex:1;">
             <button class="btn secondary sm" type="submit">Save</button>
           </form>
         </td>
+        <td class="muted">{{ user.jira_username or '—' }}</td>
         <td class="muted">{{ user.type.value.title() }}</td>
         <td style="width:1%; white-space:nowrap;">
           <form method="post" action="/settings/users/{{ user.id }}/delete" data-confirm="Delete &quot;{{ user.name }}&quot;?">
@@ -49,7 +54,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="3" class="empty">No users yet.</td></tr>
+      <tr><td colspan="4" class="empty">No users yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

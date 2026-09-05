@@ -80,3 +80,36 @@ def test_nav_and_tabs_show_users(client):
     assert 'href="/settings/users"' in page.text
     users_page = client.get("/settings/users")
     assert 'href="/settings/services"' in users_page.text  # tab bar links back the other way too
+
+
+def test_create_user_with_jira_username(client):
+    response = client.post(
+        "/settings/users",
+        data={"name": "Jane Doe", "type": "TESTER", "jira_username": "ADL.JANED"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get("/settings/users")
+    assert "ADL.JANED" in page.text
+
+
+def test_create_user_without_jira_username_leaves_it_blank(client):
+    client.post("/settings/users", data={"name": "No Username", "type": "TESTER"})
+    page = client.get("/settings/users")
+    assert "No Username" in page.text
+
+
+def test_rename_user_updates_jira_username(client):
+    client.post("/settings/users", data={"name": "Jane Doe", "type": "TESTER", "jira_username": "ADL.OLD"})
+    page = client.get("/settings/users")
+    user_id = re.search(r"/settings/users/(\d+)/edit", page.text).group(1)
+
+    response = client.post(
+        f"/settings/users/{user_id}/edit",
+        data={"name": "Jane Doe", "jira_username": "ADL.NEW"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page_after = client.get("/settings/users")
+    assert "ADL.NEW" in page_after.text
+    assert "ADL.OLD" not in page_after.text

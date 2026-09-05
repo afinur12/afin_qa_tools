@@ -40,7 +40,10 @@ def list_users(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/settings/users")
-def create_user(request: Request, name: str = Form(...), type: str = Form(...), db: Session = Depends(get_db)):
+def create_user(
+    request: Request, name: str = Form(...), type: str = Form(...),
+    jira_username: str = Form(""), db: Session = Depends(get_db),
+):
     name = name.strip()
     if not name:
         return _render(request, db, error="Name is required.", status_code=422)
@@ -50,13 +53,16 @@ def create_user(request: Request, name: str = Form(...), type: str = Form(...), 
         return _render(request, db, error="Invalid type.", status_code=422)
     if db.query(User).filter(User.name == name).first():
         return _render(request, db, error=f'"{name}" already exists.', status_code=422)
-    db.add(User(name=name, type=type_enum))
+    db.add(User(name=name, type=type_enum, jira_username=jira_username.strip() or None))
     db.commit()
     return RedirectResponse(url="/settings/users", status_code=303)
 
 
 @router.post("/settings/users/{user_id}/edit")
-def rename_user(request: Request, user_id: int, name: str = Form(...), db: Session = Depends(get_db)):
+def rename_user(
+    request: Request, user_id: int, name: str = Form(...),
+    jira_username: str = Form(""), db: Session = Depends(get_db),
+):
     user = db.get(User, user_id)
     if user is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
@@ -67,6 +73,7 @@ def rename_user(request: Request, user_id: int, name: str = Form(...), db: Sessi
     if conflict:
         return _render(request, db, error=f'"{name}" already exists.', status_code=422)
     user.name = name
+    user.jira_username = jira_username.strip() or None
     db.commit()
     return RedirectResponse(url="/settings/users", status_code=303)
 
