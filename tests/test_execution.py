@@ -76,3 +76,45 @@ def test_edit_and_delete_step(client):
     assert deleted.status_code == 303
     page3 = client.get(f"/testcases/{testcase_id}/execute")
     assert "changed" not in page3.text
+
+
+def test_update_section1_sets_assignee_tester_developer_and_labels(client):
+    import re
+
+    testcase_id = _create_testcase(client, "EX-410")
+    client.post("/settings/users", data={"name": "TC Tester", "type": "TESTER"})
+    tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
+    client.post("/settings/users", data={"name": "TC Dev", "type": "DEVELOPER"})
+    developer_id = re.search(
+        r'value="TC Dev"[\s\S]*?/settings/users/(\d+)/delete', client.get("/settings/users").text
+    ).group(1)
+    client.post("/settings/labels", data={"name": "sanity"})
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    response = client.post(
+        f"/testcases/{testcase_id}/section1",
+        data={
+            "status": "TO_DO",
+            "assignee_id": tester_id, "tester_id": tester_id, "developer_id": developer_id,
+            "label_ids": [label_id],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    assert "TC Tester" in page.text
+    assert "TC Dev" in page.text
+    assert "sanity" in page.text
+
+
+def test_testcase_create_form_does_not_collect_assignee_tester_developer(client):
+    # These fields are edit-only for TestCase — the lightweight create
+    # form/modal never shows them, matching how `tester`/`test_type`
+    # already work for this entity (defaulted, edited later on Section 1).
+    testcase_id = _create_testcase(client, "EX-411")
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    assert 'name="assignee_id"' in page.text  # present on the edit surface (Section 1)...
+    # ...but the standalone create form/modal never posts these fields;
+    # nothing to assert on testcases/form.html itself since it never
+    # collected them even before this task (only display_code/title/
+    # prebuilt_id), so there's no regression risk to check there.

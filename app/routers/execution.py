@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templating import templates
-from app.models import SECTION_LABELS, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
+from app.models import SECTION_LABELS, LabelAttachType, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestType
+from app.labels import get_labels, set_labels
+from app.routers.stories import _parse_id, _user_dropdowns
 
 router = APIRouter()
 
@@ -19,7 +21,10 @@ def _render_execute(request: Request, testcase: TestCase, db: Session, error: st
             "section_kinds": list(StepSection),
             "section_labels": SECTION_LABELS,
             "test_types": db.query(TestType).order_by(TestType.name).all(),
+            "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.TESTCASE, testcase.id)],
+            "testcase_labels": get_labels(db, LabelAttachType.TESTCASE, testcase.id),
             "error": error,
+            **_user_dropdowns(db),
         },
         status_code=status_code,
     )
@@ -53,6 +58,10 @@ def update_section1(
     remark: str = Form(""),
     data_test: str = Form(""),
     status: str = Form(...),
+    assignee_id: str = Form(""),
+    tester_id: str = Form(""),
+    developer_id: str = Form(""),
+    label_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
 ):
     testcase = db.get(TestCase, testcase_id)
@@ -72,6 +81,10 @@ def update_section1(
     testcase.usage = usage
     testcase.remark = remark
     testcase.data_test = data_test
+    testcase.assignee_id = _parse_id(assignee_id)
+    testcase.tester_id = _parse_id(tester_id)
+    testcase.developer_id = _parse_id(developer_id)
+    set_labels(db, LabelAttachType.TESTCASE, testcase.id, label_ids)
 
     try:
         status_enum = TestCaseStatus(status)
