@@ -223,9 +223,12 @@
   {% endif %}
 
   {% if phase.subtasks %}
-  <div class="stack">
+  <div class="stack" data-subtasks data-reorder-action="/phases/{{ phase.id }}/subtasks/reorder">
     {% for subtask in phase.subtasks %}
-    <div class="list-row">
+    <div class="list-row" data-subtask-id="{{ subtask.id }}">
+      <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+      </span>
       <a class="list-row-main" href="/subtasks/{{ subtask.id }}">
         <span class="badge code">{{ subtask.display_code }}</span>
         <span class="list-row-title">{{ subtask.title }}</span>
@@ -234,6 +237,7 @@
         <span class="badge badge--{{ subtask.status.value | lower }}">{{ subtask.status.label }}</span>
         <span class="muted">{{ icon_chevron() }}</span>
       </a>
+      <span class="save-state" data-reorder-state></span>
       <a class="btn act edit" href="{{ tracker_url(subtask.display_code) }}" target="_blank" rel="noopener"
          title="Open {{ subtask.display_code }} in the tracker" aria-label="Open {{ subtask.display_code }} in the tracker">{{ icon_link() }}</a>
       <form method="post" action="/subtasks/{{ subtask.id }}/delete"

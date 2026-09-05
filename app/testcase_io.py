@@ -307,10 +307,11 @@ def dict_to_subtask(db: Session, phase_id: int, data: dict) -> Subtask:
 
     status = _parse_enum(TaskStatus, fields.get("status") or TaskStatus.TO_DO.value, "subtask status")
     display_code = _unique_code(db, Subtask, _require(fields, "display_code", "subtask"), phase_id=phase_id)
+    next_position = max((s.position for s in phase.subtasks), default=-1) + 1
     subtask = Subtask(
         phase_id=phase_id, display_code=display_code, title=_require(fields, "title", "subtask"),
         internal_key=generate_internal_key(), subtask_type=subtask_type, notes=fields.get("notes"),
-        status=status,
+        status=status, position=next_position,
     )
     db.add(subtask)
     db.flush()

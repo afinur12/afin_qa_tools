@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session, selectinload
 
 from app import deletion
@@ -17,6 +18,10 @@ router = APIRouter()
 
 def _allowed_subtask_types(phase: Phase) -> list[SubtaskType]:
     return phase.allowed_subtask_types
+
+
+def _next_subtask_position(phase: Phase) -> int:
+    return max((subtask.position for subtask in phase.subtasks), default=-1) + 1
 
 
 @router.get("/phases/{phase_id}/subtasks/new")
@@ -97,6 +102,7 @@ def create_subtask(
         title=title,
         internal_key=generate_internal_key(),
         subtask_type=st_type,
+        position=_next_subtask_position(phase),
         assignee_id=_parse_id(assignee_id), tester_id=_parse_id(tester_id), developer_id=_parse_id(developer_id),
     )
     db.add(subtask)
@@ -105,6 +111,33 @@ def create_subtask(
     db.commit()
     db.refresh(subtask)
     return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} created.")
+
+
+@router.post("/phases/{phase_id}/subtasks/reorder")
+def reorder_subtasks(request: Request, phase_id: int, order: str = Form(...), db: Session = Depends(get_db)):
+    """Persist a new subtask order within a phase.
+
+    ``order`` is a comma-separated list of subtask ids in their new order.
+    Ids that don't belong to this phase are rejected outright rather than
+    partially applied.
+    """
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+
+    by_id = {subtask.id: subtask for subtask in phase.subtasks}
+    try:
+        requested = [int(value) for value in order.split(",") if value.strip()]
+    except ValueError:
+        return Response("Invalid subtask order.", status_code=422)
+
+    if sorted(requested) != sorted(by_id):
+        return Response("Subtask order does not match this phase.", status_code=422)
+
+    for position, subtask_id in enumerate(requested):
+        by_id[subtask_id].position = position
+    db.commit()
+    return RedirectResponse(url=f"/stories/{phase.story_id}", status_code=303)
 
 
 @router.post("/phases/{phase_id}/subtasks/import")

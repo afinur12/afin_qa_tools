@@ -315,16 +315,20 @@ document.addEventListener("submit", (event) => {
   window.addEventListener("load", () => requestAnimationFrame(apply), { once: true });
 })();
 
-// ── Drag to reorder (sections and steps) ────────────────────────────────────
-// Shared by the test case execution page and the prebuilt template editor.
-// Sections reorder across a whole [data-sections] list; steps reorder within
-// their own section's [data-steps] list, so drags never cross section
-// boundaries.
+// ── Drag to reorder (sections, steps, and subtasks) ─────────────────────────
+// Shared by the test case execution page, the prebuilt template editor, and
+// the story page's per-phase subtask list. Sections reorder across a whole
+// [data-sections] list; steps reorder within their own section's
+// [data-steps] list, so drags never cross section boundaries; subtasks
+// reorder within their own phase's [data-subtasks] list likewise.
 document.querySelectorAll("[data-sections]").forEach((el) =>
   initReorder(el, { itemSelector: ".section-card", idKey: "sectionId", indexSelector: "[data-section-index]" })
 );
 document.querySelectorAll("[data-steps]").forEach((el) =>
   initReorder(el, { itemSelector: ".step", idKey: "stepId", indexSelector: "[data-step-index]" })
+);
+document.querySelectorAll("[data-subtasks]").forEach((el) =>
+  initReorder(el, { itemSelector: ".list-row", idKey: "subtaskId", indexSelector: "[data-subtask-index]" })
 );
 
 function initReorder(container, { itemSelector, idKey, indexSelector }) {

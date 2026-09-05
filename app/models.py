@@ -87,7 +87,7 @@ class Phase(Base):
     type: Mapped[PhaseType] = mapped_column(SAEnum(PhaseType), nullable=False)
 
     story: Mapped["Story"] = relationship("Story", back_populates="phases")
-    subtasks: Mapped[list["Subtask"]] = relationship("Subtask", back_populates="phase", order_by="Subtask.id")
+    subtasks: Mapped[list["Subtask"]] = relationship("Subtask", back_populates="phase", order_by="Subtask.position")
 
     @property
     def allowed_subtask_types(self) -> list["SubtaskType"]:
@@ -112,6 +112,7 @@ class Subtask(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     internal_key: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, default=generate_internal_key)
     subtask_type: Mapped[SubtaskType] = mapped_column(SAEnum(SubtaskType), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[TaskStatus] = mapped_column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.TO_DO)
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

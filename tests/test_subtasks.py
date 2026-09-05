@@ -264,3 +264,53 @@ def test_edit_subtask_updates_assignee_tester_developer_and_labels(client):
     page = client.get(f"/subtasks/{subtask_id}")
     assert "Later Sub Tester" in page.text
     assert "smoke" in page.text
+
+
+def test_subtasks_can_be_reordered(client):
+    import re
+
+    create = client.post("/stories", data={"display_code": "EX-208", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+
+    first = client.post(f"/phases/{phase_id}/subtasks", data={"display_code": "S-1", "title": "Planning", "subtask_type": "TEST_PLANNING"}, follow_redirects=False)
+    first_id = first.headers["location"].rstrip("/").split("/")[-1]
+    second = client.post(f"/phases/{phase_id}/subtasks", data={"display_code": "S-2", "title": "Data Prep", "subtask_type": "TEST_DATA_PREP"}, follow_redirects=False)
+    second_id = second.headers["location"].rstrip("/").split("/")[-1]
+    third = client.post(f"/phases/{phase_id}/subtasks", data={"display_code": "S-3", "title": "Execution", "subtask_type": "EXECUTION"}, follow_redirects=False)
+    third_id = third.headers["location"].rstrip("/").split("/")[-1]
+
+    page = client.get(f"/stories/{story_id}").text
+    assert page.index(f'data-subtask-id="{first_id}"') < page.index(f'data-subtask-id="{second_id}"') < page.index(f'data-subtask-id="{third_id}"')
+
+    response = client.post(
+        f"/phases/{phase_id}/subtasks/reorder",
+        data={"order": f"{third_id},{first_id},{second_id}"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    reordered = client.get(f"/stories/{story_id}").text
+    assert reordered.index(f'data-subtask-id="{third_id}"') < reordered.index(f'data-subtask-id="{first_id}"') < reordered.index(f'data-subtask-id="{second_id}"')
+
+
+def test_subtask_reorder_rejects_ids_from_another_phase(client):
+    import re
+
+    create = client.post("/stories", data={"display_code": "EX-209", "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    client.post(f"/stories/{story_id}/phases", data={"type": "STAGING"})
+    story_page = client.get(f"/stories/{story_id}").text
+    phase_ids = re.findall(r"/phases/(\d+)/subtasks/new", story_page)
+    sit_phase_id, staging_phase_id = phase_ids[0], phase_ids[1]
+
+    own = client.post(f"/phases/{sit_phase_id}/subtasks", data={"display_code": "S-1", "title": "Own", "subtask_type": "EXECUTION"}, follow_redirects=False)
+    own_id = own.headers["location"].rstrip("/").split("/")[-1]
+    intruder = client.post(f"/phases/{staging_phase_id}/subtasks", data={"display_code": "S-1", "title": "Intruder", "subtask_type": "EXECUTION"}, follow_redirects=False)
+    intruder_id = intruder.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(f"/phases/{sit_phase_id}/subtasks/reorder", data={"order": f"{intruder_id},{own_id}"})
+    assert response.status_code == 422

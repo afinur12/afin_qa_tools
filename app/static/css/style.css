@@ -1009,10 +1009,10 @@ tbody tr:hover { background: var(--surface-sunk); }
 .slideshow-caption { color: #f2f1ec; text-align: center; font-size: 13.5px; }
 .slideshow-caption .label { color: #9b9aa4; margin-bottom: 4px; }
 
-/* ── Section reordering ──────────────────────────────────────────────────── */
+/* ── Section reordering (also used by subtask rows — see .list-row) ──────── */
 
-.section-card, .step { transition: box-shadow 140ms ease, opacity 140ms ease; }
-.section-card.is-dragging, .step.is-dragging {
+.section-card, .step, .list-row { transition: box-shadow 140ms ease, opacity 140ms ease; }
+.section-card.is-dragging, .step.is-dragging, .list-row.is-dragging {
   opacity: 0.55;
   box-shadow: 0 12px 32px rgba(27, 27, 25, 0.16);
 }
