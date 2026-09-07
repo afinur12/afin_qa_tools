@@ -954,12 +954,73 @@ function collectSlideshowSlides() {
 let slideshowSlides = [];
 let slideshowIndex = 0;
 
+// ── Zoom & pan ──────────────────────────────────────────────────────────
+// zoom/panX/panY describe the current slide's <img> transform. Reset
+// whenever a new slide renders (or the overlay closes) so zooming one
+// screenshot never carries over and crops the next one unexpectedly.
+const SLIDESHOW_ZOOM_MIN = 1;
+const SLIDESHOW_ZOOM_MAX = 4;
+const SLIDESHOW_ZOOM_STEP = 0.25;
+let slideshowZoom = SLIDESHOW_ZOOM_MIN;
+let slideshowPanX = 0;
+let slideshowPanY = 0;
+
+function slideshowZoomFrame() {
+  return document.querySelector("[data-slideshow-zoom-frame]");
+}
+
+// Keeps the image from being dragged so far that its edge leaves the
+// frame — the max pan is exactly how far the scaled image overhangs the
+// frame on each axis. img.offsetWidth/Height are the pre-transform
+// (zoom===1) layout size, since a CSS transform never affects layout.
+function clampSlideshowPan() {
+  const frame = slideshowZoomFrame();
+  const img = frame?.querySelector("img");
+  if (!frame || !img) return;
+  const overhangX = Math.max(0, (img.offsetWidth * slideshowZoom - frame.clientWidth) / 2);
+  const overhangY = Math.max(0, (img.offsetHeight * slideshowZoom - frame.clientHeight) / 2);
+  slideshowPanX = Math.min(overhangX, Math.max(-overhangX, slideshowPanX));
+  slideshowPanY = Math.min(overhangY, Math.max(-overhangY, slideshowPanY));
+}
+
+function applySlideshowZoom() {
+  const frame = slideshowZoomFrame();
+  const img = frame?.querySelector("img");
+  if (!frame || !img) return;
+  img.style.transform = `translate(${slideshowPanX}px, ${slideshowPanY}px) scale(${slideshowZoom})`;
+  frame.classList.toggle("is-zoomed", slideshowZoom > SLIDESHOW_ZOOM_MIN);
+  const zoomOutBtn = document.querySelector("[data-slideshow-zoom-out]");
+  const zoomInBtn = document.querySelector("[data-slideshow-zoom-in]");
+  if (zoomOutBtn) zoomOutBtn.disabled = slideshowZoom <= SLIDESHOW_ZOOM_MIN;
+  if (zoomInBtn) zoomInBtn.disabled = slideshowZoom >= SLIDESHOW_ZOOM_MAX;
+}
+
+function resetSlideshowZoom() {
+  slideshowZoom = SLIDESHOW_ZOOM_MIN;
+  slideshowPanX = 0;
+  slideshowPanY = 0;
+  applySlideshowZoom();
+}
+
+function slideshowZoomBy(delta) {
+  const next = Math.min(SLIDESHOW_ZOOM_MAX, Math.max(SLIDESHOW_ZOOM_MIN, Math.round((slideshowZoom + delta) * 100) / 100));
+  if (next === slideshowZoom) return;
+  slideshowZoom = next;
+  if (slideshowZoom === SLIDESHOW_ZOOM_MIN) {
+    slideshowPanX = 0;
+    slideshowPanY = 0;
+  }
+  clampSlideshowPan();
+  applySlideshowZoom();
+}
+
 function renderSlideshowSlide() {
   const overlay = document.getElementById("slideshow-overlay");
   if (!overlay) return;
   const slide = slideshowSlides[slideshowIndex];
   if (!slide) return;
-  overlay.querySelector(".slideshow-body img").src = slide.src;
+  resetSlideshowZoom();
+  overlay.querySelector(".slideshow-zoom-frame img").src = slide.src;
   overlay.querySelector(".slideshow-caption .label").textContent =
     `STEP ${slide.stepNo} OF ${slideshowSlides.length} — ${slide.sectionLabel.toUpperCase()}`;
   overlay.querySelector(".slideshow-caption .name").textContent = slide.stepText;
@@ -979,6 +1040,7 @@ function openSlideshow() {
 function closeSlideshow() {
   const overlay = document.getElementById("slideshow-overlay");
   if (overlay) overlay.hidden = true;
+  resetSlideshowZoom();
 }
 
 document.addEventListener("click", (event) => {
@@ -993,6 +1055,52 @@ document.addEventListener("click", (event) => {
     slideshowIndex += 1;
     renderSlideshowSlide();
   }
+  if (event.target.closest("[data-slideshow-zoom-in]")) slideshowZoomBy(SLIDESHOW_ZOOM_STEP);
+  if (event.target.closest("[data-slideshow-zoom-out]")) slideshowZoomBy(-SLIDESHOW_ZOOM_STEP);
+});
+
+document.addEventListener("dblclick", (event) => {
+  const overlay = document.getElementById("slideshow-overlay");
+  if (!overlay || overlay.hidden) return;
+  if (event.target.closest("[data-slideshow-zoom-frame]")) resetSlideshowZoom();
+});
+
+document.addEventListener(
+  "wheel",
+  (event) => {
+    const overlay = document.getElementById("slideshow-overlay");
+    if (!overlay || overlay.hidden) return;
+    if (!event.target.closest("[data-slideshow-zoom-frame]")) return;
+    event.preventDefault();
+    slideshowZoomBy(event.deltaY < 0 ? SLIDESHOW_ZOOM_STEP : -SLIDESHOW_ZOOM_STEP);
+  },
+  { passive: false }
+);
+
+let slideshowPanDragging = false;
+let slideshowPanStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+document.addEventListener("pointerdown", (event) => {
+  const frame = event.target.closest("[data-slideshow-zoom-frame]");
+  if (!frame || slideshowZoom <= SLIDESHOW_ZOOM_MIN) return;
+  slideshowPanDragging = true;
+  frame.classList.add("is-panning");
+  slideshowPanStart = { x: event.clientX, y: event.clientY, panX: slideshowPanX, panY: slideshowPanY };
+  frame.setPointerCapture(event.pointerId);
+});
+
+document.addEventListener("pointermove", (event) => {
+  if (!slideshowPanDragging) return;
+  slideshowPanX = slideshowPanStart.panX + (event.clientX - slideshowPanStart.x);
+  slideshowPanY = slideshowPanStart.panY + (event.clientY - slideshowPanStart.y);
+  clampSlideshowPan();
+  applySlideshowZoom();
+});
+
+document.addEventListener("pointerup", () => {
+  if (!slideshowPanDragging) return;
+  slideshowPanDragging = false;
+  slideshowZoomFrame()?.classList.remove("is-panning");
 });
 
 document.addEventListener("keydown", (event) => {
@@ -1007,6 +1115,9 @@ document.addEventListener("keydown", (event) => {
     slideshowIndex += 1;
     renderSlideshowSlide();
   }
+  if (event.key === "+" || event.key === "=") slideshowZoomBy(SLIDESHOW_ZOOM_STEP);
+  if (event.key === "-" || event.key === "_") slideshowZoomBy(-SLIDESHOW_ZOOM_STEP);
+  if (event.key === "0") resetSlideshowZoom();
 });
 
 // ── Click-to-sort tables ─────────────────────────────────────────────────

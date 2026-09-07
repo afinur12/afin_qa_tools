@@ -354,9 +354,15 @@
 {% if has_images %}
 <div class="slideshow-overlay" id="slideshow-overlay" hidden>
   <button type="button" class="slideshow-close" data-slideshow-close aria-label="Close">&times;</button>
+  <div class="slideshow-zoom-controls">
+    <button type="button" class="slideshow-zoom-btn" data-slideshow-zoom-out aria-label="Zoom out">&minus;</button>
+    <button type="button" class="slideshow-zoom-btn" data-slideshow-zoom-in aria-label="Zoom in">&plus;</button>
+  </div>
   <button type="button" class="slideshow-arrow prev" data-slideshow-prev aria-label="Previous image">&lsaquo;</button>
   <div class="slideshow-body">
-    <img src="" alt="Step screenshot">
+    <div class="slideshow-zoom-frame" data-slideshow-zoom-frame>
+      <img src="" alt="Step screenshot">
+    </div>
     <div class="slideshow-caption">
       <div class="label"></div>
       <div class="name" style="font-weight:600;"></div>
