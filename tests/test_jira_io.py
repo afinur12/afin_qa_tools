@@ -462,3 +462,57 @@ def test_import_repeated_section_kind_touches_only_first_section_of_that_kind(db
     assert [s.step_text for s in main_sections[0].steps] == ["Do A", "Do B"]
     assert [s.step_text for s in main_sections[1].steps] == ["Second old"]
     assert [s.expected_result for s in main_sections[1].steps] == ["e2"]
+
+
+def test_import_accepts_one_zephyr_entry_per_step_from_other_tools(db_session):
+    # This app's own export always bundles a whole section into ONE entry
+    # (a "{LABEL}\r\n1. a\r\n2. b" block — see _base_test_case_entry). Other
+    # tools instead give one entry per individual step, plain text with no
+    # numbering, and let a kind repeat across several entries (two PRE
+    # CONDITION entries here) — both real steps must land, with real text.
+    subtask = _make_subtask(db_session, code="SND-9892")
+    entry = _base_test_case_entry(
+        issue_key="SND-10071",
+        zephyr_steps=[
+            {"order_id": 1, "step_type": "PRE CONDITION", "step": "Hit subscriber-profile", "expected_result": "Profile active"},
+            {"order_id": 2, "step_type": "PRE CONDITION", "step": "Call get-token", "expected_result": "Token stored"},
+            {"order_id": 3, "step_type": "MAIN TEST", "step": "Call the endpoint", "expected_result": "HTTP 200"},
+            {"order_id": 4, "step_type": "POST CONDITION", "step": "Assert response", "expected_result": "Key present"},
+        ],
+    )
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    testcase = next(tc for tc in subtask.testcases if tc.display_code == "SND-10071")
+    pre_section = next(s for s in testcase.sections if s.kind.value == "PRECONDITION")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    post_section = next(s for s in testcase.sections if s.kind.value == "POSTCONDITION")
+    assert [s.step_text for s in pre_section.steps] == ["Hit subscriber-profile", "Call get-token"]
+    assert [s.expected_result for s in pre_section.steps] == ["Profile active", "Token stored"]
+    assert [s.step_text for s in main_section.steps] == ["Call the endpoint"]
+    assert [s.step_text for s in post_section.steps] == ["Assert response"]
+
+
+def test_import_one_entry_per_step_preserves_old_value_on_placeholder(db_session):
+    subtask = _make_subtask(db_session, code="SND-9893")
+    testcase = _make_testcase(db_session, subtask, code="SND-10072")
+    pre_section = next(s for s in testcase.sections if s.kind.value == "PRECONDITION")
+    db_session.add(TestCaseStep(section_id=pre_section.id, step_no=1, step_text="Old first", expected_result="Old expected 1", actual_result="a1"))
+    db_session.add(TestCaseStep(section_id=pre_section.id, step_no=2, step_text="Old second", expected_result="Old expected 2", actual_result="a2"))
+    db_session.commit()
+
+    entry = _base_test_case_entry(
+        issue_key="SND-10072",
+        zephyr_steps=[
+            {"order_id": 1, "step_type": "PRE CONDITION", "step": "{{placeholder_step}}", "expected_result": "New expected 1"},
+            {"order_id": 2, "step_type": "PRE CONDITION", "step": "New second step", "expected_result": "{{placeholder_expected}}"},
+        ],
+    )
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    db_session.refresh(pre_section)
+    assert [s.step_text for s in pre_section.steps] == ["Old first", "New second step"]
+    assert [s.expected_result for s in pre_section.steps] == ["New expected 1", "Old expected 2"]
+    # actual_result is never touched by Jira Sync, whichever path is used.
+    assert [s.actual_result for s in pre_section.steps] == ["a1", "a2"]

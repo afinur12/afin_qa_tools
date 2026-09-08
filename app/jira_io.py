@@ -204,6 +204,29 @@ def _resolve_person_id(db: Session, entry: dict, key: str, user_type: "UserType"
     return user.id if user else current_id
 
 
+def _is_bundled_entry(entry: dict, label: str) -> bool:
+    """True if a single zephyr_steps entry is this app's own bundled shape
+    (one entry holding every step of a section, `step` prefixed with the
+    section label and both fields "\r\n"-joined when there's more than one
+    step) rather than one plain, unwrapped step from another tool.
+
+    A single-step section still bundles `step` as "{LABEL}\r\n1. text" (the
+    label join alone puts a "\r\n" in there), so the label-prefix check
+    alone covers most cases — but `step` can be a placeholder while
+    `expected_result` still carries the real (possibly multi-line) content,
+    or vice versa, so either field showing the bundled shape is enough.
+    """
+    step_text = str(entry.get("step", ""))
+    expected_text = str(entry.get("expected_result", ""))
+    if step_text.startswith(label + "\r\n"):
+        return True
+    if not _is_placeholder(step_text) and "\r\n" in step_text:
+        return True
+    if not _is_placeholder(expected_text) and "\r\n" in expected_text:
+        return True
+    return False
+
+
 def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) -> None:
     """Replace a section's steps from one Jira zephyr_steps entry.
 
@@ -260,6 +283,44 @@ def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) ->
         )
 
 
+def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", entries: list[dict]) -> None:
+    """Replace a section's steps from several Jira zephyr_steps entries, one
+    entry per step (as opposed to _apply_zephyr_entry's single bundled
+    entry — see the dispatch in _apply_testcase_from_jira for how the two
+    shapes are told apart). Order is the entries' own order (their file
+    order / order_id, already reflected in list order by the caller).
+
+    Same placeholder rule as _apply_zephyr_entry: a placeholder step/
+    expected_result on an entry preserves the OLD step's value at that same
+    position rather than blanking it, and actual_result (which Jira has no
+    concept of) is always carried over untouched.
+    """
+    old_steps = list(section.steps)
+    if all(_is_placeholder(e.get("step", "")) and _is_placeholder(e.get("expected_result", "")) for e in entries):
+        return  # nothing real in any of this section's entries — leave existing steps alone
+
+    new_rows = []
+    for i, entry in enumerate(entries):
+        old = old_steps[i] if i < len(old_steps) else None
+        step_text = entry.get("step", "")
+        expected_text = entry.get("expected_result", "")
+        step_value = (old.step_text if old else "") if _is_placeholder(step_text) else step_text
+        expected_value = (old.expected_result if old else "") if _is_placeholder(expected_text) else expected_text
+        actual_value = old.actual_result if old else ""
+        new_rows.append((step_value, expected_value, actual_value))
+
+    for step in old_steps:
+        deletion.delete_step(db, step)
+    db.flush()
+    for i, (step_value, expected_value, actual_value) in enumerate(new_rows):
+        db.add(
+            TestCaseStep(
+                section_id=section.id, step_no=i + 1,
+                step_text=step_value, expected_result=expected_value, actual_result=actual_value,
+            )
+        )
+
+
 def _apply_labels(db: Session, attach_type: "LabelAttachType", attach_id: int, names: list[str]) -> None:
     label_ids = [get_or_create(db, Label, name).id for name in names if name]
     set_labels(db, attach_type, attach_id, label_ids)
@@ -291,20 +352,29 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
     # the comment above _zephyr_entry for why (Jira has no equivalent of a
     # repeated section kind). Sections beyond the first of their kind are
     # skipped entirely and left completely untouched.
+    #
+    # A kind can match more than one zephyr_steps entry: this app's own
+    # export always emits exactly one (a "{LABEL}\r\n1. a\r\n2. b" block
+    # bundling every step), but other tools give one entry per individual
+    # step and let a kind repeat across several. len(matches) > 1 already
+    # settles it (this app never emits two entries for the same kind); for
+    # exactly one match, _is_bundled_entry looks at whichever of step/
+    # expected_result isn't a placeholder, since either one alone can carry
+    # the tell — a placeholder step with a real multi-line expected_result
+    # (or vice versa) is still this app's own bundled shape.
     applied_kinds = set()
     for section in testcase.sections:
         if section.kind in applied_kinds:
             continue
         applied_kinds.add(section.kind)
-        matching = next(
-            (
-                z for z in zephyr_steps
-                if isinstance(z, dict) and z.get("step_type") == _SECTION_LABEL[section.kind]
-            ),
-            None,
-        )
-        if matching is not None:
-            _apply_zephyr_entry(db, section, matching)
+        label = _SECTION_LABEL[section.kind]
+        matches = [z for z in zephyr_steps if isinstance(z, dict) and z.get("step_type") == label]
+        if not matches:
+            continue
+        if len(matches) == 1 and _is_bundled_entry(matches[0], label):
+            _apply_zephyr_entry(db, section, matches[0])
+        else:
+            _apply_zephyr_steps_individually(db, section, matches)
 
     execution = entry.get("execution") or {}
     if not isinstance(execution, dict):
