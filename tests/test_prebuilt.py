@@ -221,6 +221,38 @@ def test_new_testcase_modal_exposes_search_filter_and_title_autofill_hooks(clien
     assert "data-prebuilt-name" not in blank_input.group(0)
 
 
+def test_prebuilt_list_exposes_search_filter_and_sort_hooks(client):
+    client.post("/settings/services", data={"name": "payment-service"})
+    client.post("/settings/test-types", data={"name": "NEGATIVE"})
+    service_id = re.search(r"/settings/services/(\d+)/delete", client.get("/settings/services").text).group(1)
+    test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
+    client.post("/prebuilt", data={"name": "Tagged", "service_id": service_id, "test_type_id": test_type_id})
+
+    page = client.get("/prebuilt").text
+    assert "data-table-search" in page
+    assert 'data-table-filter="service"' in page
+    assert 'data-table-filter="test-type"' in page
+    assert 'data-table-filter="simulate"' in page
+    assert 'data-filter-service="payment-service"' in page
+    assert 'data-filter-test-type="NEGATIVE"' in page
+    assert 'data-sort-key="name"' in page
+    assert 'data-sort-key="sections"' in page
+    assert "data-filter-empty" in page
+
+
+def test_prebuilt_detail_has_preview_steps_tab(client):
+    prebuilt_id = _make_prebuilt(client, "Preview me")
+    section = _section_ids(client, prebuilt_id)[1]
+    client.post(f"/prebuilt/{prebuilt_id}/sections/{section}/steps",
+                data={"step_text": "Do the thing", "expected_result": "It works"})
+
+    page = client.get(f"/prebuilt/{prebuilt_id}").text
+    assert 'data-tab-target="preview"' in page
+    assert 'data-tab-panel="preview"' in page
+    assert "Do the thing" in page
+    assert "Expected: It works" in page
+
+
 def test_save_an_existing_testcase_as_a_prebuilt(client):
     subtask_id = _make_subtask(client, "EX-804")
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-9", "title": "Reusable flow"})

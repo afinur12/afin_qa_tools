@@ -1191,6 +1191,41 @@ document.addEventListener("click", (event) => {
   rows.forEach((row) => tbody.appendChild(row));
 });
 
+// ── Search + filter tables ────────────────────────────────────────────────
+// A `[data-filterable-table]` wrapper holds a `[data-table-search]` input,
+// zero or more `[data-table-filter="<key>"]` selects, and a table whose rows
+// carry `data-filter-search` (lowercased text to match against) and
+// `data-filter-<key>` per filterable column. A row shows only while it
+// matches the search text and every active filter; an optional
+// `[data-filter-empty]` row shows only once none do.
+function applyTableFilter(wrapper) {
+  const search = (wrapper.querySelector("[data-table-search]")?.value || "").trim().toLowerCase();
+  const filters = Array.from(wrapper.querySelectorAll("[data-table-filter]"))
+    .filter((select) => select.value)
+    .map((select) => [select.dataset.tableFilter, select.value]);
+  const rows = Array.from(wrapper.querySelectorAll("tbody tr[data-filter-search]"));
+  let visible = 0;
+  rows.forEach((row) => {
+    const matchesSearch = !search || row.getAttribute("data-filter-search").includes(search);
+    const matchesFilters = filters.every(([key, value]) => row.getAttribute(`data-filter-${key}`) === value);
+    const show = matchesSearch && matchesFilters;
+    row.hidden = !show;
+    if (show) visible += 1;
+  });
+  const empty = wrapper.querySelector("[data-filter-empty]");
+  if (empty) empty.hidden = visible > 0;
+}
+
+document.querySelectorAll("[data-filterable-table]").forEach((wrapper) => applyTableFilter(wrapper));
+
+document.addEventListener("input", (event) => {
+  if (event.target.matches("[data-table-search]")) applyTableFilter(event.target.closest("[data-filterable-table]"));
+});
+
+document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-table-filter]")) applyTableFilter(event.target.closest("[data-filterable-table]"));
+});
+
 // ── Currency-formatted cost/balance fields ───────────────────────────────
 // Planned/Actual Cost and Balance Before/After/Usage are free-text fields,
 // but typing "1000000" should read back as "Rp 1.000.000". Formatting only
