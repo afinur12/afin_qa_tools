@@ -1583,7 +1583,11 @@
   // gets split into that many side-by-side columns instead, so the export
   // grows wide-and-bounded rather than tall-and-unbounded.
   const EXPORT_MAX_COLUMN_HEIGHT = 1200;
-  const EXPORT_MAX_LINE_CHARS = 100;
+  // At this font size/family a monospace char is roughly 7.5px, so 70 chars
+  // (~525px) plus the gutter and padding comfortably fits within one card's
+  // 700px cap (see the export click handler) — 100 chars ran noticeably
+  // wider than that cap, forcing overflow:hidden to clip column content.
+  const EXPORT_MAX_LINE_CHARS = 70;
 
   // Soft-wraps one source line to EXPORT_MAX_LINE_CHARS: breaks at the last
   // space within the limit when there is one (keeps XML attributes/words
@@ -1656,19 +1660,51 @@
     if (rows.length <= perColumn) return;
 
     const wrap = document.createElement("div");
-    wrap.style.cssText = "display:flex; align-items:flex-start; gap:14px;";
+    // flex-wrap bounds the export in BOTH directions: once a row fills up
+    // (a handful of columns), further columns drop to a new row below
+    // instead of extending the image sideways forever — a very large
+    // response used to make the whole image many thousands of pixels wide
+    // (all columns in one endless row) and barely any taller than one
+    // column. max-width matches the 700px cap on the request/response card
+    // itself (see the export click handler), so columns wrap within the
+    // card's own boundary rather than overflowing past it.
+    wrap.style.cssText = "display:flex; align-items:flex-start; flex-wrap:wrap; gap:14px; max-width:700px;";
     for (let i = 0; i < rows.length; i += perColumn) {
       wrap.appendChild(buildColumnBlock(rows.slice(i, i + perColumn), language));
     }
-    // .code-block clips overflow and (as a plain block, width:auto) would
-    // otherwise just inherit whatever width the live page's layout gave
-    // it — neither is what a now-multiple-columns-wide block needs.
     const codeBlock = scrollEl.closest(".code-block");
     if (codeBlock) {
-      codeBlock.style.overflow = "visible";
-      codeBlock.style.width = "fit-content";
+      codeBlock.style.width = "100%";
+      codeBlock.style.overflow = "hidden";
     }
     scrollEl.replaceWith(wrap);
+  }
+
+  // paginateOneBlock only replaces a block once it's TALL enough to need
+  // splitting into columns — a block under that height threshold is left
+  // exactly as the live page renders it, which for the request body's
+  // .ac-code-overlay and any .snippet-pre is white-space:pre (deliberately,
+  // for the live editor — see the CSS comment on .ac-code-overlay). A
+  // handful of very long lines (a big single-line JSON response, one huge
+  // header/token value) can stay under the height threshold while still
+  // rendering enormously wide with nothing to stop it. The export clone is
+  // never live-edited, so it's safe to force wrapping here regardless of
+  // whether pagination ends up triggering too.
+  function forceCodeWrap(cloneRoot) {
+    cloneRoot.querySelectorAll(".ac-code-overlay, .snippet-pre, .snippet-pre code, [data-ac-body]").forEach((el) => {
+      el.style.whiteSpace = "pre-wrap";
+      el.style.wordBreak = "break-word";
+      el.style.overflowWrap = "anywhere";
+    });
+    // The overlay is absolutely positioned (inset:0) inside
+    // .ac-code-editor-inner, which — as a flex:1 0 auto item — otherwise
+    // sizes to the invisible textarea's own unwrapped natural width even
+    // once the overlay itself wraps. Pin it to the (now width-capped)
+    // card's content width instead of letting it size from content.
+    cloneRoot.querySelectorAll(".ac-code-editor-inner").forEach((el) => {
+      el.style.flex = "1 1 auto";
+      el.style.width = "100%";
+    });
   }
 
   // `liveSource` is the original (attached, styled) request card or
@@ -1676,6 +1712,7 @@
   // meaningless defaults, so line-height is measured from the live element
   // instead (identical CSS applies to both, only one is actually rendered).
   function paginateCodeBlocks(cloneRoot, liveSource) {
+    forceCodeWrap(cloneRoot);
     const referenceLineHeightEl = liveSource.querySelector(".snippet-pre") || liveSource;
 
     const responsePre = cloneRoot.querySelector("[data-ac-response-pre]");
@@ -1735,9 +1772,13 @@
     paginateCodeBlocks(responseClone, responsePanel);
 
     const columns = document.createElement("div");
-    columns.style.cssText = "display:flex;gap:18px;align-items:flex-start;";
-    requestClone.style.flex = "0 0 auto";
-    responseClone.style.flex = "0 0 auto";
+    columns.style.cssText = "display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;";
+    // A max-width is what actually gives forceCodeWrap's pre-wrap something
+    // to wrap against — flex:0 0 auto alone just sizes each card to fit its
+    // widest (unwrapped) line, which is exactly the unbounded-width problem
+    // this is meant to prevent.
+    requestClone.style.cssText += "flex:0 0 auto;max-width:700px;";
+    responseClone.style.cssText += "flex:0 0 auto;max-width:700px;";
     columns.appendChild(requestClone);
     columns.appendChild(responseClone);
 
