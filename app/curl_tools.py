@@ -8,6 +8,7 @@ full curl CLI grammar.
 
 import re
 import shlex
+from urllib.parse import quote_plus
 
 
 def looks_like_curl(text: str) -> bool:
@@ -32,8 +33,9 @@ def parse_curl(text: str) -> dict:
     method = None
     url = ""
     headers: list[list[str]] = []
-    body = ""
+    data_parts: list[str] = []
     has_data = False
+    used_urlencode = False
 
     i = 0
     while i < len(tokens):
@@ -52,8 +54,29 @@ def parse_curl(text: str) -> dict:
                 k, v = raw.split(":", 1)
                 headers.append([k.strip(), v.strip()])
         elif tok in ("-d", "--data", "--data-raw", "--data-binary", "--data-ascii"):
-            body = _next()
+            # curl accumulates every -d/--data(-raw|-binary|-ascii) occurrence
+            # into one body, joined with "&" — a command can (and for
+            # multi-field forms, usually does) pass several.
+            data_parts.append(_next())
             has_data = True
+        elif tok == "--data-urlencode":
+            # name=value -> name kept as-is, value percent-encoded (curl's
+            # own rule — the name is assumed already safe). A bare value or
+            # a leading "=value" has no name, so the whole value is encoded
+            # with no "=" in the output. name@file/@file (read from disk)
+            # isn't supported for a pasted command — skipped, best-effort.
+            raw = _next()
+            has_data = True
+            used_urlencode = True
+            if "@" in raw.split("=", 1)[0]:
+                pass
+            elif raw.startswith("="):
+                data_parts.append(quote_plus(raw[1:]))
+            elif "=" in raw:
+                name, value = raw.split("=", 1)
+                data_parts.append(f"{name}={quote_plus(value)}")
+            else:
+                data_parts.append(quote_plus(raw))
         elif tok == "-u" or tok == "--user":
             import base64
 
@@ -79,6 +102,14 @@ def parse_curl(text: str) -> dict:
 
     if method is None:
         method = "POST" if has_data else "GET"
+
+    body = "&".join(data_parts)
+
+    # curl itself defaults to application/x-www-form-urlencoded whenever
+    # --data-urlencode builds the body, unless the command already sets its
+    # own Content-Type — match that so a replayed request behaves the same.
+    if used_urlencode and not any(k.strip().lower() == "content-type" for k, _v in headers):
+        headers.append(["Content-Type", "application/x-www-form-urlencoded"])
 
     return {"method": method, "url": url, "headers": headers, "body": body}
 
