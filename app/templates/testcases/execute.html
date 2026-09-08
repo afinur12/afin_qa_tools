@@ -84,6 +84,10 @@
   <div class="tabgroup-nav">
     <button type="button" class="tabgroup-btn is-active" data-tab-target="description">Description</button>
     <button type="button" class="tabgroup-btn" data-tab-target="testing">Testing Steps</button>
+    <button type="button" class="tabgroup-btn" data-tab-target="preview">Preview Steps</button>
+    {% if has_images %}
+    <a class="tabgroup-btn tabgroup-btn--action" href="#" data-images-trigger title="View all images" aria-label="View all images">{{ icon_image(14) }} View Images</a>
+    {% endif %}
   </div>
 
   <div data-tab-panel="description" class="tabgroup-panel is-active">
@@ -240,8 +244,8 @@
   </div>
 
   <div data-tab-panel="testing" class="tabgroup-panel">
-  <div style="position:relative;">
-    <div class="pillbar" data-pillnav>
+  <div class="row" style="margin-bottom:16px; align-items:flex-start;">
+    <div class="pillbar" data-pillnav style="margin-bottom:0;">
       {% for kind in section_kinds %}
       <button type="button" class="pill{% if loop.first %} is-active{% endif %}" data-pill-target="{{ kind.value }}">
         {{ section_labels[kind] }}
@@ -249,9 +253,8 @@
       </button>
       {% endfor %}
     </div>
-    {% if has_images %}
-    <a class="btn secondary images-trigger" href="#" data-images-trigger title="View all images" aria-label="View all images">{{ icon_image() }} View Images</a>
-    {% endif %}
+    <div class="spacer"></div>
+    <button type="button" class="btn secondary sm" data-collapse-all>Collapse All</button>
   </div>
 
 {% macro step_block(step) %}
@@ -349,6 +352,34 @@
   </form>
 </div>
   </div>
+
+  <div data-tab-panel="preview" class="tabgroup-panel">
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Preview Steps</div>
+    </div>
+    {% for section in testcase.sections %}
+    <div class="preview-section">
+      <div class="preview-section-title">{{ loop.index }}. {{ section.label }}</div>
+      {% if section.steps %}
+      <ol class="preview-steps is-detailed">
+        {% for step in section.steps %}
+        <li>
+          <div>{{ step.step_text or '(no description)' }}</div>
+          <div class="muted" style="font-size:12.5px;">Expected: {{ step.expected_result or '—' }}</div>
+          <div class="muted" style="font-size:12.5px;">Actual: {{ step.actual_result or 'Same as expected' }}</div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="muted" style="font-size:12px;">No steps</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty">No sections yet.</div>
+    {% endfor %}
+  </div>
+  </div>
 </div>
 
 {% if has_images %}
@@ -372,6 +403,10 @@
   <button type="button" class="slideshow-arrow next" data-slideshow-next aria-label="Next image">&rsaquo;</button>
 </div>
 {% endif %}
+
+<button type="button" class="back-to-top" data-back-to-top hidden title="Back to top" aria-label="Back to top">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
 
 {% endblock %}
 

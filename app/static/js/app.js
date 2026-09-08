@@ -872,15 +872,56 @@ document.querySelectorAll("[data-snippet-code]").forEach((block) => {
 // ── Page tabs (e.g. Description / Testing Steps) ─────────────────────────────
 // One [data-tabgroup] container holds [data-tab-target] buttons and matching
 // [data-tab-panel] panels; clicking a button shows its panel and hides the rest.
+//
+// Adding a step/section or deleting a step/screenshot is a real POST that
+// reloads the whole page, which would otherwise always land back on
+// whichever tab the server rendered active (Description) — the last
+// selected tab is stashed in sessionStorage (keyed by path, same pattern as
+// the scroll-position restore below) and restored after a reload.
 document.querySelectorAll("[data-tabgroup]").forEach((group) => {
   const buttons = Array.from(group.querySelectorAll("[data-tab-target]"));
   const panels = Array.from(group.querySelectorAll("[data-tab-panel]"));
+  const tabStorageKey = `qa-toolbox:tab:${location.pathname}`;
+
+  function activateTab(target) {
+    buttons.forEach((b) => b.classList.toggle("is-active", b.dataset.tabTarget === target));
+    panels.forEach((p) => p.classList.toggle("is-active", p.dataset.tabPanel === target));
+  }
+
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
-      buttons.forEach((b) => b.classList.toggle("is-active", b === button));
-      panels.forEach((p) => p.classList.toggle("is-active", p.dataset.tabPanel === button.dataset.tabTarget));
+      activateTab(button.dataset.tabTarget);
+      try {
+        sessionStorage.setItem(tabStorageKey, button.dataset.tabTarget);
+      } catch {
+        /* private mode or storage disabled — tab choice just won't persist */
+      }
     });
   });
+
+  try {
+    const saved = sessionStorage.getItem(tabStorageKey);
+    if (saved && buttons.some((b) => b.dataset.tabTarget === saved)) activateTab(saved);
+  } catch {
+    /* private mode or storage disabled */
+  }
+});
+
+// ── Collapse all steps ───────────────────────────────────────────────────
+document.querySelectorAll("[data-collapse-all]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".step").forEach((step) => step.classList.add("is-collapsed"));
+  });
+});
+
+// ── Back to top ───────────────────────────────────────────────────────────
+document.querySelectorAll("[data-back-to-top]").forEach((button) => {
+  const toggle = () => {
+    button.hidden = window.scrollY < 400;
+  };
+  toggle();
+  window.addEventListener("scroll", toggle, { passive: true });
+  button.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 });
 
 // ── Pill quick-jump nav (Pre/Main/Post — scrolls to the first section of that

@@ -942,6 +942,18 @@ tbody tr:hover { background: var(--surface-sunk); }
 .tabgroup-panel { display: none; }
 .tabgroup-panel.is-active { display: block; }
 
+/* An action button (e.g. "View Images") sitting in the tab row without
+   being a real tab — pushed to the far end, never gets .is-active. */
+.tabgroup-btn--action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  border-bottom-color: transparent;
+}
+.tabgroup-btn--action:hover { color: var(--ink); }
+
 /* ── Pill quick-jump nav (Pre / Main / Post — scrolls, doesn't filter) ───── */
 
 .pillbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -965,8 +977,6 @@ tbody tr:hover { background: var(--surface-sunk); }
 .pill-count { opacity: 0.7; margin-left: 3px; }
 
 /* ── Floating "View Images" trigger + full-screen slideshow ─────────────── */
-
-.images-trigger { position: absolute; top: 0; right: 0; }
 
 .slideshow-overlay {
   position: fixed;
@@ -1172,6 +1182,39 @@ tbody tr:hover { background: var(--surface-sunk); }
 .preview-section-title { font-weight: 600; margin-bottom: 4px; }
 .preview-steps { margin: 0; padding-left: 18px; }
 .preview-steps li { margin-bottom: 3px; }
+
+/* The test case's own read-only "Preview Steps" tab — each item carries
+   Expected/Actual too, so it needs more breathing room than the plain
+   step-text-only list used by the prebuilt picker's preview. */
+.preview-steps.is-detailed li {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.preview-steps.is-detailed li:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+/* ── Back to top ─────────────────────────────────────────────────────────── */
+
+.back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--ink-inverse);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(27, 27, 25, 0.22);
+  z-index: 40;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.back-to-top:hover { opacity: 0.88; }
+.back-to-top[hidden] { display: none; }
 .modal-head { display: flex; align-items: center; margin-bottom: 20px; }
 .modal-title { font-size: 18px; font-weight: 700; }
 
