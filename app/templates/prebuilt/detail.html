@@ -70,13 +70,10 @@
 
 {% if prebuilt.sections %}
 <div class="pillbar" data-pillnav>
-  {% for kind in section_kinds %}
-  {% if prebuilt.sections | selectattr('kind', 'equalto', kind) | list | length %}
-  <button type="button" class="pill{% if loop.first %} is-active{% endif %}" data-pill-target="{{ kind.value }}">
-    {{ section_labels[kind] }}
-    <span class="pill-count">{{ prebuilt.sections | selectattr('kind', 'equalto', kind) | list | length }}</span>
+  {% for section in prebuilt.sections %}
+  <button type="button" class="pill{% if loop.first %} is-active{% endif %}" data-pill-target="{{ section.id }}">
+    {{ loop.index }}. {{ section.label }}
   </button>
-  {% endif %}
   {% endfor %}
 </div>
 {% endif %}

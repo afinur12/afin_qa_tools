@@ -71,6 +71,28 @@ def test_prebuilt_steps_can_be_added_and_listed(client):
     assert "1 step" in page
 
 
+def test_pill_nav_gets_one_numbered_pill_per_section(client):
+    # A repeated kind (two Main Test sections) must get two separate pills,
+    # each jumping to its own section — not one shared "Main Test" pill.
+    import re
+
+    prebuilt_id = _make_prebuilt(client, "Pill nav")
+    section_ids = _section_ids(client, prebuilt_id)
+    main_section_id = section_ids[1]
+
+    client.post(f"/prebuilt/{prebuilt_id}/sections", data={"kind": "MAIN"})
+    new_section_id = _section_ids(client, prebuilt_id)[-1]
+
+    page = client.get(f"/prebuilt/{prebuilt_id}").text
+    pills = re.findall(r'data-pill-target="(\d+)">\s*(\d+)\. ([^<]+?)\s*</button>', page)
+    assert pills == [
+        (section_ids[0], "1", "Pre Condition"),
+        (main_section_id, "2", "Main Test"),
+        (section_ids[2], "3", "Post Condition"),
+        (new_section_id, "4", "Main Test"),
+    ]
+
+
 def test_creating_a_testcase_from_a_prebuilt_copies_its_steps(client):
     prebuilt_id = _make_prebuilt(client, "Copy me")
     section = _section_ids(client, prebuilt_id)[1]

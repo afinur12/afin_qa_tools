@@ -924,15 +924,16 @@ document.querySelectorAll("[data-back-to-top]").forEach((button) => {
   button.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 });
 
-// ── Pill quick-jump nav (Pre/Main/Post — scrolls to the first section of that
-// kind rather than filtering, so section drag-reorder across kinds still sees
-// every section at once) ──────────────────────────────────────────────────────
+// ── Pill quick-jump nav (one pill per section, in section order — a kind
+// can repeat, so this jumps to that exact section rather than just "the
+// first Main Test", and never filters, so section drag-reorder across
+// kinds still sees every section at once) ────────────────────────────────
 document.querySelectorAll("[data-pillnav]").forEach((nav) => {
   const pills = Array.from(nav.querySelectorAll("[data-pill-target]"));
   pills.forEach((pill) => {
     pill.addEventListener("click", () => {
       pills.forEach((p) => p.classList.toggle("is-active", p === pill));
-      const target = document.querySelector(`.section-card[data-kind="${pill.dataset.pillTarget}"]`);
+      const target = document.querySelector(`[data-section-id="${pill.dataset.pillTarget}"]`);
       if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });

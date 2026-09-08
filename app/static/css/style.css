@@ -974,7 +974,6 @@ tbody tr:hover { background: var(--surface-sunk); }
 .pill:hover { background: var(--lime-soft); color: var(--ink-inverse); }
 .pill.is-active { background: var(--lime); color: var(--ink-inverse); font-weight: 650; }
 .pill.is-active:hover { background: var(--lime-deep); color: var(--ink-inverse); }
-.pill-count { opacity: 0.7; margin-left: 3px; }
 
 /* ── Floating "View Images" trigger + full-screen slideshow ─────────────── */
 
