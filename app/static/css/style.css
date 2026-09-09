@@ -1809,9 +1809,18 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 /* Bulk Edit's plain textarea — deliberately its own class, not
    .ac-code-textarea: that class makes its own text transparent (it expects
    attachCodeEditor's highlight overlay drawing the visible text on top),
-   which this plain field has none of. */
+   which this plain field has none of.
+   No `display` declared here on purpose — this field is toggled via the
+   `hidden` attribute (JS sets/clears it, not a class), and any author-CSS
+   `display` value, even one that's only meant to apply while visible,
+   permanently overrides the browser's own `[hidden] { display: none }`
+   default (author styles always beat that user-agent rule outright,
+   regardless of selector specificity) — so both the table and this
+   textarea rendered at once no matter which mode was active. A <textarea>
+   is a replaced element, so `width: 100%` below already works under its
+   default rendering without needing `display: block` at all. */
 .ac-kv-bulk {
-  display: block; width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical;
+  width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical;
   margin: 0; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
   font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--ink); background: var(--surface);
 }

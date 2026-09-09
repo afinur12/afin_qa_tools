@@ -46,6 +46,22 @@ def test_ac_code_textarea_css_beats_the_generic_field_textarea_rule(client):
     assert ".ac-code-editor .ac-code-editor-inner .ac-code-textarea:focus {" in css
 
 
+def test_ac_kv_bulk_css_declares_no_display_property(client):
+    # Regression guard for a real bug: .ac-kv-bulk (the Bulk Edit textarea)
+    # is toggled purely via the `hidden` attribute (JS sets/clears it), but
+    # its rule declared `display: block` unconditionally — author CSS
+    # always beats the browser's own `[hidden] { display: none }` default
+    # regardless of specificity, so that declaration permanently defeated
+    # `hidden` and both the table and the bulk textarea rendered at once no
+    # matter which mode was active. A crude source check (no CSS parser
+    # here), but it does catch a `display:` declaration creeping back in.
+    css = client.get("/static/css/style.css").text
+    start = css.index(".ac-kv-bulk {")
+    end = css.index("}", start)
+    rule_body = css[start:end]
+    assert "display" not in rule_body
+
+
 def test_builder_page_exposes_bulk_edit_toggles_and_body_toolbar(client):
     page = client.get("/api-client").text
     assert 'data-ac-kv-mode="params"' in page
