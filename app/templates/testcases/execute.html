@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces, icon_image, icon_copy with context %}
+{% block title %}{{ testcase.display_code }} - QA Toolbox{% endblock %}
 {% block content %}
 
 {% set story = testcase.subtask.phase.story %}

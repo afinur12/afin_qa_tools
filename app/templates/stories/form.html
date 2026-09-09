@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block title %}{% if story %}Edit {{ story.display_code }}{% else %}New Task{% endif %} - QA Toolbox{% endblock %}
 {% block content %}
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{% if story %}Edit{% else %}New{% endif %}</div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block title %}{% if subtask %}Edit {{ subtask.display_code }}{% else %}New Subtask{% endif %} - QA Toolbox{% endblock %}
 {% block content %}
 
 <div class="crumbs">

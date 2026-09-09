@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block title %}{% if testcase %}Edit {{ testcase.display_code }}{% else %}New Test Case{% endif %} - QA Toolbox{% endblock %}
 {% block content %}
 
 <div class="crumbs">

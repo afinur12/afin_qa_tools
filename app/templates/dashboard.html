@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import modal with context %}
+{% block title %}Dashboard - QA Toolbox{% endblock %}
 {% block content %}
 
 {% set total = status_counts.values() | sum %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil with context %}
+{% block title %}{{ prebuilt.name }} - QA Toolbox{% endblock %}
 {% block content %}
 
 <div class="crumbs"><a href="/prebuilt">Prebuilt</a><span class="sep">/</span>{{ prebuilt.name }}</div>
