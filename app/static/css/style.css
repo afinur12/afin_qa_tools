@@ -1358,6 +1358,16 @@ tbody tr:hover { background: var(--surface-sunk); }
   gap: 20px;
   align-items: start;
 }
+/* Opt-in modifier — most tools' input/output naturally differ in length
+   (a short JSON in, a long formatted one out, or vice versa), so
+   align-items:start above is deliberate there: stretching would just pad
+   the shorter side with empty space for every one of them. Python
+   Runner's Script/Output panes are more tightly coupled, so leaving them
+   at independent natural heights read as visually broken rather than
+   expected — this scopes the equal-height behavior to just that page. */
+.tool-split.is-balanced { align-items: stretch; }
+.tool-split.is-balanced > div { display: flex; flex-direction: column; }
+.tool-split.is-balanced > div > *:last-child { flex: 1 1 auto; }
 @media (max-width: 900px) {
   .tool-split { grid-template-columns: 1fr; }
 }

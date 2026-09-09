@@ -72,6 +72,10 @@ def test_python_runner_page_renders_the_highlighted_editor(client):
         assert f'id="{element_id}"' in page
     assert 'src="/static/js/api_client.js' in page
     assert 'src="/static/js/utility/python_runner.js' in page
+    # Script/Output panels are equal-height on this page (unlike every
+    # other tool's independent-height .tool-split), since a mismatch here
+    # reads as visually broken rather than expected — see .is-balanced.
+    assert 'class="tool-split is-balanced"' in page
 
 
 def test_python_runner_run_endpoint_executes_and_captures_stdout(client):
