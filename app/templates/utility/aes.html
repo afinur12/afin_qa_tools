@@ -27,6 +27,7 @@
         <option value="AES-CBC">AES-CBC</option>
         <option value="AES-GCM">AES-GCM</option>
         <option value="AES-CTR">AES-CTR</option>
+        <option value="AES-ECB">AES-ECB</option>
       </select>
     </div>
     <div class="field" style="margin-bottom:0; width:140px;">
@@ -53,14 +54,18 @@
       <label>Key</label>
       <input type="text" id="aes-key" placeholder="Must decode to 16, 24, or 32 bytes (AES-128/192/256)" autocomplete="off" spellcheck="false">
     </div>
-    <div class="field" style="margin-bottom:0; flex:2; min-width:240px;">
+    <div class="field" id="aes-iv-field" style="margin-bottom:0; flex:2; min-width:240px;">
       <label>IV <span class="muted" style="font-weight:400;">&mdash; optional, hex-encoded</span></label>
       <input type="text" id="aes-iv" placeholder="Leave blank: auto-generated + embedded in output / auto-read from input" autocomplete="off" spellcheck="false">
     </div>
   </div>
-  <div class="hint" style="margin:-6px 0 14px;">
+  <div class="hint" id="aes-iv-hint" style="margin:-6px 0 14px;">
     Leave the IV blank and it's handled for you &mdash; generated and prepended to the output on Encrypt, read back off the front of the input on Decrypt.
     Set it explicitly to use an exact IV instead, in which case Input/Output holds plain ciphertext with no IV prefix.
+  </div>
+  <div class="hint" id="aes-ecb-hint" hidden style="margin:-6px 0 14px;">
+    ECB doesn't use an IV at all, and it leaks patterns in the plaintext (identical plaintext blocks encrypt to identical ciphertext blocks).
+    Only use it to match a specific system that requires it.
   </div>
 
   <div id="aes-error" class="error" hidden></div>
@@ -84,5 +89,6 @@
 
 {% endblock %}
 {% block scripts %}
+<script src="{{ static_url('js/vendor/crypto-js/crypto-js.min.js') }}"></script>
 <script src="{{ static_url('js/utility/aes.js') }}"></script>
 {% endblock %}

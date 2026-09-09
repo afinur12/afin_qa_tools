@@ -14,14 +14,23 @@ def test_aes_tool_page_renders_expected_controls(client):
     assert "<title>AES Encrypt/Decrypt - QA Toolbox</title>" in page
     for element_id in (
         "aes-mode", "aes-key-format", "aes-output-format", "aes-key", "aes-iv",
+        "aes-iv-field", "aes-iv-hint", "aes-ecb-hint",
         "aes-input", "aes-output", "aes-encrypt", "aes-decrypt", "aes-copy", "aes-unsupported",
     ):
         assert f'id="{element_id}"' in page
-    for option in ("AES-CBC", "AES-GCM", "AES-CTR"):
+    for option in ("AES-CBC", "AES-GCM", "AES-CTR", "AES-ECB"):
         assert f'value="{option}"' in page
+    assert 'src="/static/js/vendor/crypto-js/crypto-js.min.js' in page
 
 
 def test_aes_tool_js_asset_is_served(client):
     resp = client.get("/static/js/utility/aes.js")
     assert resp.status_code == 200
     assert "crypto.subtle" in resp.text
+    assert "CryptoJS" in resp.text
+
+
+def test_aes_vendor_crypto_js_asset_is_served(client):
+    resp = client.get("/static/js/vendor/crypto-js/crypto-js.min.js")
+    assert resp.status_code == 200
+    assert "CryptoJS" in resp.text

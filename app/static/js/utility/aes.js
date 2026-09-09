@@ -10,19 +10,39 @@
   const outputFormatSelect = document.getElementById("aes-output-format");
   const keyInput = document.getElementById("aes-key");
   const ivInput = document.getElementById("aes-iv");
+  const ivField = document.getElementById("aes-iv-field");
+  const ivHint = document.getElementById("aes-iv-hint");
+  const ecbHint = document.getElementById("aes-ecb-hint");
   const copyBtn = document.getElementById("aes-copy");
   const encryptBtn = document.getElementById("aes-encrypt");
   const decryptBtn = document.getElementById("aes-decrypt");
 
-  if (!window.crypto || !window.crypto.subtle) {
+  // ECB (CryptoJS) needs neither the Web Crypto API nor an IV; CBC/GCM/CTR
+  // (native crypto.subtle) need both. Only bail out entirely if neither path
+  // is usable.
+  const hasSubtle = !!(window.crypto && window.crypto.subtle);
+  if (!hasSubtle) {
     unsupportedBox.hidden = false;
-    encryptBtn.disabled = true;
-    decryptBtn.disabled = true;
-    return;
   }
 
+  function updateIvVisibility() {
+    const isEcb = modeSelect.value === "AES-ECB";
+    ivField.hidden = isEcb;
+    ivHint.hidden = isEcb;
+    ecbHint.hidden = !isEcb;
+    if (!isEcb && !hasSubtle) {
+      encryptBtn.disabled = true;
+      decryptBtn.disabled = true;
+    } else {
+      encryptBtn.disabled = false;
+      decryptBtn.disabled = false;
+    }
+  }
+  modeSelect.addEventListener("change", updateIvVisibility);
+  updateIvVisibility();
+
   // GCM's recommended nonce is 96 bits; CBC/CTR need a full 128-bit (16-byte)
-  // block-size IV.
+  // block-size IV. ECB uses no IV at all.
   function ivLengthFor(mode) {
     return mode === "AES-GCM" ? 12 : 16;
   }
@@ -91,6 +111,15 @@
     return { name: mode, iv };
   }
 
+  function validateKeyLength(keyBytes) {
+    const validLengths = { 16: "AES-128", 24: "AES-192", 32: "AES-256" };
+    if (!validLengths[keyBytes.length]) {
+      throw new Error(
+        `Key must decode to 16, 24, or 32 bytes for AES-128/192/256 (got ${keyBytes.length} byte${keyBytes.length === 1 ? "" : "s"}).`
+      );
+    }
+  }
+
   function showError(message) {
     errorBox.textContent = message;
     errorBox.hidden = false;
@@ -106,14 +135,47 @@
     copyBtn.dataset.copyText = text;
   }
 
-  async function importKey(keyBytes, mode, usage) {
-    const validLengths = { 16: "AES-128", 24: "AES-192", 32: "AES-256" };
-    if (!validLengths[keyBytes.length]) {
-      throw new Error(
-        `Key must decode to 16, 24, or 32 bytes for AES-128/192/256 (got ${keyBytes.length} byte${keyBytes.length === 1 ? "" : "s"}).`
-      );
-    }
+  async function importSubtleKey(keyBytes, mode, usage) {
+    validateKeyLength(keyBytes);
     return crypto.subtle.importKey("raw", keyBytes, { name: mode }, false, [usage]);
+  }
+
+  // ── AES-ECB, via the vendored crypto-js (no IV; not in Web Crypto) ───────
+  function bytesToWordArray(bytes) {
+    return CryptoJS.lib.WordArray.create(bytes);
+  }
+
+  function wordArrayToBytes(wordArray) {
+    const bytes = new Uint8Array(wordArray.sigBytes);
+    for (let i = 0; i < wordArray.sigBytes; i += 1) {
+      bytes[i] = (wordArray.words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+    }
+    return bytes;
+  }
+
+  function encryptEcb(keyBytes, plaintext, outputFormat) {
+    validateKeyLength(keyBytes);
+    const encrypted = CryptoJS.AES.encrypt(CryptoJS.enc.Utf8.parse(plaintext), bytesToWordArray(keyBytes), {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+    return encodeOutput(wordArrayToBytes(encrypted.ciphertext), outputFormat);
+  }
+
+  function decryptEcb(keyBytes, raw, outputFormat) {
+    validateKeyLength(keyBytes);
+    const ciphertext = bytesToWordArray(decodeInputCiphertext(raw, outputFormat));
+    const decrypted = CryptoJS.AES.decrypt({ ciphertext }, bytesToWordArray(keyBytes), {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+    // crypto-js's own toString(Utf8) silently replaces invalid byte
+    // sequences instead of raising — a wrong key can decrypt to garbage
+    // bytes that still "succeed" as a mangled (or empty) string. Decode the
+    // raw bytes ourselves with the same strict TextDecoder the CBC/CTR path
+    // uses below, so a wrong key/corrupted ciphertext reliably throws here
+    // too instead of returning silently-wrong output.
+    return new TextDecoder("utf-8", { fatal: true }).decode(wordArrayToBytes(decrypted));
   }
 
   async function encrypt() {
@@ -125,10 +187,24 @@
       return;
     }
 
+    if (mode === "AES-ECB") {
+      if (typeof CryptoJS === "undefined") {
+        showError("ECB mode needs the crypto-js library, which failed to load.");
+        return;
+      }
+      try {
+        const keyBytes = decodeKey(keyInput.value, keyFormatSelect.value);
+        showOutput(encryptEcb(keyBytes, plaintext, outputFormat));
+      } catch (err) {
+        showError(`Encryption failed: ${err.message}`);
+      }
+      return;
+    }
+
     let key;
     let iv;
     try {
-      key = await importKey(decodeKey(keyInput.value, keyFormatSelect.value), mode, "encrypt");
+      key = await importSubtleKey(decodeKey(keyInput.value, keyFormatSelect.value), mode, "encrypt");
       const ivLength = ivLengthFor(mode);
       if (ivInput.value.trim()) {
         iv = hexToBytes(ivInput.value);
@@ -167,11 +243,26 @@
       return;
     }
 
+    if (mode === "AES-ECB") {
+      if (typeof CryptoJS === "undefined") {
+        showError("ECB mode needs the crypto-js library, which failed to load.");
+        return;
+      }
+      try {
+        const keyBytes = decodeKey(keyInput.value, keyFormatSelect.value);
+        const text = decryptEcb(keyBytes, raw, outputFormat);
+        showOutput(text);
+      } catch {
+        showError("Decryption failed — wrong key, wrong mode, or corrupted ciphertext.");
+      }
+      return;
+    }
+
     let key;
     let iv;
     let ciphertextBytes;
     try {
-      key = await importKey(decodeKey(keyInput.value, keyFormatSelect.value), mode, "decrypt");
+      key = await importSubtleKey(decodeKey(keyInput.value, keyFormatSelect.value), mode, "decrypt");
       const ivLength = ivLengthFor(mode);
       const inputBytes = decodeInputCiphertext(raw, outputFormat);
       if (ivInput.value.trim()) {
@@ -198,7 +289,7 @@
       const plaintextBytes = await crypto.subtle.decrypt(algorithmParams(mode, iv), key, ciphertextBytes);
       const text = new TextDecoder("utf-8", { fatal: true }).decode(plaintextBytes);
       showOutput(text);
-    } catch (err) {
+    } catch {
       showError("Decryption failed — wrong key, wrong IV, wrong mode, or corrupted ciphertext.");
     }
   }
