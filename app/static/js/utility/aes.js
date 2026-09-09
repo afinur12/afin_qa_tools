@@ -84,8 +84,28 @@
   function decodeKey(raw, format) {
     if (format === "hex") return hexToBytes(raw);
     if (format === "base64") return base64ToBytes(raw);
+    if (format === "passphrase-sha256") {
+      // Any-length passphrase, hashed into a fixed 32-byte (AES-256) key —
+      // for systems that derive their key this way instead of expecting the
+      // literal raw bytes. Always 32 bytes, regardless of the passphrase's
+      // own length.
+      if (typeof CryptoJS === "undefined") {
+        throw new Error("Passphrase (SHA-256) needs the crypto-js library, which failed to load.");
+      }
+      return wordArrayToBytes(CryptoJS.SHA256(raw));
+    }
     return new TextEncoder().encode(raw);
   }
+
+  const KEY_FORMAT_PLACEHOLDERS = {
+    utf8: "Must be exactly 16, 24, or 32 characters (AES-128/192/256)",
+    hex: "Must decode to 16, 24, or 32 bytes — 32/48/64 hex characters",
+    base64: "Must decode to 16, 24, or 32 bytes",
+    "passphrase-sha256": "Any length — hashed via SHA-256 into a 32-byte AES-256 key",
+  };
+  keyFormatSelect.addEventListener("change", () => {
+    keyInput.placeholder = KEY_FORMAT_PLACEHOLDERS[keyFormatSelect.value] || "";
+  });
 
   function encodeOutput(bytes, format) {
     return format === "hex" ? bytesToHex(bytes) : bytesToBase64(bytes);
