@@ -2083,12 +2083,34 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
    nowhere near where the highlighted text visually is — worse the further
    down a long body you look. Disabling wrap removes the disagreement
    outright rather than chasing where, exactly, the two diverge. */
-.ac-code-textarea {
+/* Selector is the full real ancestor chain, not the bare class — the
+   variable Script field (unlike the Request Body field) sits inside a
+   `.field` wrapper for its surrounding label, and `.field textarea`
+   (specificity 0,1,1) otherwise beats a bare `.ac-code-textarea` (0,1,0)
+   regardless of which rule comes later in the file, silently reverting it
+   to the generic bordered/sans-serif field style — exactly the same
+   failure mode as the font-family and wrap bugs described above, just
+   arriving through the cascade instead of the DOM/paint. Two ancestor
+   classes (0,2,0) alone still lose to `.field textarea:focus` (0,2,1) on
+   focus-only properties (a lime box-shadow ring has no business on this
+   field); three classes (0,3,0) beats it outright, on every property,
+   not just the ones this rule happens to declare. */
+.ac-code-editor .ac-code-editor-inner .ac-code-textarea {
   position: relative; z-index: 1; display: block; width: 100%; box-sizing: border-box;
   min-height: 160px; margin: 0; padding: 14px 18px 14px 0; border: none; resize: none; overflow: hidden;
   background: transparent !important; color: transparent !important; caret-color: #d5d2e0;
   font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7;
-  white-space: pre; outline: none;
+  white-space: pre; outline: none; box-shadow: none;
+}
+/* `.field textarea:focus` sets its own lime box-shadow/border-color on
+   focus — outranking every property this rule declares doesn't help for
+   one it never mentions at all (cascade resolves per property: with no
+   competing box-shadow declaration here, .field textarea:focus's applies
+   unopposed regardless of this rule's higher specificity elsewhere).
+   Restated at :focus explicitly so it wins the property it actually
+   contests. */
+.ac-code-editor .ac-code-editor-inner .ac-code-textarea:focus {
+  outline: none; border-color: transparent; box-shadow: none;
 }
 .ac-code-textarea::placeholder { color: #6b6875; opacity: 1; }
 .ac-code-textarea::selection { background: rgba(201, 242, 77, 0.4); color: transparent; }

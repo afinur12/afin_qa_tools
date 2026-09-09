@@ -32,6 +32,20 @@ def _make_request(db, collection, name="Req A", folder=None):
     return saved
 
 
+def test_ac_code_textarea_css_beats_the_generic_field_textarea_rule(client):
+    # Regression guard for a real bug: the variable Script field's textarea
+    # sits inside a `.field` wrapper (for its label), and `.field textarea`
+    # (specificity 0,1,1) silently overrode a bare `.ac-code-textarea`
+    # (0,1,0) — reverting it to the generic bordered/sans-serif field style
+    # while its overlay stayed correctly styled, drifting the two out of
+    # character-for-character alignment from the very first word. The CSS
+    # source-string check can't verify real specificity, but it does catch
+    # someone reverting the qualified selector back to the bare class.
+    css = client.get("/static/css/style.css").text
+    assert ".ac-code-editor .ac-code-editor-inner .ac-code-textarea {" in css
+    assert ".ac-code-editor .ac-code-editor-inner .ac-code-textarea:focus {" in css
+
+
 def test_builder_page_exposes_bulk_edit_toggles_and_body_toolbar(client):
     page = client.get("/api-client").text
     assert 'data-ac-kv-mode="params"' in page
