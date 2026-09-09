@@ -613,6 +613,26 @@
     bodyField?.dispatchEvent(new Event("input"));
   }
 
+  document.querySelector("[data-ac-body-copy]")?.addEventListener("click", async () => {
+    await copyText(bodyField?.value || "");
+    toast("Request body copied");
+  });
+
+  document.querySelector("[data-ac-body-beautify]")?.addEventListener("click", () => {
+    if (!bodyField) return;
+    const raw = bodyField.value.trim();
+    if (!raw) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      toast("Not valid JSON — can't beautify", "danger");
+      return;
+    }
+    bodyField.value = JSON.stringify(parsed, null, 2);
+    bodyField.dispatchEvent(new Event("input"));
+  });
+
   document.querySelector("[data-ac-add-header]")?.addEventListener("click", () => addHeaderRow("", ""));
 
   headersContainer?.addEventListener("click", (event) => {
@@ -1094,6 +1114,87 @@
 
   urlInput?.addEventListener("input", syncParamsFromUrl);
   syncParamsFromUrl();
+
+  // ── Bulk Edit toggle for Query Params / Request Headers ─────────────────
+  // Each section gets a "Key-Value Edit" / "Bulk Edit" toggle; Bulk Edit is
+  // a plain "key:value"-per-line textarea that rebuilds the real <tr> rows
+  // on every keystroke (via the section's own addRow, so {{var}} highlight
+  // wiring etc. all still happen normally) — so everything downstream
+  // (Send, Save, counts, sensitive-header auto-detect, params<->URL sync)
+  // keeps reading the same live DOM rows it always has, with no separate
+  // "bulk mode" state for any of that code to know about.
+  function initKvBulkMode(sectionKey, { rowsContainer, keySelector, valueSelector, addRow, afterRebuild }) {
+    const toggle = document.querySelector(`[data-ac-kv-mode="${sectionKey}"]`);
+    const bulkArea = document.querySelector(`[data-ac-kv-bulk="${sectionKey}"]`);
+    if (!toggle || !bulkArea || !rowsContainer) return;
+    const section = toggle.closest("[data-ac-section]");
+
+    function rowsToBulkText() {
+      return Array.from(rowsContainer.children)
+        .map((row) => {
+          const key = row.querySelector(keySelector)?.value || "";
+          const value = row.querySelector(valueSelector)?.value || "";
+          return key ? `${key}:${value}` : "";
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    function bulkTextToRows() {
+      rowsContainer.innerHTML = "";
+      let any = false;
+      bulkArea.value.split("\n").forEach((line) => {
+        if (!line.trim()) return;
+        const sep = line.indexOf(":");
+        const key = (sep === -1 ? line : line.slice(0, sep)).trim();
+        const value = (sep === -1 ? "" : line.slice(sep + 1)).trim();
+        if (!key) return;
+        addRow(key, value);
+        any = true;
+      });
+      if (!any) addRow("", "");
+      afterRebuild();
+    }
+
+    function setMode(mode) {
+      toggle.querySelectorAll("[data-ac-kv-mode-btn]").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.acKvModeBtn === mode);
+      });
+      section.querySelectorAll('[data-ac-kv-view="table"]').forEach((el) => { el.hidden = mode !== "table"; });
+      section.querySelectorAll('[data-ac-kv-view="bulk"]').forEach((el) => { el.hidden = mode !== "bulk"; });
+      if (mode === "bulk") bulkArea.value = rowsToBulkText();
+    }
+
+    toggle.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-ac-kv-mode-btn]");
+      if (!btn) return;
+      setMode(btn.dataset.acKvModeBtn);
+    });
+
+    bulkArea.addEventListener("input", bulkTextToRows);
+  }
+
+  initKvBulkMode("params", {
+    rowsContainer: paramsContainer,
+    keySelector: "[data-ac-param-key]",
+    valueSelector: "[data-ac-param-value]",
+    addRow: addParamRow,
+    afterRebuild: () => {
+      updateParamCount();
+      syncUrlFromParams();
+    },
+  });
+
+  initKvBulkMode("headers", {
+    rowsContainer: headersContainer,
+    keySelector: "[data-ac-header-key]",
+    valueSelector: "[data-ac-header-value]",
+    addRow: addHeaderRow,
+    afterRebuild: () => {
+      updateHeaderCount();
+      resyncBodyLanguage();
+    },
+  });
 
   // Same curl-paste auto-fill, but for the quick "New Request" modals' plain
   // URL field — those only have Name/Method/URL visible, so headers/body

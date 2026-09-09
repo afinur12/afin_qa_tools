@@ -32,6 +32,26 @@ def _make_request(db, collection, name="Req A", folder=None):
     return saved
 
 
+def test_builder_page_exposes_bulk_edit_toggles_and_body_toolbar(client):
+    page = client.get("/api-client").text
+    assert 'data-ac-kv-mode="params"' in page
+    assert 'data-ac-kv-mode="headers"' in page
+    assert 'data-ac-kv-bulk="params"' in page
+    assert 'data-ac-kv-bulk="headers"' in page
+    assert 'data-ac-kv-mode-btn="table"' in page
+    assert 'data-ac-kv-mode-btn="bulk"' in page
+    assert "data-ac-body-copy" in page
+    assert "data-ac-body-beautify" in page
+
+
+def test_api_client_js_wires_up_bulk_edit_and_body_toolbar(client):
+    resp = client.get("/static/js/api_client.js")
+    assert resp.status_code == 200
+    assert "initKvBulkMode" in resp.text
+    assert "data-ac-body-beautify" in resp.text
+    assert "data-ac-body-copy" in resp.text
+
+
 def test_move_request_into_folder_updates_folder_and_collection(client, db_session):
     source_collection = _make_collection(db_session, "Source")
     dest_collection = _make_collection(db_session, "Dest")

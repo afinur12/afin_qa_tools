@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_folder_plus, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_folder_plus, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout, icon_copy, icon_wand with context %}
 {% block title %}API Client - QA Toolbox{% endblock %}
 
 {% macro tree_request_row(req, current, depth=0) %}
@@ -136,19 +136,32 @@
       </div>
 
       <div data-ac-section="params" style="display:contents;">
-        <div class="ac-report-subhead">1. Query Parameters</div>
-        <div class="ac-report-table-wrap">
+        <div class="ac-report-subhead ac-report-subhead-row">
+          <span class="ac-report-subhead-title">1. Query Parameters</span>
+          <div class="ac-kv-mode-toggle" data-ac-kv-mode="params">
+            <button type="button" class="is-active" data-ac-kv-mode-btn="table">Key-Value Edit</button>
+            <button type="button" data-ac-kv-mode-btn="bulk">Bulk Edit</button>
+          </div>
+        </div>
+        <div class="ac-report-table-wrap" data-ac-kv-view="table">
           <table class="ac-report-table">
             <thead><tr><th>KEY</th><th>VALUE</th><th class="ac-th-actions"></th></tr></thead>
             <tbody data-ac-params></tbody>
           </table>
         </div>
-        <button type="button" class="btn secondary sm" data-ac-add-param>{{ icon_plus(12) }} Add Param</button>
+        <textarea class="ac-kv-bulk" data-ac-kv-bulk="params" data-ac-kv-view="bulk" hidden spellcheck="false" placeholder="key:value — one per line"></textarea>
+        <button type="button" class="btn secondary sm" data-ac-add-param data-ac-kv-view="table">{{ icon_plus(12) }} Add Param</button>
       </div>
 
       <div data-ac-section="headers" style="display:contents;">
-        <div class="ac-report-subhead">2. Request Headers</div>
-        <div class="ac-report-table-wrap">
+        <div class="ac-report-subhead ac-report-subhead-row">
+          <span class="ac-report-subhead-title">2. Request Headers</span>
+          <div class="ac-kv-mode-toggle" data-ac-kv-mode="headers">
+            <button type="button" class="is-active" data-ac-kv-mode-btn="table">Key-Value Edit</button>
+            <button type="button" data-ac-kv-mode-btn="bulk">Bulk Edit</button>
+          </div>
+        </div>
+        <div class="ac-report-table-wrap" data-ac-kv-view="table">
           <table class="ac-report-table">
             <thead><tr><th>HEADER</th><th>VALUE</th><th class="ac-th-actions"></th></tr></thead>
             <tbody data-ac-headers>
@@ -165,11 +178,22 @@
             </tbody>
           </table>
         </div>
-        <button type="button" class="btn secondary sm" data-ac-add-header>{{ icon_plus(12) }} Add Header</button>
+        <textarea class="ac-kv-bulk" data-ac-kv-bulk="headers" data-ac-kv-view="bulk" hidden spellcheck="false" placeholder="Key: Value — one per line"></textarea>
+        <button type="button" class="btn secondary sm" data-ac-add-header data-ac-kv-view="table">{{ icon_plus(12) }} Add Header</button>
       </div>
 
       <div data-ac-section="body" style="display:contents;">
-        <div class="ac-report-subhead">3. Request Body</div>
+        <div class="ac-report-subhead ac-report-subhead-row">
+          <span class="ac-report-subhead-title">3. Request Body</span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn ac-resp-toolbar-btn" data-ac-body-beautify title="Beautify (JSON)" aria-label="Beautify request body">
+              {{ icon_wand(14) }}
+            </button>
+            <button type="button" class="btn ac-resp-toolbar-btn" data-ac-body-copy title="Copy request body" aria-label="Copy request body">
+              {{ icon_copy(14) }}
+            </button>
+          </div>
+        </div>
         <div class="code-block ac-code-editor">
           <div class="snippet-code ac-code-scroll">
             <div class="snippet-gutter" data-ac-body-gutter><span>1</span></div>

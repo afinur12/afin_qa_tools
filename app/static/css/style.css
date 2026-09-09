@@ -1795,6 +1795,28 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-layout-toggle button + button { border-left: 1px solid var(--line-strong); }
 .ac-layout-toggle button.is-active { background: var(--ink-inverse); color: #fff; }
 
+/* Key-Value Edit / Bulk Edit toggle above the Params/Headers tables — same
+   segmented-control language as .ac-layout-toggle, just text labels instead
+   of fixed-size icon buttons so the width fits the copy. */
+.ac-kv-mode-toggle { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.ac-kv-mode-toggle button {
+  padding: 5px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2);
+  background: var(--surface); border: none; cursor: pointer; white-space: nowrap;
+}
+.ac-kv-mode-toggle button + button { border-left: 1px solid var(--line-strong); }
+.ac-kv-mode-toggle button.is-active { background: var(--ink-inverse); color: #fff; }
+
+/* Bulk Edit's plain textarea — deliberately its own class, not
+   .ac-code-textarea: that class makes its own text transparent (it expects
+   attachCodeEditor's highlight overlay drawing the visible text on top),
+   which this plain field has none of. */
+.ac-kv-bulk {
+  display: block; width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical;
+  margin: 0; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--ink); background: var(--surface);
+}
+.ac-kv-bulk:focus { outline: none; border-color: var(--ink-3); }
+
 .ac-req-bar { display: flex; align-items: center; gap: 10px; }
 .ac-method-select {
   width: 118px; flex-shrink: 0; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
