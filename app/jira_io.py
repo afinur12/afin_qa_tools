@@ -26,7 +26,7 @@ from app.labels import get_labels, set_labels
 from app.master_data import get_or_create
 from app.models import (
     DEFAULT_SECTION_KINDS, Label, LabelAttachType, StepSection, Subtask, TestCase,
-    TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, User, UserType,
+    TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, TestType, User, UserType,
     generate_internal_key,
 )
 
@@ -123,7 +123,7 @@ def testcase_to_jira_dict(testcase: "TestCase", db: Session) -> dict:
     return {
         "issue_key": testcase.display_code,
         "summary": testcase.title,
-        "category": testcase.category.value if testcase.category else _placeholder("category"),
+        "category": testcase.test_type_ref.name if testcase.test_type_ref else _placeholder("category"),
         "planned_cost": testcase.planned_cost or _placeholder("planned_cost_value"),
         "actual_cost": testcase.actual_cost or _placeholder("actual_cost_value"),
         "number_of_iteration": (
@@ -331,10 +331,8 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
 
     category_raw = entry.get("category")
     if "category" in entry and not _is_placeholder(category_raw):
-        try:
-            testcase.category = TestCaseCategory(category_raw)
-        except ValueError:
-            pass  # unknown category value — leave whatever was there
+        test_type_row = get_or_create(db, TestType, category_raw)
+        testcase.test_type_id = test_type_row.id if test_type_row else None
 
     testcase.msisdn = _resolve(entry, "msisdn", testcase.msisdn)
     testcase.planned_cost = _resolve(entry, "planned_cost", testcase.planned_cost)

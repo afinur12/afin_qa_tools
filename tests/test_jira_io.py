@@ -10,8 +10,8 @@ from app.labels import get_labels, set_labels
 from app.master_data import get_or_create
 from app.models import (
     DEFAULT_SECTION_KINDS, Label, LabelAttachType, Phase, PhaseType, Story, Subtask,
-    SubtaskType, TestCase, TestCaseCategory, TestCaseSection, TestCaseStatus, TestCaseStep,
-    TestPriority, User, UserType, generate_internal_key,
+    SubtaskType, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep,
+    TestPriority, TestType, User, UserType, generate_internal_key,
 )
 
 
@@ -73,9 +73,10 @@ def test_export_populated_testcase_has_real_values(db_session):
     tester = get_or_create(db_session, User, "Andri Firman Nurvianto", type=UserType.TESTER)
     tester.jira_username = "ADL.ANDRIF"
     priority = get_or_create(db_session, TestPriority, "Highest")
+    test_type = get_or_create(db_session, TestType, "Positive")
     testcase = _make_testcase(
         db_session, subtask, code="SND-10056",
-        category=TestCaseCategory.POSITIVE, msisdn="MSISDN #A: 62812",
+        test_type_id=test_type.id, msisdn="MSISDN #A: 62812",
         planned_cost="0", actual_cost="0", number_of_iteration=1,
         tester_id=tester.id, status=TestCaseStatus.PASS, jira_execution_id="196724",
         remark="Steps to reproduce", test_priority_id=priority.id,
@@ -180,7 +181,7 @@ def test_import_creates_new_testcase_with_all_mapped_fields(db_session):
 
     testcase = next(tc for tc in subtask.testcases if tc.display_code == "SND-10055")
     assert testcase.title == "Verify top-up"
-    assert testcase.category.value == "Positive"
+    assert testcase.test_type_ref.name == "Positive"
     assert testcase.msisdn == "MSISDN #A: 62812"
     assert testcase.test_priority_ref.name == "Highest"
     assert testcase.status == TestCaseStatus.PASS
@@ -207,15 +208,16 @@ def test_import_updates_existing_testcase_matched_by_issue_key(db_session):
 
     db_session.refresh(testcase)
     assert testcase.title == "New title"
-    assert testcase.category.value == "Positive"
+    assert testcase.test_type_ref.name == "Positive"
 
 
 def test_import_skips_placeholder_fields_on_existing_testcase(db_session):
     subtask = _make_subtask(db_session, code="SND-9880")
     existing_priority = get_or_create(db_session, TestPriority, "Medium")
+    existing_test_type = get_or_create(db_session, TestType, "Negative")
     testcase = _make_testcase(
         db_session, subtask, code="SND-10061", title="Keep me",
-        msisdn="Already set", category=TestCaseCategory.NEGATIVE, test_priority_id=existing_priority.id,
+        msisdn="Already set", test_type_id=existing_test_type.id, test_priority_id=existing_priority.id,
     )
     db_session.commit()
 
@@ -231,7 +233,7 @@ def test_import_skips_placeholder_fields_on_existing_testcase(db_session):
 
     db_session.refresh(testcase)
     assert testcase.title == "Keep me"
-    assert testcase.category == TestCaseCategory.NEGATIVE
+    assert testcase.test_type_ref.name == "Negative"
     assert testcase.msisdn == "Already set"
     assert testcase.test_priority_ref.name == "Medium"
 
