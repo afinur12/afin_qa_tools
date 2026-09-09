@@ -21,6 +21,7 @@ def test_aes_tool_page_renders_expected_controls(client):
     for option in ("AES-CBC", "AES-GCM", "AES-CTR", "AES-ECB"):
         assert f'value="{option}"' in page
     assert 'value="passphrase-sha256"' in page
+    assert 'value="passphrase-md5"' in page
     assert 'src="/static/js/vendor/crypto-js/crypto-js.min.js' in page
 
 
@@ -30,6 +31,7 @@ def test_aes_tool_js_asset_is_served(client):
     assert "crypto.subtle" in resp.text
     assert "CryptoJS" in resp.text
     assert "passphrase-sha256" in resp.text
+    assert "passphrase-md5" in resp.text
 
 
 def test_aes_vendor_crypto_js_asset_is_served(client):

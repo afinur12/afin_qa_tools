@@ -84,15 +84,17 @@
   function decodeKey(raw, format) {
     if (format === "hex") return hexToBytes(raw);
     if (format === "base64") return base64ToBytes(raw);
-    if (format === "passphrase-sha256") {
-      // Any-length passphrase, hashed into a fixed 32-byte (AES-256) key —
-      // for systems that derive their key this way instead of expecting the
-      // literal raw bytes. Always 32 bytes, regardless of the passphrase's
-      // own length.
+    if (format === "passphrase-sha256" || format === "passphrase-md5") {
+      // Any-length passphrase, hashed into a fixed-length key — for systems
+      // that derive their key this way instead of expecting the literal raw
+      // bytes. SHA-256 always yields 32 bytes (AES-256); MD5 always yields
+      // 16 bytes (AES-128) — MD5(passphrase) is a very common "quick"
+      // pattern in Java backends (Cipher.getInstance("AES") defaults to
+      // ECB, paired with MessageDigest.getInstance("MD5") for the key).
       if (typeof CryptoJS === "undefined") {
-        throw new Error("Passphrase (SHA-256) needs the crypto-js library, which failed to load.");
+        throw new Error("This key format needs the crypto-js library, which failed to load.");
       }
-      return wordArrayToBytes(CryptoJS.SHA256(raw));
+      return wordArrayToBytes(format === "passphrase-md5" ? CryptoJS.MD5(raw) : CryptoJS.SHA256(raw));
     }
     return new TextEncoder().encode(raw);
   }
@@ -102,6 +104,7 @@
     hex: "Must decode to 16, 24, or 32 bytes — 32/48/64 hex characters",
     base64: "Must decode to 16, 24, or 32 bytes",
     "passphrase-sha256": "Any length — hashed via SHA-256 into a 32-byte AES-256 key",
+    "passphrase-md5": "Any length — hashed via MD5 into a 16-byte AES-128 key",
   };
   keyFormatSelect.addEventListener("change", () => {
     keyInput.placeholder = KEY_FORMAT_PLACEHOLDERS[keyFormatSelect.value] || "";
