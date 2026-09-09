@@ -1,0 +1,25 @@
+// Template for a local-only AES key format — copy this file to
+// aes.local.js (gitignored, never committed) and fill in your own
+// derivation. aes.js loads aes.local.js if present; if it's missing,
+// the <script> tag just 404s harmlessly and this extra option never
+// shows up in the "Key format" dropdown.
+//
+// Use this for a key derivation that's specific to one internal system
+// and has no business living in a shared repo — an org-internal
+// encrypt/decrypt helper, for example.
+(function () {
+  if (!window.AesTool || !window.AesTool.registerKeyFormat) return;
+
+  window.AesTool.registerKeyFormat("my-local-format", {
+    // Shown as an <option> in the "Key format" dropdown.
+    label: "Key: My Local Format",
+    // Shown as the Key field's placeholder while this format is selected.
+    placeholder: "Describe what a valid key looks like here",
+    // raw: the exact string typed into the Key field.
+    // Must return a Uint8Array that's exactly 16, 24, or 32 bytes long
+    // (AES-128/192/256) — the tool validates that length after this runs.
+    decode(raw) {
+      return new TextEncoder().encode(raw);
+    },
+  });
+})();

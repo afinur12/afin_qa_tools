@@ -23,6 +23,9 @@ def test_aes_tool_page_renders_expected_controls(client):
     assert 'value="passphrase-sha256"' in page
     assert 'value="passphrase-md5"' in page
     assert 'src="/static/js/vendor/crypto-js/crypto-js.min.js' in page
+    # Local-only key-format extension: 404s harmlessly if the (gitignored)
+    # file isn't present on this machine, so the page always references it.
+    assert 'src="/static/js/utility/aes.local.js' in page
 
 
 def test_aes_tool_js_asset_is_served(client):
@@ -32,9 +35,17 @@ def test_aes_tool_js_asset_is_served(client):
     assert "CryptoJS" in resp.text
     assert "passphrase-sha256" in resp.text
     assert "passphrase-md5" in resp.text
+    assert "AesTool" in resp.text
+    assert "registerKeyFormat" in resp.text
 
 
 def test_aes_vendor_crypto_js_asset_is_served(client):
     resp = client.get("/static/js/vendor/crypto-js/crypto-js.min.js")
     assert resp.status_code == 200
     assert "CryptoJS" in resp.text
+
+
+def test_aes_local_extension_example_documents_the_hook(client):
+    with open("app/static/js/utility/aes.local.js.example", encoding="utf-8") as f:
+        text = f.read()
+    assert "AesTool.registerKeyFormat" in text

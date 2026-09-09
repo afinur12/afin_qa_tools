@@ -93,4 +93,7 @@
 {% block scripts %}
 <script src="{{ static_url('js/vendor/crypto-js/crypto-js.min.js') }}"></script>
 <script src="{{ static_url('js/utility/aes.js') }}"></script>
+{# Optional, gitignored, local-only extension — see aes.local.js.example.
+   404s harmlessly if it isn't present on this machine. #}
+<script src="{{ static_url('js/utility/aes.local.js') }}"></script>
 {% endblock %}

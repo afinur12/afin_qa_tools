@@ -81,6 +81,23 @@
     return bytes;
   }
 
+  // Extension point for a key format this file shouldn't hold — e.g. an
+  // org-internal key derivation, which has no business living in a shared
+  // repo. A separate, gitignored script loaded after this one (see
+  // aes.local.js.example for the shape) can call
+  // window.AesTool.registerKeyFormat(value, {label, placeholder, decode})
+  // before the page needs it; if that file isn't present, its <script> tag
+  // just 404s harmlessly and the extra option never appears.
+  const customKeyFormats = {};
+  window.AesTool = window.AesTool || {};
+  window.AesTool.registerKeyFormat = function (value, { label, placeholder, decode }) {
+    customKeyFormats[value] = { placeholder, decode };
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    keyFormatSelect.appendChild(option);
+  };
+
   function decodeKey(raw, format) {
     if (format === "hex") return hexToBytes(raw);
     if (format === "base64") return base64ToBytes(raw);
@@ -96,6 +113,7 @@
       }
       return wordArrayToBytes(format === "passphrase-md5" ? CryptoJS.MD5(raw) : CryptoJS.SHA256(raw));
     }
+    if (customKeyFormats[format]) return customKeyFormats[format].decode(raw);
     return new TextEncoder().encode(raw);
   }
 
@@ -107,7 +125,8 @@
     "passphrase-md5": "Any length — hashed via MD5 into a 16-byte AES-128 key",
   };
   keyFormatSelect.addEventListener("change", () => {
-    keyInput.placeholder = KEY_FORMAT_PLACEHOLDERS[keyFormatSelect.value] || "";
+    const custom = customKeyFormats[keyFormatSelect.value];
+    keyInput.placeholder = custom ? custom.placeholder : (KEY_FORMAT_PLACEHOLDERS[keyFormatSelect.value] || "");
   });
 
   function encodeOutput(bytes, format) {
