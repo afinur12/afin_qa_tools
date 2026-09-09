@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_copy, icon_lock with context %}
+{% block title %}{{ tool.name }} - QA Toolbox{% endblock %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div id="aes-unsupported" class="hint" hidden style="margin-bottom:14px;">
+    This browser (or this page's connection) doesn't expose the Web Crypto API, so this tool can't run here.
+    It needs a secure context &mdash; HTTPS, or <code>http://localhost</code> / <code>http://127.0.0.1</code>.
+  </div>
+
+  <div class="tool-toolbar">
+    <div class="field" style="margin-bottom:0; width:130px;">
+      <select id="aes-mode">
+        <option value="AES-CBC">AES-CBC</option>
+        <option value="AES-GCM">AES-GCM</option>
+        <option value="AES-CTR">AES-CTR</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:0; width:140px;">
+      <select id="aes-key-format">
+        <option value="utf8">Key: UTF-8</option>
+        <option value="hex">Key: Hex</option>
+        <option value="base64">Key: Base64</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:0; width:150px;">
+      <select id="aes-output-format">
+        <option value="base64">Output: Base64</option>
+        <option value="hex">Output: Hex</option>
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn secondary" id="aes-copy" type="button" data-copy>
+      {{ icon_copy() }} <span data-copy-label>Copy output</span>
+    </button>
+  </div>
+
+  <div class="row" style="gap:10px; margin-bottom:14px; align-items:flex-start; flex-wrap:wrap;">
+    <div class="field" style="margin-bottom:0; flex:2; min-width:240px;">
+      <label>Key</label>
+      <input type="text" id="aes-key" placeholder="Must decode to 16, 24, or 32 bytes (AES-128/192/256)" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field" style="margin-bottom:0; flex:2; min-width:240px;">
+      <label>IV <span class="muted" style="font-weight:400;">&mdash; optional, hex-encoded</span></label>
+      <input type="text" id="aes-iv" placeholder="Leave blank: auto-generated + embedded in output / auto-read from input" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+  <div class="hint" style="margin:-6px 0 14px;">
+    Leave the IV blank and it's handled for you &mdash; generated and prepended to the output on Encrypt, read back off the front of the input on Decrypt.
+    Set it explicitly to use an exact IV instead, in which case Input/Output holds plain ciphertext with no IV prefix.
+  </div>
+
+  <div id="aes-error" class="error" hidden></div>
+
+  <div class="tool-split">
+    <div>
+      <div class="tool-label">Input</div>
+      <textarea class="tool-textarea" id="aes-input" spellcheck="false" placeholder="Plain text to encrypt, or the Base64/Hex ciphertext to decrypt&hellip;"></textarea>
+    </div>
+    <div>
+      <div class="tool-label">Output</div>
+      <pre class="tool-output" id="aes-output"></pre>
+    </div>
+  </div>
+
+  <div class="form-actions" style="margin-top:14px; justify-content:flex-start;">
+    <button class="btn" id="aes-encrypt" type="button">{{ icon_lock() }} Encrypt</button>
+    <button class="btn secondary" id="aes-decrypt" type="button">Decrypt</button>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/utility/aes.js') }}"></script>
+{% endblock %}

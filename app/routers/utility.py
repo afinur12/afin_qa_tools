@@ -24,6 +24,8 @@ TOOLS = [
      "desc": "Turn any text or URL into a downloadable QR code."},
     {"slug": "pdf-tools", "name": "PDF Tools", "icon": "icon_doc",
      "desc": "Merge, split, and rotate PDF files without leaving the browser."},
+    {"slug": "aes", "name": "AES Encrypt/Decrypt", "icon": "icon_lock",
+     "desc": "Encrypt or decrypt text with AES-CBC/GCM/CTR and a key you provide."},
 ]
 TOOLS_BY_SLUG = {t["slug"]: t for t in TOOLS}
 
@@ -71,3 +73,8 @@ def qr_code(request: Request):
 @router.get("/pdf-tools")
 def pdf_tools(request: Request):
     return templates.TemplateResponse(request, "utility/pdf_tools.html", {"tool": TOOLS_BY_SLUG["pdf-tools"]})
+
+
+@router.get("/aes")
+def aes_tool(request: Request):
+    return templates.TemplateResponse(request, "utility/aes.html", {"tool": TOOLS_BY_SLUG["aes"]})
