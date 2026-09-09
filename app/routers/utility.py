@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Request
 
 from app.templating import templates
+from app.variables import run_snippet
 
 router = APIRouter(prefix="/utility")
 
 # Every tool runs client-side (no server round trip), so each route just
-# renders a static shell; the page's own JS does the work. Order here sets
-# the order tools appear in on the index grid.
+# renders a static shell; the page's own JS does the work — except Python
+# Runner, the one exception, whose /python-runner/run route below actually
+# executes the submitted script server-side (reusing the same restricted
+# sandbox as a {{variable}} Script field). Order here sets the order tools
+# appear in on the index grid.
 TOOLS = [
     {"slug": "uuid", "name": "UUID Generator", "icon": "icon_hash",
      "desc": "Generate v4 UUIDs in bulk, with optional uppercase and no-hyphen formatting."},
@@ -26,6 +30,8 @@ TOOLS = [
      "desc": "Merge, split, and rotate PDF files without leaving the browser."},
     {"slug": "aes", "name": "AES Encrypt/Decrypt", "icon": "icon_lock",
      "desc": "Encrypt or decrypt text with AES-CBC/GCM/CTR and a key you provide."},
+    {"slug": "python-runner", "name": "Python Runner", "icon": "icon_terminal",
+     "desc": "Run a small Python script and see its printed output."},
 ]
 TOOLS_BY_SLUG = {t["slug"]: t for t in TOOLS}
 
@@ -78,3 +84,15 @@ def pdf_tools(request: Request):
 @router.get("/aes")
 def aes_tool(request: Request):
     return templates.TemplateResponse(request, "utility/aes.html", {"tool": TOOLS_BY_SLUG["aes"]})
+
+
+@router.get("/python-runner")
+def python_runner_tool(request: Request):
+    return templates.TemplateResponse(request, "utility/python_runner.html", {"tool": TOOLS_BY_SLUG["python-runner"]})
+
+
+@router.post("/python-runner/run")
+async def python_runner_run(request: Request):
+    payload = await request.json()
+    result = run_snippet(payload.get("code", ""))
+    return result

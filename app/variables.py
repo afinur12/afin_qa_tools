@@ -13,11 +13,14 @@ running until it finishes on its own.
 
 import base64
 import hashlib
+import io
 import random
 import re
+import sys
 import threading
 import time
 import uuid
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -31,7 +34,7 @@ SCRIPT_TIMEOUT_SECONDS = 1.0
 _SAFE_BUILTIN_NAMES = (
     "str", "int", "float", "bool", "len", "range", "list", "dict", "tuple", "set",
     "abs", "min", "max", "sum", "round", "sorted", "enumerate", "zip", "map", "filter",
-    "True", "False", "None", "ValueError", "TypeError",
+    "True", "False", "None", "ValueError", "TypeError", "print",
 )
 
 
@@ -80,6 +83,45 @@ def run_script(script: str) -> str:
     if "error" in result_box:
         raise ScriptError(result_box["error"])
     return str(result_box.get("value", ""))
+
+
+def run_snippet(code: str) -> dict:
+    """Run an arbitrary small Python script — top-level statements, not the
+    implicit-return-function-body a variable's SCRIPT uses — under the same
+    restricted namespace and soft timeout as run_script, capturing anything
+    printed. Used by the Python Runner utility tool (the one utility tool
+    that isn't purely client-side).
+
+    Returns {"stdout": str, "error": str | None} rather than raising, since
+    a caller testing a script wants to see any output printed *before* a
+    later line crashed, not just the crash message on its own.
+
+    redirect_stdout swaps the process-wide sys.stdout, not something
+    thread-local — for an infinite-loop script whose background thread
+    never reaches redirect_stdout's own __exit__, that swap would never
+    get undone, silently breaking print() (and anything else writing to
+    stdout) for the rest of this process, not just this one call. sys.stdout
+    is restored explicitly below regardless of whether the thread actually
+    finished, so an abandoned thread's redirected stdout never outlives
+    this function even though the thread itself does."""
+    buffer = io.StringIO()
+
+    def _run():
+        try:
+            with redirect_stdout(buffer):
+                exec(compile(code or "", "<python-runner>", "exec"), _safe_namespace())
+        except Exception as exc:  # noqa: BLE001 - surfaced to the caller, never a 500
+            result_box["error"] = f"{type(exc).__name__}: {exc}"
+
+    result_box: dict = {}
+    original_stdout = sys.stdout
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    thread.join(SCRIPT_TIMEOUT_SECONDS)
+    sys.stdout = original_stdout
+    if thread.is_alive():
+        return {"stdout": buffer.getvalue(), "error": "Script timed out (soft limit: still running in the background)"}
+    return {"stdout": buffer.getvalue(), "error": result_box.get("error")}
 
 
 # Seeded once (see database.seed_builtin_variables); still just ordinary

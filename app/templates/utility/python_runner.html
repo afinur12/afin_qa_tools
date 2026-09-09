@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon_copy, icon_send with context %}
+{% block title %}{{ tool.name }} - QA Toolbox{% endblock %}
+{% block content %}
+
+<div class="crumbs">
+  <a href="/utility">Utility</a><span class="sep">/</span>
+  {{ tool.name }}
+</div>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ tool.name }}</h1>
+    <div class="page-sub">{{ tool.desc }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="hint" style="margin-bottom:14px;">
+    The only utility tool that isn't purely client-side: this runs on this app's own backend, under the same
+    restricted Python sandbox as a {{ '{{variable}}' }} Script field &mdash; a curated set of safe builtins/modules
+    only (no file, network, or subprocess access) and a 1-second soft timeout. This is not a hardened security
+    sandbox; only run scripts you trust.
+  </div>
+
+  <div class="tool-toolbar">
+    <button class="btn lime" id="py-run" type="button">{{ icon_send(14) }} Run</button>
+    <div class="spacer"></div>
+    <button class="btn secondary" id="py-copy-output" type="button" data-copy>
+      {{ icon_copy() }} <span data-copy-label>Copy output</span>
+    </button>
+  </div>
+
+  <div id="py-error" class="error" hidden></div>
+
+  <div class="tool-split">
+    <div>
+      <div class="tool-label">Script</div>
+      <div class="code-block ac-code-editor">
+        <div class="snippet-code ac-code-scroll">
+          <div class="snippet-gutter" data-ac-script-gutter><span>1</span></div>
+          <div class="ac-code-editor-inner">
+            <pre class="snippet-pre ac-code-overlay" data-ac-script-overlay aria-hidden="true"><code class="hljs"></code></pre>
+            <textarea class="ac-code-textarea" data-ac-script-editor spellcheck="false" id="py-input">print("Hello, world!")</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="tool-label">Output</div>
+      <pre class="tool-output" id="py-output"></pre>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ static_url('js/api_client.js') }}"></script>
+<script src="{{ static_url('js/utility/python_runner.js') }}"></script>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon_hash, icon_braces, icon_diff, icon_search, icon_calendar, icon_database, icon_qrcode, icon_doc, icon_lock with context %}
+{% from "macros.html" import icon_hash, icon_braces, icon_diff, icon_search, icon_calendar, icon_database, icon_qrcode, icon_doc, icon_lock, icon_terminal with context %}
 {% block title %}Utility Tools - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -7,7 +7,7 @@
   <div>
     <div class="eyebrow">Workspace</div>
     <h1 class="page-title">Utility Tools</h1>
-    <div class="page-sub">Small, self-contained tools that run entirely in your browser &mdash; nothing here touches the database.</div>
+    <div class="page-sub">Small, self-contained tools &mdash; nothing here touches the database. Every one runs entirely in your browser except Python Runner, which executes on this app's own backend.</div>
   </div>
 </div>
 
@@ -21,6 +21,7 @@
   'icon_qrcode': icon_qrcode,
   'icon_doc': icon_doc,
   'icon_lock': icon_lock,
+  'icon_terminal': icon_terminal,
 } %}
 
 <div class="tool-grid">
