@@ -71,6 +71,32 @@ def _numbered_block(lines: list[str]) -> str:
     return "\r\n".join(f"{i}. {text}" for i, text in enumerate(lines, start=1))
 
 
+def _bundled_header(label: str) -> str:
+    """A bundled entry's `step` field leads with its section label, bolded
+    Jira-wiki-markup style, then a "----" divider line, then the numbered
+    steps — e.g. "*PRE CONDITION*\r\n----\r\n1. ...". Trailing "\r\n" so
+    callers just concatenate the numbered step block straight after."""
+    return f"*{label}*\r\n----\r\n"
+
+
+def _strip_bundled_header(step_text: str, label: str) -> str:
+    """Inverse of _bundled_header: strip a bundled `step` field's leading
+    label (+ divider) line(s), returning just the numbered step block.
+    Recognizes both the current "*LABEL*\r\n----\r\n..." shape and the
+    older plain "LABEL\r\n..." shape this app used to export, so a file
+    exported before the bold+divider header was added still imports
+    correctly. Falls back to splitting off whatever's before the first
+    "\r\n" for anything matching neither (unexpected, but keeps this from
+    ever raising)."""
+    header = _bundled_header(label)
+    if step_text.startswith(header):
+        return step_text[len(header):]
+    old_header = label + "\r\n"
+    if step_text.startswith(old_header):
+        return step_text[len(old_header):]
+    return step_text.split("\r\n", 1)[1] if "\r\n" in step_text else ""
+
+
 def _person(user: "User | None", field: str) -> dict:
     """Always an object — never null — matching the reference template's
     shape for assignee/developer/tester exactly (each is `{name, username}`
@@ -91,7 +117,7 @@ def _zephyr_entry(section: "TestCaseSection") -> dict:
     label = _SECTION_LABEL[section.kind]
     steps = section.steps
     if steps:
-        step_text = label + "\r\n" + _numbered_block([s.step_text for s in steps])
+        step_text = _bundled_header(label) + _numbered_block([s.step_text for s in steps])
         expected_text = _numbered_block([s.expected_result for s in steps])
     else:
         key = section.kind.value.lower()
@@ -210,15 +236,18 @@ def _is_bundled_entry(entry: dict, label: str) -> bool:
     section label and both fields "\r\n"-joined when there's more than one
     step) rather than one plain, unwrapped step from another tool.
 
-    A single-step section still bundles `step` as "{LABEL}\r\n1. text" (the
-    label join alone puts a "\r\n" in there), so the label-prefix check
-    alone covers most cases — but `step` can be a placeholder while
+    A single-step section still bundles `step` as "*LABEL*\r\n----\r\n1.
+    text" (the header alone puts a "\r\n" in there), so the header-prefix
+    check alone covers most cases — but `step` can be a placeholder while
     `expected_result` still carries the real (possibly multi-line) content,
     or vice versa, so either field showing the bundled shape is enough.
+    The older plain "LABEL\r\n..." prefix (before the bold+divider header)
+    is recognized too, so a file exported before that change still
+    round-trips correctly.
     """
     step_text = str(entry.get("step", ""))
     expected_text = str(entry.get("expected_result", ""))
-    if step_text.startswith(label + "\r\n"):
+    if step_text.startswith(_bundled_header(label)) or step_text.startswith(label + "\r\n"):
         return True
     if not _is_placeholder(step_text) and "\r\n" in step_text:
         return True
@@ -227,7 +256,7 @@ def _is_bundled_entry(entry: dict, label: str) -> bool:
     return False
 
 
-def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) -> None:
+def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict, label: str) -> None:
     """Replace a section's steps from one Jira zephyr_steps entry.
 
     Jira never supplies actual_result at all, and either side (step text or
@@ -248,7 +277,7 @@ def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict) ->
     if _is_placeholder(step_text):
         step_lines = None  # no real step data supplied — preserve old step_text by position
     else:
-        body = step_text.split("\r\n", 1)[1] if "\r\n" in step_text else ""
+        body = _strip_bundled_header(step_text, label)
         step_lines = _split_numbered_block(body)
 
     expected_lines = None if _is_placeholder(expected_text) else _split_numbered_block(expected_text)
@@ -370,7 +399,7 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
         if not matches:
             continue
         if len(matches) == 1 and _is_bundled_entry(matches[0], label):
-            _apply_zephyr_entry(db, section, matches[0])
+            _apply_zephyr_entry(db, section, matches[0], label)
         else:
             _apply_zephyr_steps_individually(db, section, matches)
 

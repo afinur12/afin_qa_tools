@@ -111,7 +111,7 @@ def test_export_concatenates_steps_into_one_numbered_zephyr_entry(db_session):
     assert len(data["zephyr_steps"]) == 3
     main_entry = next(z for z in data["zephyr_steps"] if z["step_type"] == "MAIN TEST")
     assert main_entry["order_id"] == 2
-    assert main_entry["step"] == "MAIN TEST\r\n1. Do A\r\n2. Do B"
+    assert main_entry["step"] == "*MAIN TEST*\r\n----\r\n1. Do A\r\n2. Do B"
     assert main_entry["expected_result"] == "1. A happens\r\n2. B happens"
     pre_entry = next(z for z in data["zephyr_steps"] if z["step_type"] == "PRE CONDITION")
     assert pre_entry["order_id"] == 1
