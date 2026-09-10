@@ -81,6 +81,52 @@ def test_delete_testcase_cascades_to_its_steps(client):
     gen.close()
 
 
+def test_clear_all_button_shown_only_when_testcases_exist(client):
+    subtask_id = _create_execution_subtask(client, "EX-304")
+    empty_page = client.get(f"/subtasks/{subtask_id}").text
+    assert "/testcases/clear-all" not in empty_page
+
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
+    populated_page = client.get(f"/subtasks/{subtask_id}").text
+    assert f'action="/subtasks/{subtask_id}/testcases/clear-all"' in populated_page
+
+
+def test_clear_all_testcases_deletes_every_case_and_cascades_to_steps(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-305")
+    tc1 = client.post(
+        f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"}, follow_redirects=False
+    )
+    testcase1_id = int(tc1.headers["location"].rstrip("/").split("/")[-1])
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-2", "title": "B"})
+
+    section = m.TestCaseSection(testcase_id=testcase1_id, kind=m.StepSection.MAIN, position=0)
+    db_session.add(section)
+    db_session.commit()
+    db_session.add(m.TestCaseStep(section_id=section.id, step_no=1, step_text="x"))
+    db_session.commit()
+
+    response = client.post(f"/subtasks/{subtask_id}/testcases/clear-all", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].rstrip("/") == f"/subtasks/{subtask_id}"
+
+    detail = client.get(f"/subtasks/{subtask_id}").text
+    # Substring "TC-1" alone would also match the New Test Case modal's
+    # placeholder text ("e.g. TC-1") — check the actual row markup instead.
+    assert ">TC-1<" not in detail
+    assert ">TC-2<" not in detail
+
+    db_session.expire_all()
+    assert db_session.query(m.TestCase).filter_by(subtask_id=int(subtask_id)).count() == 0
+    assert db_session.query(m.TestCaseSection).filter_by(testcase_id=testcase1_id).count() == 0
+
+
+def test_clear_all_testcases_route_404s_for_unknown_subtask(client):
+    response = client.post("/subtasks/999999/testcases/clear-all")
+    assert response.status_code == 404
+
+
 def test_status_dropdown_offers_to_do_and_back_log(client):
     from app.models import TestCaseStatus
 

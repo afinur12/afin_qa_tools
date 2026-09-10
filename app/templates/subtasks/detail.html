@@ -171,6 +171,12 @@
        title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
     <a class="btn act edit" href="#" data-modal-open="import-testcase"
        title="Import test cases from JSON" aria-label="Import test cases from JSON">{{ icon_upload() }}</a>
+    {% if subtask.testcases %}
+    <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/clear-all"
+          data-confirm="Delete all {{ subtask.testcases | length }} test case{{ '' if subtask.testcases | length == 1 else 's' }} in {{ subtask.display_code }}, along with their steps and screenshots? This can't be undone.">
+      <button class="btn act remove" type="submit" title="Clear all test cases" aria-label="Clear all test cases">{{ icon_trash() }}</button>
+    </form>
+    {% endif %}
   </div>
 
   {% call modal('import-testcase', 'Import Test Cases', '/subtasks/' ~ subtask.id ~ '/testcases/import-preview', hint='Accepts a single test case, a selected-testcases, or a whole-subtask JSON export — you\'ll pick which ones to keep on the next page.', enctype='multipart/form-data') %}

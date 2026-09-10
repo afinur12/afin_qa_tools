@@ -223,3 +223,16 @@ def delete_testcase(request: Request, testcase_id: int, db: Session = Depends(ge
     deletion.delete_testcase(db, testcase)
     db.commit()
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {code} deleted.", category="danger")
+
+
+@router.post("/subtasks/{subtask_id}/testcases/clear-all")
+def clear_all_testcases(request: Request, subtask_id: int, db: Session = Depends(get_db)):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    count = len(subtask.testcases)
+    for testcase in list(subtask.testcases):
+        deletion.delete_testcase(db, testcase)
+    db.commit()
+    message = f"Deleted all {count} test case{'' if count == 1 else 's'}."
+    return redirect_with_flash(f"/subtasks/{subtask_id}", message, category="danger")
