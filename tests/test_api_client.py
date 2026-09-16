@@ -265,3 +265,15 @@ def test_api_client_js_defines_the_pin_state_module(client):
     assert resp.status_code == 200
     for name in ("PINS_KEY", "loadPins", "persistPins", "isFolderPinned", "isRequestPinned", "toggleFolderPin", "toggleRequestPin", "updatePinIconEl"):
         assert name in resp.text
+
+
+def test_pinned_center_markup_present_but_hidden_with_no_pins(client):
+    page = client.get("/api-client").text
+    assert 'id="ac-pinned-center"' in page
+    assert 'data-ac-pinned-list="folders"' in page
+    assert 'data-ac-pinned-list="requests"' in page
+
+
+def test_api_client_js_defines_render_pinned_center(client):
+    resp = client.get("/static/js/api_client.js")
+    assert "renderPinnedCenter" in resp.text

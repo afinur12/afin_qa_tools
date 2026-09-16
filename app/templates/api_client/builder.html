@@ -241,6 +241,19 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" placeholder="Search collections" data-ac-tree-search>
     </div>
+    <div class="ac-pinned-center" id="ac-pinned-center" hidden>
+      <div class="ac-pinned-center-header">
+        {{ icon_pin(14) }}
+        <span class="ac-pinned-center-title">Pinned Center</span>
+        <div class="spacer"></div>
+        <div class="ac-pinned-toggle">
+          <button type="button" class="is-active" data-ac-pinned-toggle="folders">Folders <span data-ac-pinned-count="folders">0</span></button>
+          <button type="button" data-ac-pinned-toggle="requests">Requests <span data-ac-pinned-count="requests">0</span></button>
+        </div>
+      </div>
+      <div class="ac-pinned-list" data-ac-pinned-list="folders"></div>
+      <div class="ac-pinned-list" data-ac-pinned-list="requests" hidden></div>
+    </div>
     <div class="ac-tree-header-row">
       <span class="ac-tree-header-label">All Collections</span>
       <span class="ac-tree-header-count">{{ total_folder_count }} FOLDER{{ '' if total_folder_count == 1 else 'S' }}</span>

@@ -1730,6 +1730,20 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
 .ac-tree-search input { padding-left: 34px; width: 100%; padding-top: 9px; padding-bottom: 9px; padding-right: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); font-size: 13px; }
 
+.ac-pinned-center { border: 1px solid var(--warn); border-radius: var(--r-ctl); background: var(--bg-sidebar); padding: 10px 12px; margin-bottom: 10px; color: #d5d2e0; }
+.ac-pinned-center-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ac-pinned-center-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.ac-pinned-toggle { display: inline-flex; border: 1px solid var(--sidebar-line); border-radius: 8px; overflow: hidden; }
+.ac-pinned-toggle button { padding: 4px 9px; font-size: 11px; font-weight: 600; color: #d5d2e0; background: transparent; border: none; cursor: pointer; }
+.ac-pinned-toggle button + button { border-left: 1px solid var(--sidebar-line); }
+.ac-pinned-toggle button.is-active { background: var(--warn); color: var(--ink-inverse); }
+.ac-pinned-list { display: flex; flex-direction: column; gap: 6px; }
+.ac-pinned-card { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--sidebar-line); color: #d5d2e0; text-decoration: none; }
+.ac-pinned-card-name { font-size: 12.5px; font-weight: 600; flex-grow: 1; }
+.ac-pinned-card-count { font-size: 11px; color: var(--ink-3); }
+.ac-pinned-card-body { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+.ac-pinned-card-path { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .ac-tree-row {
   display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px;
   border-radius: 8px; font-size: 12.5px; color: var(--ink); text-decoration: none;

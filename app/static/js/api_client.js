@@ -28,6 +28,14 @@
   // usage site.
   const ICON_SEARCH_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
 
+  // Matches icon_pin() in macros.html — used to redraw the pin glyph inside
+  // Pinned Center cards, built from an innerHTML template rather than the
+  // Jinja macro for the same reason CHEVRON_SVG stands in for icon_chevron.
+  const icon_pin_svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 10.5 7 12l2 1.5V17h6v-3.5L17 12l-2-1.5V5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2z"/></svg>';
+  // Matches icon_folder() in macros.html — used for the folder glyph on
+  // pinned-folder cards, same reason as icon_pin_svg above.
+  const icon_folder_svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+
   // Same TDZ hazard as VAR_TOKEN_PATTERN above: currentHeaders() (defined
   // much further down) reads this, and now gets called during the request
   // body editor's own initial, synchronous setup (attachCodeEditor's
@@ -2338,9 +2346,112 @@
       ? toggleRequestPin(pinsStore, id)
       : toggleFolderPin(pinsStore, btn.dataset.acPinType, id);
     persistPins(pinsStore);
+    renderPinnedCenter();
     document.querySelectorAll(`[data-ac-pin-bucket="${bucket}"][data-ac-pin-id="${id}"]`).forEach((matchEl) => {
       if (bucket === "folders" && matchEl.dataset.acPinType !== btn.dataset.acPinType) return;
       updatePinIconEl(matchEl, pinned);
     });
   });
+
+  // ── Pinned Center panel ──────────────────────────────────────────────────
+  // A summary of everything pinned above, rendered on top of pinsStore and
+  // the tree rows already in the DOM — no separate data source, no fetch.
+  const pinnedCenterEl = document.getElementById("ac-pinned-center");
+  let pinnedCenterView = "folders";
+
+  function findTreeRowFor(bucket, type, id) {
+    const selector = bucket === "requests"
+      ? `[data-ac-pin-bucket="requests"][data-ac-pin-id="${id}"]`
+      : `[data-ac-pin-bucket="folders"][data-ac-pin-type="${type}"][data-ac-pin-id="${id}"]`;
+    const pinBtn = document.querySelector(selector);
+    return pinBtn ? pinBtn.closest(".ac-tree-row") : null;
+  }
+
+  // Walks up from a pinned request's row through nested
+  // .ac-tree-children/.ac-tree-row pairs to build "Collection / Folder /
+  // Folder" — each .ac-tree-children container's previousElementSibling is
+  // always the header row that owns it (see tree_collection_row/
+  // tree_folder_row in builder.html), and a container's parentElement is
+  // always itself the next container up (or, at the top, no container at
+  // all) — so .closest(".ac-tree-children") on that parentElement resolves
+  // immediately to itself rather than skipping a level.
+  function parentPathFor(row) {
+    const names = [];
+    let el = row.closest(".ac-tree-children");
+    while (el) {
+      const headerRow = el.previousElementSibling;
+      if (headerRow && headerRow.classList.contains("ac-tree-row")) {
+        const nameEl = headerRow.querySelector(".ac-tree-name");
+        if (nameEl) names.unshift(nameEl.textContent.trim());
+      }
+      el = el.parentElement ? el.parentElement.closest(".ac-tree-children") : null;
+    }
+    return names.join(" / ");
+  }
+
+  function renderPinnedCenter() {
+    const folderCards = pinsStore.folders
+      .map(({ type, id }) => {
+        const row = findTreeRowFor("folders", type, id);
+        if (!row) return null;
+        const name = row.querySelector(".ac-tree-name")?.textContent.trim() || "";
+        const count = row.dataset.acTreeCount || "0";
+        return { type, id, name, count };
+      })
+      .filter(Boolean);
+
+    const requestCards = pinsStore.requests
+      .map((id) => {
+        const row = findTreeRowFor("requests", null, id);
+        if (!row) return null;
+        const name = row.querySelector(".ac-tree-name")?.textContent.trim() || "";
+        const method = row.querySelector(".ac-method-badge")?.textContent.trim() || "GET";
+        const methodClass = row.querySelector(".ac-method-badge")?.className || "ac-method-badge m-get";
+        return { id, name, method, methodClass, path: parentPathFor(row) };
+      })
+      .filter(Boolean);
+
+    pinnedCenterEl.hidden = folderCards.length === 0 && requestCards.length === 0;
+    pinnedCenterEl.querySelector('[data-ac-pinned-count="folders"]').textContent = String(folderCards.length);
+    pinnedCenterEl.querySelector('[data-ac-pinned-count="requests"]').textContent = String(requestCards.length);
+
+    const folderListEl = pinnedCenterEl.querySelector('[data-ac-pinned-list="folders"]');
+    folderListEl.innerHTML = folderCards.map((card) => `
+      <div class="ac-pinned-card">
+        ${icon_folder_svg}
+        <span class="ac-pinned-card-name">${escapeHtml(card.name)}</span>
+        <span class="ac-pinned-card-count">${escapeHtml(card.count)}</span>
+        <button type="button" class="ac-tree-pin is-pinned" data-ac-pin-bucket="folders" data-ac-pin-type="${card.type}" data-ac-pin-id="${card.id}" title="Unpin" aria-pressed="true">${icon_pin_svg}</button>
+      </div>
+    `).join("");
+
+    const requestListEl = pinnedCenterEl.querySelector('[data-ac-pinned-list="requests"]');
+    requestListEl.innerHTML = requestCards.map((card) => `
+      <a class="ac-pinned-card" href="/api-client?request_id=${card.id}">
+        <span class="${escapeAttr(card.methodClass)}">${escapeHtml(card.method)}</span>
+        <span class="ac-pinned-card-body">
+          <span class="ac-pinned-card-name">${escapeHtml(card.name)}</span>
+          <span class="ac-pinned-card-path">${escapeHtml(card.path)}</span>
+        </span>
+        <button type="button" class="ac-tree-pin is-pinned" data-ac-pin-bucket="requests" data-ac-pin-id="${card.id}" title="Unpin" aria-pressed="true">${icon_pin_svg}</button>
+      </a>
+    `).join("");
+
+    if (pinnedCenterView === "folders" && folderCards.length === 0 && requestCards.length > 0) pinnedCenterView = "requests";
+    if (pinnedCenterView === "requests" && requestCards.length === 0 && folderCards.length > 0) pinnedCenterView = "folders";
+    pinnedCenterEl.querySelectorAll("[data-ac-pinned-toggle]").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.dataset.acPinnedToggle === pinnedCenterView);
+    });
+    folderListEl.hidden = pinnedCenterView !== "folders";
+    requestListEl.hidden = pinnedCenterView !== "requests";
+  }
+
+  pinnedCenterEl.addEventListener("click", (event) => {
+    const toggleBtn = event.target.closest("[data-ac-pinned-toggle]");
+    if (!toggleBtn) return;
+    pinnedCenterView = toggleBtn.dataset.acPinnedToggle;
+    renderPinnedCenter();
+  });
+
+  renderPinnedCenter();
 })();
