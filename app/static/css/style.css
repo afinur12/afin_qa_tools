@@ -1750,6 +1750,15 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-pinned-toggle button + button { border-left: 1px solid var(--sidebar-line); }
 .ac-pinned-toggle button.is-active { background: var(--warn); color: var(--ink-inverse); }
 .ac-pinned-list { display: flex; flex-direction: column; gap: 6px; }
+/* Toggled via the `hidden` attribute (renderPinnedCenter sets .hidden on
+   whichever list isn't the active Folders/Requests view) — declaring
+   `display: flex` above, on its own, permanently beats the browser's own
+   `[hidden] { display: none }` default (author styles always outrank that
+   user-agent rule, regardless of selector specificity; see the .ac-kv-bulk
+   comment above for the same pitfall already hit once in this file), so
+   without this override both lists rendered at once no matter which the
+   toggle was set to. */
+.ac-pinned-list[hidden] { display: none; }
 .ac-pinned-card { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--sidebar-line); color: #d5d2e0; text-decoration: none; }
 .ac-pinned-card-name { font-size: 12.5px; font-weight: 600; flex-grow: 1; }
 .ac-pinned-card-count { font-size: 11px; color: var(--ink-3); }

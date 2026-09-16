@@ -2148,23 +2148,31 @@
       const overBtn = event.target.closest("[data-ac-tab-id]");
       if (!overBtn || overBtn === draggingTab) return;
       event.preventDefault();
-      const fromIndex = tabs.findIndex((t) => t.clientId === draggingTab.dataset.acTabId);
-      const toIndex = tabs.findIndex((t) => t.clientId === overBtn.dataset.acTabId);
-      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
-      const [moved] = tabs.splice(fromIndex, 1);
-      tabs.splice(toIndex, 0, moved);
-      renderStrip();
-      // renderStrip() rebuilds every tab button, so the dragged element
-      // dragstart fired on no longer exists — re-anchor to its replacement
-      // by clientId so is-dragging keeps showing on the right tab and a
-      // later dragover/dragend can still find it.
-      draggingTab = stripEl.querySelector(`[data-ac-tab-id="${moved.clientId}"]`);
-      if (draggingTab) draggingTab.classList.add("is-dragging");
+      event.dataTransfer.dropEffect = "move";
+      // Move the actual dragged <button> node directly (same convention as
+      // the tree's own sibling-request reorder above), instead of splicing
+      // `tabs` and calling renderStrip() to rebuild the whole strip from
+      // scratch. A real browser's native drag session is bound to the
+      // literal DOM node dragstart fired on — replacing it mid-drag (via
+      // innerHTML) detaches that node, and confirmed against a real Chrome
+      // install, the browser then never fires "drop"/"dragend" at all for
+      // the rest of the gesture. That silently broke persistence: the live
+      // reorder still looked right (this handler repaints the DOM on every
+      // dragover), but dragend — the only place persist() below is called —
+      // never ran, so the new order never survived a reload.
+      const before = event.clientX < overBtn.getBoundingClientRect().left + overBtn.getBoundingClientRect().width / 2;
+      stripEl.insertBefore(draggingTab, before ? overBtn : overBtn.nextSibling);
     });
 
     stripEl.addEventListener("dragend", () => {
       if (draggingTab) draggingTab.classList.remove("is-dragging");
       draggingTab = null;
+      // Reconcile `tabs` to whatever order the drag left the DOM in — the
+      // DOM (moved directly above, not re-rendered from `tabs`) is the
+      // source of truth for the gesture, same as persistRequestOrder does
+      // for the tree's reorder via siblingRequestRows.
+      const domOrder = Array.from(stripEl.querySelectorAll("[data-ac-tab-id]")).map((btn) => btn.dataset.acTabId);
+      tabs.sort((a, b) => domOrder.indexOf(a.clientId) - domOrder.indexOf(b.clientId));
       persist();
     });
 
@@ -2413,7 +2421,18 @@
     const selector = bucket === "requests"
       ? `[data-ac-pin-bucket="requests"][data-ac-pin-id="${id}"]`
       : `[data-ac-pin-bucket="folders"][data-ac-pin-type="${type}"][data-ac-pin-id="${id}"]`;
-    const pinBtn = document.querySelector(selector);
+    // Scoped to `root` (the actual tree, [data-ac-tree]) rather than the
+    // whole document: the Pinned Center panel below renders its own copy
+    // of these same pin buttons (so its cards are unpinnable too), and it
+    // sits *earlier* in the DOM than the tree (see builder.html) — a
+    // document-wide querySelector would return that Pinned Center button
+    // first once it exists, and .closest(".ac-tree-row") on it resolves to
+    // null (a Pinned Center card isn't a tree row), silently dropping that
+    // card the next time anything else pinned/unpinned triggered a
+    // re-render. Confirmed against a real browser: pin a folder, then pin
+    // a request — the folder's card would vanish from the panel on the
+    // second render even though it was still pinned.
+    const pinBtn = root.querySelector(selector);
     return pinBtn ? pinBtn.closest(".ac-tree-row") : null;
   }
 
