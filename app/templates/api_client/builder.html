@@ -228,41 +228,47 @@
 <div class="modal-backdrop is-drawer" id="collections-drawer" data-modal hidden>
   <div class="modal modal--drawer" role="dialog" aria-modal="true" aria-labelledby="collections-drawer-title">
     <div class="ac-drawer-resize-handle" data-ac-drawer-resize title="Drag to resize" aria-hidden="true"></div>
-    <div class="card-head" style="padding: 0 0 14px;">
-      <span class="card-title" id="collections-drawer-title">Collections</span>
-      <div class="spacer"></div>
-      <a class="btn act add" href="#" data-modal-open="new-collection" title="New collection" aria-label="New collection">{{ icon_plus() }}</a>
-      <a class="btn act edit" href="#" data-modal-open="import-collection" title="Import collection" aria-label="Import collection">{{ icon_download() }}</a>
-      <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="ac-tree-search">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input type="text" placeholder="Search collections" data-ac-tree-search>
-    </div>
-    <div class="ac-pinned-center" id="ac-pinned-center" hidden>
-      <div class="ac-pinned-center-header">
-        {{ icon_pin(14) }}
-        <span class="ac-pinned-center-title">Pinned Center</span>
+    <div class="ac-drawer-body">
+      <div class="card-head" style="padding: 0 0 14px;">
+        <span class="card-title" id="collections-drawer-title">Collections</span>
         <div class="spacer"></div>
-        <div class="ac-pinned-toggle">
-          <button type="button" class="is-active" data-ac-pinned-toggle="folders">Folders <span data-ac-pinned-count="folders">0</span></button>
-          <button type="button" data-ac-pinned-toggle="requests">Requests <span data-ac-pinned-count="requests">0</span></button>
+        <a class="btn act add" href="#" data-modal-open="new-collection" title="New collection" aria-label="New collection">{{ icon_plus() }}</a>
+        <a class="btn act edit" href="#" data-modal-open="import-collection" title="Import collection" aria-label="Import collection">{{ icon_download() }}</a>
+        <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="ac-tree-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search collections" data-ac-tree-search>
+      </div>
+      <div class="ac-pinned-center" id="ac-pinned-center" hidden>
+        <div class="ac-pinned-center-header">
+          {{ icon_pin(14) }}
+          <span class="ac-pinned-center-title">Pinned Center</span>
+          <div class="spacer"></div>
+          <div class="ac-pinned-toggle">
+            <button type="button" class="is-active" data-ac-pinned-toggle="folders">Folders <span data-ac-pinned-count="folders">0</span></button>
+            <button type="button" data-ac-pinned-toggle="requests">Requests <span data-ac-pinned-count="requests">0</span></button>
+          </div>
+        </div>
+        <div class="ac-pinned-list" data-ac-pinned-list="folders"></div>
+        <div class="ac-pinned-list" data-ac-pinned-list="requests" hidden></div>
+      </div>
+      <div class="ac-tree-header-row">
+        <span class="ac-tree-header-label">All Collections</span>
+        <span class="ac-tree-header-count">{{ total_folder_count }} FOLDER{{ '' if total_folder_count == 1 else 'S' }}</span>
+      </div>
+      <div class="ac-tree-scroll">
+        <div data-ac-tree>
+          {% for collection in collections %}{{ tree_collection_row(collection, current) }}{% endfor %}
+          {% if not collections %}<div class="muted" style="padding: 12px 8px;">No collections yet &mdash; create one above.</div>{% endif %}
         </div>
       </div>
-      <div class="ac-pinned-list" data-ac-pinned-list="folders"></div>
-      <div class="ac-pinned-list" data-ac-pinned-list="requests" hidden></div>
     </div>
-    <div class="ac-tree-header-row">
-      <span class="ac-tree-header-label">All Collections</span>
-      <span class="ac-tree-header-count">{{ total_folder_count }} FOLDER{{ '' if total_folder_count == 1 else 'S' }}</span>
-    </div>
-    <div class="ac-tree-scroll">
-      <div data-ac-tree>
-        {% for collection in collections %}{{ tree_collection_row(collection, current) }}{% endfor %}
-        {% if not collections %}<div class="muted" style="padding: 12px 8px;">No collections yet &mdash; create one above.</div>{% endif %}
-      </div>
+    <div class="ac-drawer-footer">
+      <span class="ac-drawer-footer-hint">Pin a folder (header) or request (row) for quick access</span>
+      <span class="ac-drawer-footer-version">{{ app_version }}</span>
     </div>
   </div>
 </div>

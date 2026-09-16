@@ -277,3 +277,11 @@ def test_pinned_center_markup_present_but_hidden_with_no_pins(client):
 def test_api_client_js_defines_render_pinned_center(client):
     resp = client.get("/static/js/api_client.js")
     assert "renderPinnedCenter" in resp.text
+
+
+def test_collections_drawer_footer_shows_version(client):
+    page = client.get("/api-client").text
+    assert 'class="ac-drawer-footer"' in page
+    assert "Pin a folder (header) or request (row)" in page
+    assert "1.0.0-alpha.1" in page  # once already in the sidebar, once again here
+    assert page.count("1.0.0-alpha.1") == 2
