@@ -225,3 +225,8 @@ def test_resolve_endpoint_strips_comments_from_curl_preview(client):
     curl = response.json()["curl"]
     assert "// " not in curl
     assert '"A"' in curl and '"C"' in curl and '"B"' not in curl
+
+
+def test_app_version_global_renders_in_the_sidebar(client):
+    page = client.get("/api-client").text
+    assert "1.0.0-alpha.1" in page

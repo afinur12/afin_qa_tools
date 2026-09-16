@@ -28,6 +28,13 @@ def static_url(path: str) -> str:
 
 templates.env.globals["static_url"] = static_url
 
+# Single source of truth for the version shown in the sidebar footer and
+# (see the Collections Drawer footer) the API Client — bump this by hand
+# on a real release; nothing else derives it automatically.
+APP_VERSION = "1.0.0-alpha.1"
+
+templates.env.globals["app_version"] = APP_VERSION
+
 # Issue tracker a display code belongs to. Codes are entered by hand to match
 # the real ticket, so a code is all that's needed to link back to it.
 TRACKER_BASE_URL = "https://collabs.xlsmart.co.id/browse"
