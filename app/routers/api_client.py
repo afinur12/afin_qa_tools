@@ -159,6 +159,15 @@ def builder(
 ):
     collections = db.query(ApiCollection).order_by(ApiCollection.name).all()
 
+    total_folder_count = len(collections) + db.query(ApiFolder).count()
+    for collection in collections:
+        collection.item_count = (
+            len([f for f in collection.folders if f.parent_folder_id is None])
+            + len([r for r in collection.requests if r.folder_id is None])
+        )
+        for folder in collection.folders:
+            folder.item_count = len(folder.children) + len(folder.requests)
+
     current = {"id": None, "name": "New Request", "method": "GET", "url": "", "headers": [], "body": "", "collection_id": collection_id}
     last_response = None
     if request_id is not None:
@@ -216,6 +225,7 @@ def builder(
             "current": current,
             "all_variables": all_variables,
             "last_response": last_response,
+            "total_folder_count": total_folder_count,
         },
     )
 

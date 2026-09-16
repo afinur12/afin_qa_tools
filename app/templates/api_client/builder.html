@@ -26,7 +26,7 @@
 {% endmacro %}
 
 {% macro tree_folder_row(folder, current, depth=0) %}
-<div class="ac-tree-row is-folder" data-ac-tree-toggle style="--tree-depth: {{ depth }};" data-ac-drop-target data-ac-drop-collection="{{ folder.collection_id }}" data-ac-drop-folder="{{ folder.id }}">
+<div class="ac-tree-row is-folder" data-ac-tree-toggle style="--tree-depth: {{ depth }};" data-ac-drop-target data-ac-drop-collection="{{ folder.collection_id }}" data-ac-drop-folder="{{ folder.id }}" data-ac-tree-count="{{ folder.item_count }}">
   <button type="button" class="ac-chev">{{ icon_chevron(10) }}</button>
   <span class="ac-folder-icon">{{ icon_folder(13) }}</span>
   <span class="ac-tree-name">{{ folder.name }}</span>
@@ -46,7 +46,7 @@
 {% endmacro %}
 
 {% macro tree_collection_row(collection, current) %}
-<div class="ac-tree-row is-collection" data-ac-tree-toggle style="--tree-depth: 0;" data-ac-drop-target data-ac-drop-collection="{{ collection.id }}">
+<div class="ac-tree-row is-collection" data-ac-tree-toggle style="--tree-depth: 0;" data-ac-drop-target data-ac-drop-collection="{{ collection.id }}" data-ac-tree-count="{{ collection.item_count }}">
   <button type="button" class="ac-chev">{{ icon_chevron(11) }}</button>
   <span class="ac-folder-icon">{{ icon_folder(14) }}</span>
   <span class="ac-tree-name">{{ collection.name }}</span>
@@ -237,6 +237,10 @@
     <div class="ac-tree-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" placeholder="Search collections" data-ac-tree-search>
+    </div>
+    <div class="ac-tree-header-row">
+      <span class="ac-tree-header-label">All Collections</span>
+      <span class="ac-tree-header-count">{{ total_folder_count }} FOLDER{{ '' if total_folder_count == 1 else 'S' }}</span>
     </div>
     <div class="ac-tree-scroll">
       <div data-ac-tree>

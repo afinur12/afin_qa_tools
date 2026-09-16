@@ -32,6 +32,23 @@ def _make_request(db, collection, name="Req A", folder=None):
     return saved
 
 
+def test_item_counts_rendered_for_collections_and_folders(client, db_session):
+    collection = _make_collection(db_session, "Collection A")
+    folder = _make_folder(db_session, collection, "Folder A")
+    _make_folder(db_session, collection, "Folder B", parent=folder)
+    _make_request(db_session, collection, "Req at root", folder=None)
+    _make_request(db_session, collection, "Req in folder", folder=folder)
+
+    page = client.get("/api-client").text
+    # Collection A: 1 direct sub-folder (Folder A) + 1 direct request (Req at root) = 2
+    # Folder A: 1 direct sub-folder (Folder B) + 1 direct request (Req in folder) = 2
+    assert page.count('data-ac-tree-count="2"') == 2
+    # Folder B: 0 children
+    assert 'data-ac-tree-count="0"' in page
+    # Total: 1 collection + 2 folders (Folder A, Folder B) = 3
+    assert "3 FOLDERS" in page
+
+
 def test_ac_code_textarea_css_beats_the_generic_field_textarea_rule(client):
     # Regression guard for a real bug: the variable Script field's textarea
     # sits inside a `.field` wrapper (for its label), and `.field textarea`
