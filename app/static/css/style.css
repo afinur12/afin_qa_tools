@@ -1754,6 +1754,9 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-row:hover .ac-tree-actions { display: flex; }
 .ac-tree-children.is-collapsed { display: none; }
 
+.ac-tree-pin { flex-shrink: 0; color: var(--ink-3); background: none; border: none; padding: 2px; cursor: pointer; display: flex; }
+.ac-tree-pin.is-pinned { color: var(--warn); }
+
 .ac-drag-handle {
   flex-shrink: 0; display: none; align-items: center; color: var(--ink-3);
   cursor: grab; padding: 2px;

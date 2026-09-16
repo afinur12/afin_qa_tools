@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_folder_plus, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout, icon_copy, icon_wand with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_chevron, icon_folder, icon_folder_plus, icon_send, icon_lock, icon_image, icon_terminal, icon_stacked_layout, icon_split_layout, icon_copy, icon_wand, icon_pin with context %}
 {% block title %}API Client - QA Toolbox{% endblock %}
 
 {% macro tree_request_row(req, current, depth=0) %}
@@ -10,6 +10,7 @@
   <span class="ac-method-badge m-{{ req.method.lower() }}">{{ req.method }}</span>
   <span class="ac-tree-name">{{ req.name }}</span>
   <span class="ac-tree-actions">
+    <button type="button" class="ac-tree-pin" data-ac-pin-bucket="requests" data-ac-pin-id="{{ req.id }}" title="Pin" aria-label="Pin {{ req.name }}" aria-pressed="false">{{ icon_pin() }}</button>
     <button type="button" class="btn act edit" data-modal-open="rename-request-{{ req.id }}" title="Rename" aria-label="Rename {{ req.name }}">{{ icon_pencil(11) }}</button>
     <form class="inline-form" method="post" action="/api-client/requests/{{ req.id }}/delete" data-confirm="Delete request &quot;{{ req.name }}&quot;?">
       <button class="btn act remove" type="submit" title="Delete" aria-label="Delete {{ req.name }}">{{ icon_trash(11) }}</button>
@@ -31,6 +32,7 @@
   <span class="ac-folder-icon">{{ icon_folder(13) }}</span>
   <span class="ac-tree-name">{{ folder.name }}</span>
   <span class="ac-tree-actions">
+    <button type="button" class="ac-tree-pin" data-ac-pin-bucket="folders" data-ac-pin-type="folder" data-ac-pin-id="{{ folder.id }}" title="Pin" aria-label="Pin {{ folder.name }}" aria-pressed="false">{{ icon_pin() }}</button>
     <a class="btn act add" href="#" data-modal-open="new-request-folder-{{ folder.id }}" title="New request" aria-label="New request in {{ folder.name }}">{{ icon_plus(11) }}</a>
     <a class="btn act add" href="#" data-modal-open="new-folder-folder-{{ folder.id }}" title="New folder" aria-label="New folder in {{ folder.name }}">{{ icon_folder_plus(11) }}</a>
     <a class="btn act edit" href="#" data-modal-open="rename-folder-{{ folder.id }}" title="Rename" aria-label="Rename {{ folder.name }}">{{ icon_pencil(11) }}</a>
@@ -51,6 +53,7 @@
   <span class="ac-folder-icon">{{ icon_folder(14) }}</span>
   <span class="ac-tree-name">{{ collection.name }}</span>
   <span class="ac-tree-actions">
+    <button type="button" class="ac-tree-pin" data-ac-pin-bucket="folders" data-ac-pin-type="collection" data-ac-pin-id="{{ collection.id }}" title="Pin" aria-label="Pin {{ collection.name }}" aria-pressed="false">{{ icon_pin() }}</button>
     <a class="btn act add" href="#" data-modal-open="new-request-collection-{{ collection.id }}" title="New request" aria-label="New request in {{ collection.name }}">{{ icon_plus(11) }}</a>
     <a class="btn act add" href="#" data-modal-open="new-folder-collection-{{ collection.id }}" title="New folder" aria-label="New folder in {{ collection.name }}">{{ icon_folder_plus(11) }}</a>
     <a class="btn act edit" href="#" data-modal-open="rename-collection-{{ collection.id }}" title="Rename" aria-label="Rename {{ collection.name }}">{{ icon_pencil(11) }}</a>

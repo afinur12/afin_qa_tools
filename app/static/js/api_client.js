@@ -2258,4 +2258,89 @@
     applyTabToDom(activeTab());
     persist();
   })();
+
+  // ── Pinning (Collections Drawer) ─────────────────────────────────────────
+  // Which Collections/Folders/Requests are pinned, for the new "Pinned
+  // Center" panel (see initPinnedCenter below, Task 4). Same localStorage
+  // convention as the tab-state store above: personal, per-browser, no
+  // backend route — loaded once, held in memory, re-persisted on toggle.
+  const PINS_KEY = "qa-toolbox:api-client-pins";
+
+  function loadPins() {
+    try {
+      const raw = localStorage.getItem(PINS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && Array.isArray(parsed.folders) && Array.isArray(parsed.requests)) return parsed;
+    } catch {
+      /* corrupt or storage unavailable — start fresh */
+    }
+    return { folders: [], requests: [] };
+  }
+
+  function persistPins(pins) {
+    try {
+      localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+    } catch {
+      /* storage unavailable — pins just won't survive a reload */
+    }
+  }
+
+  function isFolderPinned(pins, type, id) {
+    return pins.folders.some((f) => f.type === type && f.id === id);
+  }
+  function isRequestPinned(pins, id) {
+    return pins.requests.includes(id);
+  }
+
+  function toggleFolderPin(pins, type, id) {
+    const index = pins.folders.findIndex((f) => f.type === type && f.id === id);
+    if (index === -1) {
+      pins.folders.push({ type, id });
+      return true;
+    }
+    pins.folders.splice(index, 1);
+    return false;
+  }
+
+  function toggleRequestPin(pins, id) {
+    const index = pins.requests.indexOf(id);
+    if (index === -1) {
+      pins.requests.push(id);
+      return true;
+    }
+    pins.requests.splice(index, 1);
+    return false;
+  }
+
+  function updatePinIconEl(el, pinned) {
+    el.classList.toggle("is-pinned", pinned);
+    el.setAttribute("aria-pressed", pinned ? "true" : "false");
+    el.title = pinned ? "Unpin" : "Pin";
+  }
+
+  let pinsStore = loadPins();
+
+  document.querySelectorAll("[data-ac-pin-bucket]").forEach((btn) => {
+    const bucket = btn.dataset.acPinBucket;
+    const id = parseInt(btn.dataset.acPinId, 10);
+    const pinned = bucket === "requests" ? isRequestPinned(pinsStore, id) : isFolderPinned(pinsStore, btn.dataset.acPinType, id);
+    updatePinIconEl(btn, pinned);
+  });
+
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-ac-pin-bucket]");
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const bucket = btn.dataset.acPinBucket;
+    const id = parseInt(btn.dataset.acPinId, 10);
+    const pinned = bucket === "requests"
+      ? toggleRequestPin(pinsStore, id)
+      : toggleFolderPin(pinsStore, btn.dataset.acPinType, id);
+    persistPins(pinsStore);
+    document.querySelectorAll(`[data-ac-pin-bucket="${bucket}"][data-ac-pin-id="${id}"]`).forEach((matchEl) => {
+      if (bucket === "folders" && matchEl.dataset.acPinType !== btn.dataset.acPinType) return;
+      updatePinIconEl(matchEl, pinned);
+    });
+  });
 })();

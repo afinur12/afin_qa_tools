@@ -247,3 +247,21 @@ def test_resolve_endpoint_strips_comments_from_curl_preview(client):
 def test_app_version_global_renders_in_the_sidebar(client):
     page = client.get("/api-client").text
     assert "1.0.0-alpha.1" in page
+
+
+def test_tree_rows_have_pin_buttons(client, db_session):
+    collection = _make_collection(db_session, "Collection A")
+    folder = _make_folder(db_session, collection, "Folder A")
+    request_row = _make_request(db_session, collection, "Req A", folder=folder)
+
+    page = client.get("/api-client").text
+    assert f'data-ac-pin-bucket="folders" data-ac-pin-type="collection" data-ac-pin-id="{collection.id}"' in page
+    assert f'data-ac-pin-bucket="folders" data-ac-pin-type="folder" data-ac-pin-id="{folder.id}"' in page
+    assert f'data-ac-pin-bucket="requests" data-ac-pin-id="{request_row.id}"' in page
+
+
+def test_api_client_js_defines_the_pin_state_module(client):
+    resp = client.get("/static/js/api_client.js")
+    assert resp.status_code == 200
+    for name in ("PINS_KEY", "loadPins", "persistPins", "isFolderPinned", "isRequestPinned", "toggleFolderPin", "toggleRequestPin", "updatePinIconEl"):
+        assert name in resp.text
