@@ -3,6 +3,7 @@ import json
 import app.routers.api_client as api_client_module
 from app.models import ApiCollection, ApiFolder, ApiRequest
 from app.routers.api_client import _body_for_wire, _strip_json_line_comments
+from app.templating import APP_VERSION
 
 
 def _make_collection(db, name="Collection A"):
@@ -246,7 +247,7 @@ def test_resolve_endpoint_strips_comments_from_curl_preview(client):
 
 def test_app_version_global_renders_in_the_sidebar(client):
     page = client.get("/api-client").text
-    assert "1.0.0-alpha.1" in page
+    assert APP_VERSION in page
 
 
 def test_tree_rows_have_pin_buttons(client, db_session):
@@ -283,8 +284,8 @@ def test_collections_drawer_footer_shows_version(client):
     page = client.get("/api-client").text
     assert 'class="ac-drawer-footer"' in page
     assert "Pin a folder (header) or request (row)" in page
-    assert "1.0.0-alpha.1" in page  # once already in the sidebar, once again here
-    assert page.count("1.0.0-alpha.1") == 2
+    assert APP_VERSION in page  # once already in the sidebar, once again here
+    assert page.count(APP_VERSION) == 2
 
 
 def test_tab_bar_has_overflow_scroll_arrows(client):

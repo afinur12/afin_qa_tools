@@ -1725,6 +1725,8 @@ tbody tr:hover { background: var(--surface-sunk); }
 .modal--drawer .ac-tree-search input::placeholder { color: var(--ink-3); }
 .modal--drawer .ac-tree-row:hover { background: var(--sidebar-line); }
 .modal--drawer .ac-tree-row.is-active { background: var(--sidebar-line); color: var(--lime); }
+.modal--drawer .ac-tree-row { color: #d5d2e0; }
+.modal--drawer .ac-tree-row.is-request { color: #a3a099; }
 .modal--drawer .ac-tree-name, .modal--drawer .ac-folder-icon, .modal--drawer .ac-chev { color: inherit; }
 .ac-drawer-resize-handle {
   position: absolute; top: 0; left: -3px; bottom: 0; width: 7px;
@@ -1742,13 +1744,13 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
 .ac-tree-search input { padding-left: 34px; width: 100%; padding-top: 9px; padding-bottom: 9px; padding-right: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); font-size: 13px; }
 
-.ac-pinned-center { border: 1px solid var(--warn); border-radius: var(--r-ctl); background: var(--bg-sidebar); padding: 10px 12px; margin-bottom: 10px; color: #d5d2e0; }
+.ac-pinned-center { border: 1px solid #e8b054; border-radius: var(--r-ctl); background: var(--bg-sidebar); padding: 10px 12px; margin-bottom: 10px; color: #d5d2e0; }
 .ac-pinned-center-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .ac-pinned-center-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .ac-pinned-toggle { display: inline-flex; border: 1px solid var(--sidebar-line); border-radius: 8px; overflow: hidden; }
 .ac-pinned-toggle button { padding: 4px 9px; font-size: 11px; font-weight: 600; color: #d5d2e0; background: transparent; border: none; cursor: pointer; }
 .ac-pinned-toggle button + button { border-left: 1px solid var(--sidebar-line); }
-.ac-pinned-toggle button.is-active { background: var(--warn); color: var(--ink-inverse); }
+.ac-pinned-toggle button.is-active { background: #e8b054; color: var(--ink-inverse); }
 .ac-pinned-list { display: flex; flex-direction: column; gap: 6px; }
 /* Toggled via the `hidden` attribute (renderPinnedCenter sets .hidden on
    whichever list isn't the active Folders/Requests view) — declaring
@@ -1783,14 +1785,16 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-row.is-collapsed > .ac-chev svg { transform: rotate(-90deg); }
 .ac-tree-row .ac-folder-icon { flex-shrink: 0; color: var(--ink-3); }
 .ac-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+.ac-tree-count { font-size: 11px; color: var(--ink-3); flex-shrink: 0; }
 .ac-tree-row.is-collection .ac-tree-name { font-weight: 700; }
 .ac-tree-row.is-folder .ac-tree-name { font-weight: 600; }
-.ac-tree-actions { margin-left: auto; display: none; gap: 3px; flex-shrink: 0; }
+.ac-tree-actions { display: none; gap: 3px; flex-shrink: 0; }
 .ac-tree-row:hover .ac-tree-actions { display: flex; }
 .ac-tree-children.is-collapsed { display: none; }
 
-.ac-tree-pin { flex-shrink: 0; color: var(--ink-3); background: none; border: none; padding: 2px; cursor: pointer; display: flex; }
-.ac-tree-pin.is-pinned { color: var(--warn); }
+.ac-tree-pin { flex-shrink: 0; color: var(--ink-3); background: none; border: none; padding: 2px; cursor: pointer; display: flex; margin-left: auto; opacity: 0; }
+.ac-tree-row:hover .ac-tree-pin, .ac-tree-pin:focus-visible { opacity: 1; }
+.ac-tree-pin.is-pinned { opacity: 1; color: #e8b054; }
 
 .ac-drag-handle {
   flex-shrink: 0; display: none; align-items: center; color: var(--ink-3);
@@ -1835,9 +1839,10 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-request-tabs-row { display: flex; align-items: center; background: var(--bg-sidebar); border-radius: var(--r-ctl) var(--r-ctl) 0 0; }
 .ac-tabs-scroll-btn { flex-shrink: 0; width: 22px; height: 30px; display: grid; place-items: center; background: none; border: none; color: #d5d2e0; cursor: pointer; font-size: 16px; }
 .ac-tabs-scroll-btn:hover { color: #fff; }
+.ac-tabs-scroll-btn[hidden] { display: none; }
 .ac-request-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 0; overflow-x: auto; scrollbar-width: none; background: var(--bg-sidebar); flex: 1 1 auto; }
 .ac-request-tabs::-webkit-scrollbar { display: none; }
-.ac-request-tab { cursor: grab; color: #d5d2e0; }
+.ac-request-tab { cursor: grab; color: #d5d2e0; background: transparent; border-color: transparent; }
 .ac-request-tab:hover { background: var(--sidebar-line); color: #fff; }
 .ac-request-tab.is-active { background: var(--sidebar-line); color: #fff; font-weight: 700; box-shadow: 0 2px 0 var(--lime) inset; border-color: transparent; }
 .ac-request-tab.is-dragging { opacity: 0.65; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); cursor: grabbing; }

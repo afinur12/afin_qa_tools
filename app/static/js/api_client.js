@@ -2486,7 +2486,7 @@
 
     const folderListEl = pinnedCenterEl.querySelector('[data-ac-pinned-list="folders"]');
     folderListEl.innerHTML = folderCards.map((card) => `
-      <div class="ac-pinned-card">
+      <div class="ac-pinned-card" data-ac-pinned-goto-type="${card.type}" data-ac-pinned-goto-id="${card.id}">
         ${icon_folder_svg}
         <span class="ac-pinned-card-name">${escapeHtml(card.name)}</span>
         <span class="ac-pinned-card-count">${escapeHtml(card.count)}</span>
@@ -2517,9 +2517,32 @@
 
   pinnedCenterEl.addEventListener("click", (event) => {
     const toggleBtn = event.target.closest("[data-ac-pinned-toggle]");
-    if (!toggleBtn) return;
-    pinnedCenterView = toggleBtn.dataset.acPinnedToggle;
-    renderPinnedCenter();
+    if (toggleBtn) {
+      pinnedCenterView = toggleBtn.dataset.acPinnedToggle;
+      renderPinnedCenter();
+      return;
+    }
+    const gotoCard = event.target.closest("[data-ac-pinned-goto-id]");
+    if (!gotoCard || event.target.closest(".ac-tree-pin")) return;
+    const row = findTreeRowFor("folders", gotoCard.dataset.acPinnedGotoType, gotoCard.dataset.acPinnedGotoId);
+    if (!row) return;
+    // Expand the target row and every ancestor folder above it, mirroring
+    // parentPathFor's own .ac-tree-children walk, so a pinned folder buried
+    // several levels deep is actually visible after jumping to it.
+    row.classList.remove("is-collapsed");
+    if (row.nextElementSibling && row.nextElementSibling.classList.contains("ac-tree-children")) {
+      row.nextElementSibling.classList.remove("is-collapsed");
+    }
+    let el = row.closest(".ac-tree-children");
+    while (el) {
+      const headerRow = el.previousElementSibling;
+      if (headerRow && headerRow.classList.contains("ac-tree-row")) {
+        headerRow.classList.remove("is-collapsed");
+        el.classList.remove("is-collapsed");
+      }
+      el = el.parentElement ? el.parentElement.closest(".ac-tree-children") : null;
+    }
+    row.scrollIntoView({ block: "nearest" });
   });
 
   renderPinnedCenter();
