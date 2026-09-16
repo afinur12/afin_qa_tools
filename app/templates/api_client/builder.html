@@ -94,7 +94,11 @@
       open set + which one's active lives in localStorage, not here, so it
       survives navigating away and back without a server round trip.
     #}
-    <div class="ac-request-tabs" data-ac-request-tabs></div>
+    <div class="ac-request-tabs-row">
+      <button type="button" class="ac-tabs-scroll-btn" data-ac-tabs-scroll-left hidden aria-label="Scroll tabs left">&lsaquo;</button>
+      <div class="ac-request-tabs" data-ac-request-tabs></div>
+      <button type="button" class="ac-tabs-scroll-btn" data-ac-tabs-scroll-right hidden aria-label="Scroll tabs right">&rsaquo;</button>
+    </div>
 
     <div class="ac-panel-top">
       <span class="card-title" data-ac-current-name>{{ current.name }}</span>

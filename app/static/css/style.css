@@ -1823,6 +1823,19 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 }
 .ac-request-tab-add:hover { background: var(--surface-sunk); color: var(--ink); border-style: solid; }
 
+.ac-request-tabs-row { display: flex; align-items: center; background: var(--bg-sidebar); border-radius: var(--r-ctl) var(--r-ctl) 0 0; }
+.ac-tabs-scroll-btn { flex-shrink: 0; width: 22px; height: 30px; display: grid; place-items: center; background: none; border: none; color: #d5d2e0; cursor: pointer; font-size: 16px; }
+.ac-tabs-scroll-btn:hover { color: #fff; }
+.ac-request-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 0; overflow-x: auto; scrollbar-width: none; background: var(--bg-sidebar); flex: 1 1 auto; }
+.ac-request-tabs::-webkit-scrollbar { display: none; }
+.ac-request-tab { cursor: grab; color: #d5d2e0; }
+.ac-request-tab:hover { background: var(--sidebar-line); color: #fff; }
+.ac-request-tab.is-active { background: var(--sidebar-line); color: #fff; font-weight: 700; box-shadow: 0 2px 0 var(--lime) inset; border-color: transparent; }
+.ac-request-tab.is-dragging { opacity: 0.65; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); cursor: grabbing; }
+.ac-request-tab .ac-method-badge { opacity: 0.85; }
+.ac-request-tab-add { border-color: var(--sidebar-line); color: #d5d2e0; }
+.ac-request-tab-add:hover { background: var(--sidebar-line); color: #fff; }
+
 .ac-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .ac-panel-top .ac-tools { display: flex; align-items: center; gap: 8px; }
 

@@ -285,3 +285,9 @@ def test_collections_drawer_footer_shows_version(client):
     assert "Pin a folder (header) or request (row)" in page
     assert "1.0.0-alpha.1" in page  # once already in the sidebar, once again here
     assert page.count("1.0.0-alpha.1") == 2
+
+
+def test_tab_bar_has_overflow_scroll_arrows(client):
+    page = client.get("/api-client").text
+    assert "data-ac-tabs-scroll-left" in page
+    assert "data-ac-tabs-scroll-right" in page

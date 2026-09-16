@@ -1968,6 +1968,19 @@
     const stripEl = document.querySelector("[data-ac-request-tabs]");
     if (!stripEl) return; // not on the Builder page
 
+    const scrollLeftBtn = document.querySelector("[data-ac-tabs-scroll-left]");
+    const scrollRightBtn = document.querySelector("[data-ac-tabs-scroll-right]");
+
+    function updateScrollArrows() {
+      if (!scrollLeftBtn || !scrollRightBtn) return;
+      const overflowing = stripEl.scrollWidth > stripEl.clientWidth + 1;
+      scrollLeftBtn.hidden = !overflowing;
+      scrollRightBtn.hidden = !overflowing;
+    }
+    scrollLeftBtn?.addEventListener("click", () => stripEl.scrollBy({ left: -160, behavior: "smooth" }));
+    scrollRightBtn?.addEventListener("click", () => stripEl.scrollBy({ left: 160, behavior: "smooth" }));
+    window.addEventListener("resize", updateScrollArrows);
+
     const TABS_KEY = "qa-toolbox:api-client-tabs";
     const SAVING_MARKER_KEY = "qa-toolbox:api-client-saving-tab";
 
@@ -2116,6 +2129,7 @@
       addBtn.setAttribute("aria-label", "New tab");
       addBtn.textContent = "+";
       stripEl.appendChild(addBtn);
+      updateScrollArrows();
     }
 
     function switchTo(clientId) {
