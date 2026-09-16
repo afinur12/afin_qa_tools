@@ -2107,6 +2107,7 @@
     }
 
     // ── Tab strip ─────────────────────────────────────────────────────────
+    let draggingTab = null;
     function renderStrip() {
       stripEl.innerHTML = "";
       tabs.forEach((tab) => {
@@ -2114,6 +2115,7 @@
         btn.type = "button";
         btn.className = "ac-request-tab" + (tab.clientId === activeClientId ? " is-active" : "");
         btn.dataset.acTabId = tab.clientId;
+        btn.draggable = true;
         btn.innerHTML = `
           <span class="ac-method-badge m-${escapeAttr(tab.method.toLowerCase())}">${escapeHtml(tab.method)}</span>
           <span class="ac-request-tab-name">${escapeHtml(tab.name)}</span>
@@ -2131,6 +2133,40 @@
       stripEl.appendChild(addBtn);
       updateScrollArrows();
     }
+
+    stripEl.addEventListener("dragstart", (event) => {
+      const btn = event.target.closest("[data-ac-tab-id]");
+      if (!btn) return;
+      draggingTab = btn;
+      btn.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", btn.dataset.acTabId);
+    });
+
+    stripEl.addEventListener("dragover", (event) => {
+      if (!draggingTab) return;
+      const overBtn = event.target.closest("[data-ac-tab-id]");
+      if (!overBtn || overBtn === draggingTab) return;
+      event.preventDefault();
+      const fromIndex = tabs.findIndex((t) => t.clientId === draggingTab.dataset.acTabId);
+      const toIndex = tabs.findIndex((t) => t.clientId === overBtn.dataset.acTabId);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+      const [moved] = tabs.splice(fromIndex, 1);
+      tabs.splice(toIndex, 0, moved);
+      renderStrip();
+      // renderStrip() rebuilds every tab button, so the dragged element
+      // dragstart fired on no longer exists — re-anchor to its replacement
+      // by clientId so is-dragging keeps showing on the right tab and a
+      // later dragover/dragend can still find it.
+      draggingTab = stripEl.querySelector(`[data-ac-tab-id="${moved.clientId}"]`);
+      if (draggingTab) draggingTab.classList.add("is-dragging");
+    });
+
+    stripEl.addEventListener("dragend", () => {
+      if (draggingTab) draggingTab.classList.remove("is-dragging");
+      draggingTab = null;
+      persist();
+    });
 
     function switchTo(clientId) {
       if (clientId === activeClientId) return;

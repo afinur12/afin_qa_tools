@@ -291,3 +291,11 @@ def test_tab_bar_has_overflow_scroll_arrows(client):
     page = client.get("/api-client").text
     assert "data-ac-tabs-scroll-left" in page
     assert "data-ac-tabs-scroll-right" in page
+
+
+def test_api_client_js_wires_up_tab_drag_reorder(client):
+    resp = client.get("/static/js/api_client.js")
+    assert "dragstart" in resp.text
+    # Distinguish from the tree's own existing dragstart wiring by checking
+    # for the tab-specific dragging-state variable name.
+    assert "draggingTab" in resp.text
