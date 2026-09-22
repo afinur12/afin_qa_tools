@@ -192,3 +192,19 @@ def test_app_js_markdown_renderer_supports_images_and_language_tagged_code(clien
     assert "escapeHtmlForMarkdown" in js  # the escape-first invariant this whole function leans on
     assert "<img" in js  # image syntax now renders an <img>, not just a link
     assert "language-" in js  # fenced code with a language tag gets a language-<x> class
+
+
+def test_knowledge_base_js_defines_preview_toggle_and_upload_wiring(client):
+    create = client.post("/knowledge-base", follow_redirects=False)
+    card_id = create.headers["location"].rstrip("/").split("/")[-1]
+    page = client.get(f"/knowledge-base/{card_id}").text
+    # No trailing quote: static_url() always appends a `?v=<mtime>`
+    # cache-busting suffix (app/templating.py), matching the established
+    # pattern in tests/test_utility.py for the same reason.
+    assert 'src="/static/js/knowledge_base.js' in page
+
+    resp = client.get("/static/js/knowledge_base.js")
+    assert resp.status_code == 200
+    js = resp.text
+    for name in ("data-card-preview-toggle", "data-card-raw-view", "data-card-preview-view", "data-card-content", "setRangeText"):
+        assert name in js
