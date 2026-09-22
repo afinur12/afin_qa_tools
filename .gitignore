@@ -4,10 +4,8 @@ __pycache__/
 qa_toolbox.db
 app/uploads/screenshots/**
 app/uploads/exports/**
-app/uploads/cards/**
 !app/uploads/screenshots/.gitkeep
 !app/uploads/exports/.gitkeep
-!app/uploads/cards/.gitkeep
 .filesqa_toolbox.db.bak-*
 build/
 dist/

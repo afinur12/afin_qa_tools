@@ -364,7 +364,6 @@ class LabelAttachType(str, enum.Enum):
     SUBTASK = "SUBTASK"
     TESTCASE = "TESTCASE"
     BUG = "BUG"
-    CARD = "CARD"
 
 
 class LabelAssignment(Base):
@@ -626,13 +625,3 @@ class ApiHistory(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-
-
-class Card(Base):
-    __tablename__ = "cards"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    title: Mapped[str] = mapped_column(String(300), nullable=False, default="Untitled")
-    content_markdown: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

@@ -750,7 +750,7 @@ document.addEventListener("click", (event) => {
 function escapeHtmlForMarkdown(text) {
   const el = document.createElement("div");
   el.textContent = text;
-  return el.innerHTML.replace(/"/g, "&quot;");
+  return el.innerHTML;
 }
 
 function renderNoteMarkdown(rawText) {
@@ -758,14 +758,12 @@ function renderNoteMarkdown(rawText) {
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
     .replace(/\[([^\]]+)\]\(((?:https?:|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
   const html = [];
   let list = null; // { tag: "ul"|"ol", items: [] }
   let inFence = false;
   let fenceLines = [];
-  let fenceLang = "";
 
   function closeList() {
     if (!list) return;
@@ -776,13 +774,10 @@ function renderNoteMarkdown(rawText) {
   escapeHtmlForMarkdown(rawText).split("\n").forEach((line) => {
     if (/^```/.test(line.trim())) {
       if (inFence) {
-        const langClass = fenceLang ? ` class="language-${fenceLang}"` : "";
-        html.push(`<pre><code${langClass}>${fenceLines.join("\n")}</code></pre>`);
+        html.push(`<pre><code>${fenceLines.join("\n")}</code></pre>`);
         fenceLines = [];
-        fenceLang = "";
       } else {
         closeList();
-        fenceLang = (line.trim().replace(/^```/, "").trim().match(/^[\w+#-]*/) || [""])[0];
       }
       inFence = !inFence;
       return;
@@ -809,10 +804,7 @@ function renderNoteMarkdown(rawText) {
     if (line.trim()) html.push(`<p>${inline(line)}</p>`);
   });
   closeList();
-  if (inFence && fenceLines.length) {
-    const langClass = fenceLang ? ` class="language-${fenceLang}"` : "";
-    html.push(`<pre><code${langClass}>${fenceLines.join("\n")}</code></pre>`);
-  }
+  if (inFence && fenceLines.length) html.push(`<pre><code>${fenceLines.join("\n")}</code></pre>`);
   return html.join("\n");
 }
 
