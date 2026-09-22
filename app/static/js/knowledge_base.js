@@ -47,16 +47,42 @@ async function uploadCardFile(cardId, file) {
 
 document.querySelectorAll("[data-card-content]").forEach((textarea) => {
   const cardId = window.location.pathname.split("/").pop();
+  // The same [data-save-state] span the generic autosave mechanism in
+  // app.js drives (see indicatorFor()/setSaveState() there) — reused here
+  // for transient upload status so a failed/in-flight upload isn't silent.
+  const saveState = textarea.closest(".card")?.querySelector("[data-save-state]");
 
   async function handleFiles(files) {
+    if (saveState) saveState.textContent = "Uploading…";
+    let failed = 0;
     for (const file of files) {
       try {
         const { url, is_image } = await uploadCardFile(cardId, file);
-        insertAtCursor(textarea, is_image ? `![${file.name}](${url})` : `[${file.name}](${url})`);
+        // Square brackets/parens in the file name would otherwise break the
+        // markdown link/image syntax itself; the display text is still run
+        // through escapeHtmlForMarkdown on render, so this is only about
+        // keeping the markdown well-formed, not escaping HTML.
+        const safeName = file.name.replace(/[[\]()]/g, "_");
+        insertAtCursor(textarea, is_image ? `![${safeName}](${url})` : `[${safeName}](${url})`);
+        // insertAtCursor's synthetic "input" event drives the normal
+        // autosave indicator (editing -> saving -> saved) from here, so
+        // "Uploading…" naturally gets replaced without any extra code.
       } catch {
         // Upload failed — leave the textarea as-is rather than insert a
-        // broken reference; the user can retry the paste/drop.
+        // broken reference; the user can retry the paste/drop. Surface the
+        // failure instead of swallowing it silently.
+        failed += 1;
       }
+    }
+    if (failed && saveState) {
+      saveState.textContent = `${failed} image(s) failed to upload`;
+      saveState.dataset.state = "error";
+      setTimeout(() => {
+        if (saveState.dataset.state === "error") {
+          saveState.textContent = "";
+          delete saveState.dataset.state;
+        }
+      }, 3200);
     }
   }
 

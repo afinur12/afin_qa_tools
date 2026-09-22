@@ -750,7 +750,7 @@ document.addEventListener("click", (event) => {
 function escapeHtmlForMarkdown(text) {
   const el = document.createElement("div");
   el.textContent = text;
-  return el.innerHTML;
+  return el.innerHTML.replace(/"/g, "&quot;");
 }
 
 function renderNoteMarkdown(rawText) {
@@ -782,7 +782,7 @@ function renderNoteMarkdown(rawText) {
         fenceLang = "";
       } else {
         closeList();
-        fenceLang = line.trim().replace(/^```/, "").trim();
+        fenceLang = (line.trim().replace(/^```/, "").trim().match(/^[\w+#-]*/) || [""])[0];
       }
       inFence = !inFence;
       return;

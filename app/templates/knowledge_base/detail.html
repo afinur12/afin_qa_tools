@@ -10,16 +10,18 @@
       <span class="save-state" data-save-state></span>
     </div>
 
-    <div class="snippet-actions" style="justify-content:flex-end; margin-bottom:8px;">
-      <button class="snippet-icon-btn" type="button" data-card-preview-toggle title="Toggle Markdown preview" aria-label="Toggle Markdown preview">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-      </button>
-    </div>
+    <div class="code-block">
+      <div class="snippet-actions" style="justify-content:flex-end; margin-bottom:8px;">
+        <button class="snippet-icon-btn" type="button" data-card-preview-toggle title="Toggle Markdown preview" aria-label="Toggle Markdown preview">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
 
-    <div class="snippet-code kb-editor-body" data-card-raw-view>
-      <textarea class="snippet-pre snippet-textarea is-wrapped" name="content_markdown" data-card-content spellcheck="false" autocomplete="off" placeholder="Write anything&hellip; markdown, code fences, paste an image.">{{ card.content_markdown }}</textarea>
+      <div class="snippet-code kb-editor-body" data-card-raw-view>
+        <textarea class="snippet-pre snippet-textarea is-wrapped" name="content_markdown" data-card-content spellcheck="false" autocomplete="off" placeholder="Write anything&hellip; markdown, code fences, paste an image.">{{ card.content_markdown }}</textarea>
+      </div>
+      <div class="snippet-markdown-preview kb-editor-body" data-card-preview-view hidden></div>
     </div>
-    <div class="snippet-markdown-preview kb-editor-body" data-card-preview-view hidden></div>
 
     <div class="field" style="margin-top:14px;">
       <label>Tags</label>
