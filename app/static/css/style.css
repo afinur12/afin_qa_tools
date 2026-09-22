@@ -1897,9 +1897,11 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
    border-color) that read fine on any surface regardless of theme. */
 .ac-request-tabs-row .ac-tools { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 0 10px 0 10px; margin-left: 4px; border-left: 1px solid var(--sidebar-line); }
 .ac-request-tabs-row .ac-layout-toggle { border-color: var(--sidebar-line); }
-.ac-request-tabs-row .ac-layout-toggle button { color: #d5d2e0; }
+.ac-request-tabs-row .ac-layout-toggle button { color: #d5d2e0; background: transparent; }
+.ac-request-tabs-row .ac-layout-toggle button:hover { background: var(--sidebar-line); color: #fff; }
 .ac-request-tabs-row .ac-layout-toggle button + button { border-left-color: var(--sidebar-line); }
 .ac-request-tabs-row .ac-layout-toggle button.is-active { background: var(--lime); color: var(--ink-inverse); }
+.ac-request-tabs-row .ac-layout-toggle button.is-active:hover { background: var(--lime); color: var(--ink-inverse); }
 
 .ac-layout-toggle { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
 .ac-layout-toggle button {
