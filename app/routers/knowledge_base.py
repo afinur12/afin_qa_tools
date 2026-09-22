@@ -3,11 +3,13 @@ text, images, syntax-highlighted code. Unrelated to the Note model (the
 small text box on Story/Subtask pages) despite the similar name; see the
 design spec for why they're deliberately kept separate."""
 
+import mimetypes
+import uuid
 from pathlib import Path
 
 from sqlalchemy import or_
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import deletion
@@ -102,3 +104,20 @@ def delete_card_route(card_id: int, db: Session = Depends(get_db)):
         deletion.delete_card(db, card, UPLOADS_DIR)
         db.commit()
     return RedirectResponse(url="/knowledge-base", status_code=303)
+
+
+@router.post("/knowledge-base/{card_id}/upload")
+async def upload_card_file(card_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    card = db.get(Card, card_id)
+    if card is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    content_type = file.content_type or ""
+    extension = mimetypes.guess_extension(content_type) or ".bin"
+    filename = f"{uuid.uuid4().hex}{extension}"
+    relative_path = f"cards/{card_id}/{filename}"
+    disk_path = UPLOADS_DIR / relative_path
+    disk_path.parent.mkdir(parents=True, exist_ok=True)
+    disk_path.write_bytes(await file.read())
+
+    return JSONResponse({"url": f"/uploads/{relative_path}", "is_image": content_type.startswith("image/")})

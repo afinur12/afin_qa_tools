@@ -149,3 +149,34 @@ def test_delete_card_removes_its_uploads_directory(client, tmp_path, monkeypatch
 
     client.post(f"/knowledge-base/{card_id}/delete")
     assert not card_dir.exists()
+
+
+def test_upload_image_to_a_card_returns_url_and_is_image_true(client):
+    from pathlib import Path
+
+    create = client.post("/knowledge-base", follow_redirects=False)
+    card_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/knowledge-base/{card_id}/upload",
+        files={"file": ("pasted.png", b"\x89PNG\r\n fake but has a content-type", "image/png")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_image"] is True
+    assert body["url"].startswith(f"/uploads/cards/{card_id}/")
+    assert (Path("app") / "uploads" / body["url"].removeprefix("/uploads/")).exists()
+
+
+def test_upload_non_image_file_returns_is_image_false(client):
+    create = client.post("/knowledge-base", follow_redirects=False)
+    card_id = create.headers["location"].rstrip("/").split("/")[-1]
+
+    response = client.post(
+        f"/knowledge-base/{card_id}/upload",
+        files={"file": ("notes.txt", b"plain text content", "text/plain")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_image"] is False
+    assert body["url"].startswith(f"/uploads/cards/{card_id}/")
