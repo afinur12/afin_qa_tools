@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base - QA Toolbox{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">Knowledge Base</h1>
+    <div class="page-sub">{{ cards | length }} card{{ '' if cards | length == 1 else 's' }}</div>
+  </div>
+  <div class="spacer"></div>
+  <form method="post" action="/knowledge-base">
+    <button class="btn" type="submit">+ New Card</button>
+  </form>
+</div>
+
+<div class="card flush">
+  <div class="card-head" style="padding:22px 22px 0; margin-bottom:14px;">
+    <form method="get" action="/knowledge-base" style="display:flex; gap:10px; flex-wrap:wrap; width:100%;">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search title or content&hellip;" style="flex:1 1 240px;">
+      <select name="tag" onchange="this.form.submit()">
+        <option value="">All tags</option>
+        {% for l in all_labels %}
+        <option value="{{ l.id }}" {% if selected_tag == l.id|string %}selected{% endif %}>{{ l.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn secondary" type="submit">Search</button>
+    </form>
+  </div>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Title</th><th>Tags</th><th>Updated</th><th></th></tr></thead>
+    <tbody>
+      {% for card in cards %}
+      <tr>
+        <td><a href="/knowledge-base/{{ card.id }}" style="color:var(--ink); font-weight:500;">{{ card.title }}</a></td>
+        <td>
+          {% for l in card_labels[card.id] %}<span class="badge">{{ l.name }}</span>{% endfor %}
+        </td>
+        <td>{{ card.updated_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td style="width:1%; white-space:nowrap;">
+          <form class="inline-form" method="post" action="/knowledge-base/{{ card.id }}/delete"
+                data-confirm="Delete &quot;{{ card.title }}&quot;? This can't be undone.">
+            <button class="btn act remove" type="submit" title="Delete" aria-label="Delete {{ card.title }}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">No cards yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

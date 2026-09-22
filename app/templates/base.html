@@ -62,6 +62,10 @@
       {{ icon_template() }}
       <span>Prebuilt</span>
     </a>
+    <a class="nav-link {% if path.startswith('/knowledge-base') %}active{% endif %}" href="/knowledge-base" title="Knowledge Base">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span>Knowledge Base</span>
+    </a>
 
     <div class="nav-label">Utility</div>
     <a class="nav-link {% if path.startswith('/utility') %}active{% endif %}" href="/utility" title="Utility Tools">

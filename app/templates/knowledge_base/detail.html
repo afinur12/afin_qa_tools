@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ card.title }} - Knowledge Base{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="/knowledge-base">Knowledge Base</a></div>
+    <h1 class="page-title">{{ card.title }}</h1>
+  </div>
+</div>
+
+<div class="card">
+  <form method="post" action="/knowledge-base/{{ card.id }}/edit">
+    <div class="field">
+      <label>Title</label>
+      <input type="text" name="title" value="{{ card.title }}" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Content</label>
+      <textarea name="content_markdown" rows="16">{{ card.content_markdown }}</textarea>
+    </div>
+    <div class="field">
+      <label>Tags</label>
+      {% for l in all_labels %}
+      <label class="choice">
+        <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
+        <span>{{ l.name }}</span>
+      </label>
+      {% else %}
+      <div class="muted" style="font-size:12.5px;">No labels yet &mdash; add some under Settings.</div>
+      {% endfor %}
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
