@@ -3,17 +3,22 @@ text, images, syntax-highlighted code. Unrelated to the Note model (the
 small text box on Story/Subtask pages) despite the similar name; see the
 design spec for why they're deliberately kept separate."""
 
+from pathlib import Path
+
 from sqlalchemy import or_
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app import deletion
 from app.database import get_db
 from app.labels import get_labels, set_labels
 from app.models import Card, Label, LabelAssignment, LabelAttachType
 from app.templating import templates
 
 router = APIRouter()
+
+UPLOADS_DIR = Path("app/uploads")
 
 
 @router.get("/knowledge-base")
@@ -88,3 +93,12 @@ def update_card(
     set_labels(db, LabelAttachType.CARD, card.id, label_ids)
     db.commit()
     return RedirectResponse(url=f"/knowledge-base/{card.id}", status_code=303)
+
+
+@router.post("/knowledge-base/{card_id}/delete")
+def delete_card_route(card_id: int, db: Session = Depends(get_db)):
+    card = db.get(Card, card_id)
+    if card is not None:
+        deletion.delete_card(db, card, UPLOADS_DIR)
+        db.commit()
+    return RedirectResponse(url="/knowledge-base", status_code=303)

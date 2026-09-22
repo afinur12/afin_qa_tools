@@ -110,3 +110,42 @@ def test_card_edit_updates_title_content_and_tags_together(client):
     filtered_beta = client.get(f"/knowledge-base?tag={ids['beta']}").text
     assert "Renamed" in filtered_alpha
     assert "Renamed" not in filtered_beta
+
+
+def test_delete_card_removes_it_and_its_label_assignments(client, db_session):
+    import re
+    from app.models import LabelAssignment, LabelAttachType
+
+    client.post("/settings/labels", data={"name": "to-delete-test"})
+    # Same established extraction pattern as tests/test_bugs.py and
+    # tests/test_execution.py — the label's own delete-form action URL
+    # always embeds its id.
+    label_id = re.search(r"/settings/labels/(\d+)/delete", client.get("/settings/labels").text).group(1)
+
+    create = client.post("/knowledge-base", follow_redirects=False)
+    card_id = int(create.headers["location"].rstrip("/").split("/")[-1])
+    client.post(f"/knowledge-base/{card_id}/edit", data={"title": "Temp", "content_markdown": "x", "label_ids": [label_id]})
+
+    assert db_session.query(LabelAssignment).filter_by(attach_type=LabelAttachType.CARD, attach_id=card_id).count() == 1
+
+    response = client.post(f"/knowledge-base/{card_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert client.get(f"/knowledge-base/{card_id}").status_code == 404
+    assert db_session.query(LabelAssignment).filter_by(attach_type=LabelAttachType.CARD, attach_id=card_id).count() == 0
+
+
+def test_delete_card_removes_its_uploads_directory(client, tmp_path, monkeypatch):
+    from pathlib import Path
+    import app.routers.knowledge_base as kb_module
+
+    monkeypatch.setattr(kb_module, "UPLOADS_DIR", tmp_path)
+
+    create = client.post("/knowledge-base", follow_redirects=False)
+    card_id = int(create.headers["location"].rstrip("/").split("/")[-1])
+    card_dir = tmp_path / "cards" / str(card_id)
+    card_dir.mkdir(parents=True)
+    (card_dir / "fake.png").write_bytes(b"not a real png")
+    assert card_dir.exists()
+
+    client.post(f"/knowledge-base/{card_id}/delete")
+    assert not card_dir.exists()

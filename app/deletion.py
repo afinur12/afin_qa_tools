@@ -50,3 +50,13 @@ def delete_subtask(db: Session, subtask) -> None:
         db.delete(bug)
     clear_labels(db, LabelAttachType.SUBTASK, subtask.id)
     db.delete(subtask)
+
+
+def delete_card(db: Session, card, uploads_dir) -> None:
+    import shutil
+
+    card_dir = uploads_dir / "cards" / str(card.id)
+    if card_dir.exists():
+        shutil.rmtree(card_dir)
+    clear_labels(db, LabelAttachType.CARD, card.id)
+    db.delete(card)
