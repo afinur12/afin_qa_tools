@@ -2263,3 +2263,15 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
   background: var(--surface-sunk); padding: 8px;
 }
 .ac-export-preview-frame img { display: block; width: 100%; height: auto; border-radius: 6px; }
+
+/* ── Knowledge Base card editor ─────────────────────────────────────────── */
+
+.kb-title-input { font-size: 20px; font-weight: 700; border: none; background: transparent; width: 100%; padding: 4px 0; color: var(--ink); }
+.kb-title-input:focus { outline: none; }
+/* .snippet-pre's own padding is right-only (0 18px 0 0) — it relies on a
+   sibling .snippet-gutter for left breathing room, which the card editor
+   deliberately doesn't have (a markdown document isn't a code snippet, so
+   a line-number gutter would read as the wrong affordance). Without it,
+   text would sit flush against the box's left edge. */
+.kb-editor-body { min-height: 480px; }
+.kb-editor-body .snippet-pre { padding-left: 18px; }

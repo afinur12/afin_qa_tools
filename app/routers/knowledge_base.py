@@ -56,21 +56,6 @@ def create_card(db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/knowledge-base/{card.id}", status_code=303)
 
 
-# NOTE: card_detail (GET) and update_card (POST .../edit) below are the
-# routes formally scoped to Task 2 of this plan (see
-# .superpowers/sdd/2026-09-22-knowledge-base-cards/task-2-brief.md, whose
-# Step 3 defines this exact code and whose Step 4 defines the full
-# detail.html editor template). They're pulled forward into Task 1 because
-# Task 1's own required test file (Step 1 of task-1-brief.md) already
-# exercises both — the create-card test follows the create redirect to
-# GET /knowledge-base/{id} expecting 200, and three of the five tests
-# save a title/content/tags via POST .../edit before asserting on the
-# list page. Without these two routes, Task 1's own tests cannot reach
-# GREEN. The detail template below is a minimal, functional placeholder
-# (not Task 2's full autosave/preview-toggle editor UI) — Task 2 is
-# expected to overwrite app/templates/knowledge_base/detail.html with
-# the richer version; this router code is otherwise identical to what
-# Task 2 specifies, so Task 2 should find it already in place.
 @router.get("/knowledge-base/{card_id}")
 def card_detail(request: Request, card_id: int, db: Session = Depends(get_db)):
     card = db.get(Card, card_id)
