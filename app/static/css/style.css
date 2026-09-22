@@ -1869,7 +1869,7 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 }
 .ac-request-tab-add:hover { background: var(--surface-sunk); color: var(--ink); border-style: solid; }
 
-.ac-request-tabs-row { display: flex; align-items: center; background: var(--bg-sidebar); border-radius: var(--r-ctl) var(--r-ctl) 0 0; }
+.ac-request-tabs-row { display: flex; align-items: center; background: var(--bg-sidebar); border-radius: var(--r-ctl) var(--r-ctl) 0 0; margin-bottom: 14px; }
 .ac-tabs-scroll-btn { flex-shrink: 0; width: 22px; height: 30px; display: grid; place-items: center; background: none; border: none; color: #d5d2e0; cursor: pointer; font-size: 16px; }
 .ac-tabs-scroll-btn:hover { color: #fff; }
 .ac-tabs-scroll-btn[hidden] { display: none; }
@@ -1883,8 +1883,23 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-request-tab-add { border-color: var(--sidebar-line); color: #d5d2e0; }
 .ac-request-tab-add:hover { background: var(--sidebar-line); color: #fff; }
 
-.ac-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-.ac-panel-top .ac-tools { display: flex; align-items: center; gap: 8px; }
+/* Close every open tab at once — a fixed sibling of the scrollable strip
+   (not tab-count-dependent, unlike the tabs/+ button, so it's plain markup
+   with its own listener rather than something renderStrip() rebuilds). */
+.ac-tabs-close-all { flex-shrink: 0; width: 26px; height: 26px; display: grid; place-items: center; background: none; border: none; color: #d5d2e0; cursor: pointer; font-size: 15px; border-radius: 6px; margin: 0 2px; }
+.ac-tabs-close-all:hover { background: var(--sidebar-line); color: #fff; }
+
+/* Collections + the cURL/image/layout-toggle cluster now live in this same
+   dark, permanently-non-theme row (moved out of the old .ac-panel-top,
+   which was a plain light/theme-relative row below the tabs) — only
+   .ac-layout-toggle needs a scoped override here, since the Collections/
+   cURL/image buttons are already self-colored pills (background matches
+   border-color) that read fine on any surface regardless of theme. */
+.ac-request-tabs-row .ac-tools { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 0 10px 0 10px; margin-left: 4px; border-left: 1px solid var(--sidebar-line); }
+.ac-request-tabs-row .ac-layout-toggle { border-color: var(--sidebar-line); }
+.ac-request-tabs-row .ac-layout-toggle button { color: #d5d2e0; }
+.ac-request-tabs-row .ac-layout-toggle button + button { border-left-color: var(--sidebar-line); }
+.ac-request-tabs-row .ac-layout-toggle button.is-active { background: var(--lime); color: var(--ink-inverse); }
 
 .ac-layout-toggle { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
 .ac-layout-toggle button {

@@ -314,3 +314,20 @@ def test_api_client_js_wires_up_tab_drag_reorder(client):
     # Distinguish from the tree's own existing dragstart wiring by checking
     # for the tab-specific dragging-state variable name.
     assert "draggingTab" in resp.text
+
+
+def test_tab_bar_row_holds_the_toolbar_and_close_all_button(client):
+    page = client.get("/api-client").text
+    assert "data-ac-close-all-tabs" in page
+    # Consolidated into one row: Collections/cURL/image/layout-toggle now
+    # live inside .ac-request-tabs-row, and the old separate title row
+    # (.ac-panel-top, redundant with the active tab's own bold label) is
+    # gone entirely rather than left with just the title in it.
+    assert 'class="ac-panel-top"' not in page
+    assert "data-ac-current-name" not in page
+    assert 'data-modal-open="collections-drawer"' in page
+
+
+def test_api_client_js_defines_close_all_tabs(client):
+    resp = client.get("/static/js/api_client.js")
+    assert "data-ac-close-all-tabs" in resp.text

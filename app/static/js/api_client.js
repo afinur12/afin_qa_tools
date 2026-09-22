@@ -2298,6 +2298,18 @@
       if (tabBtn) switchTo(tabBtn.dataset.acTabId);
     });
 
+    // Closing all tabs never deletes anything saved (same as closing one),
+    // so — matching that same UX — there's no confirmation prompt here.
+    document.querySelector("[data-ac-close-all-tabs]")?.addEventListener("click", () => {
+      tabs.length = 0;
+      const tab = blankTab();
+      tabs.push(tab);
+      activeClientId = tab.clientId;
+      renderStrip();
+      applyTabToDom(tab);
+      persist();
+    });
+
     // A save through the "Save Request" modal (POST /api-client/requests)
     // is the one thing that still reloads the page: it needs a name and a
     // collection chosen, nothing here to infer either from. Stash which tab
