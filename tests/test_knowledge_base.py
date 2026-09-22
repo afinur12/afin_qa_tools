@@ -180,3 +180,15 @@ def test_upload_non_image_file_returns_is_image_false(client):
     body = response.json()
     assert body["is_image"] is False
     assert body["url"].startswith(f"/uploads/cards/{card_id}/")
+
+
+def test_app_js_markdown_renderer_supports_images_and_language_tagged_code(client):
+    resp = client.get("/static/js/app.js")
+    assert resp.status_code == 200
+    js = resp.text
+    # Deletion tripwires: these exact substrings must survive whatever
+    # extension Step 3 below makes to renderNoteMarkdown.
+    assert "renderNoteMarkdown" in js
+    assert "escapeHtmlForMarkdown" in js  # the escape-first invariant this whole function leans on
+    assert "<img" in js  # image syntax now renders an <img>, not just a link
+    assert "language-" in js  # fenced code with a language tag gets a language-<x> class
