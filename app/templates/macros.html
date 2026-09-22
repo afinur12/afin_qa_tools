@@ -178,3 +178,9 @@
 <svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l6 6 6-6"/><path d="M6 14l6 6 6-6"/></svg>
 {%- endif -%}
 {% endmacro %}
+
+{# A test case that has a matching entry in the Prebuilt library — see
+   prebuilt_id_by_testcase_id in app/routers/subtasks.py for the match rule. #}
+{% macro icon_prebuilt(size=13) %}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+{%- endmacro %}

@@ -507,6 +507,8 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
   letter-spacing: 0;
 }
 .badge.lime { background: var(--lime); color: var(--ink-inverse); }
+.badge.prebuilt-yes { background: var(--progress-bg); color: var(--progress); }
+.badge.prebuilt-yes:hover { opacity: 0.85; }
 
 /* status variants — class is built from the enum value, lowercased */
 .badge--pass, .badge--resolved, .badge--closed, .badge--done { background: var(--pass-bg); color: var(--pass); }

@@ -314,3 +314,78 @@ def test_subtask_reorder_rejects_ids_from_another_phase(client):
 
     response = client.post(f"/phases/{sit_phase_id}/subtasks/reorder", data={"order": f"{intruder_id},{own_id}"})
     assert response.status_code == 422
+
+
+def _make_subtask_for_testcases(client, code="EX-300"):
+    create = client.post("/stories", data={"display_code": code, "title": "A"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    story_page = client.get(f"/stories/{story_id}")
+    phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
+    sub = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "S-1", "title": "Exec", "subtask_type": "EXECUTION"},
+        follow_redirects=False,
+    )
+    return sub.headers["location"].rstrip("/").split("/")[-1]
+
+
+def test_testcase_shows_prebuilt_badge_when_matching_saved_prebuilt_exists(client):
+    import re
+
+    subtask_id = _make_subtask_for_testcases(client, "EX-301")
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Reusable flow"})
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+
+    save_resp = client.post(f"/testcases/{testcase_id}/save-as-prebuilt", follow_redirects=False)
+    prebuilt_id = save_resp.headers["location"].rstrip("/").split("/")[-1]
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert f'href="/prebuilt/{prebuilt_id}"' in page
+    assert 'target="_blank"' in page
+    assert "badge prebuilt-yes" in page
+
+
+def test_testcase_no_prebuilt_badge_without_a_saved_prebuilt(client):
+    import re
+
+    subtask_id = _make_subtask_for_testcases(client, "EX-302")
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Never saved"})
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert f"/testcases/{testcase_id}/execute" in page  # the row itself rendered
+    assert "badge prebuilt-yes" not in page
+
+
+def test_testcase_no_prebuilt_badge_for_an_unrelated_prebuilt_with_the_same_name(client):
+    # A prebuilt can share a title by coincidence (or be authored from scratch,
+    # never through save-as-prebuilt) — its description won't be the exact
+    # "Saved from <code>" string tied to this specific test case, so it must
+    # not be treated as a match.
+    import re
+
+    subtask_id = _make_subtask_for_testcases(client, "EX-303")
+    client.post("/prebuilt", data={"name": "Reusable flow", "description": "Hand-written template"})
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Reusable flow"})
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert f"/testcases/{testcase_id}/execute" in page
+    assert "badge prebuilt-yes" not in page
+
+
+def test_testcase_prebuilt_badge_disappears_once_title_no_longer_matches(client):
+    import re
+
+    subtask_id = _make_subtask_for_testcases(client, "EX-304")
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Original title"})
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+    client.post(f"/testcases/{testcase_id}/save-as-prebuilt")
+
+    before = client.get(f"/subtasks/{subtask_id}").text
+    assert "badge prebuilt-yes" in before
+
+    client.post(f"/testcases/{testcase_id}/edit", data={"display_code": "TC-1", "title": "Renamed title"})
+    after = client.get(f"/subtasks/{subtask_id}").text
+    assert "badge prebuilt-yes" not in after

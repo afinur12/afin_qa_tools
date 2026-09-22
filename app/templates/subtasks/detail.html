@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link, icon_sync, icon_priority with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link, icon_sync, icon_priority, icon_prebuilt with context %}
 {% block title %}{{ subtask.display_code }} - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -218,7 +218,7 @@
   <table data-sortable-table>
     <thead><tr>
       <th style="width:1%;">{% if subtask.testcases %}<input type="checkbox" data-select-all="[data-selection-name='testcase_ids']" title="Select all">{% endif %}</th>
-      <th data-sort-key="code">Code</th><th data-sort-key="priority">Test Priority</th><th data-sort-key="title">Title</th><th data-sort-key="status">Status</th><th></th>
+      <th data-sort-key="code">Code</th><th data-sort-key="priority">Test Priority</th><th data-sort-key="title">Title</th><th style="text-align:center;">Prebuilt</th><th data-sort-key="status">Status</th><th></th>
     </tr></thead>
     <tbody>
       {% for tc in subtask.testcases %}
@@ -234,6 +234,14 @@
           {% endif %}
         </td>
         <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
+        <td style="text-align:center;">
+          {% if tc.id in prebuilt_id_by_testcase_id %}
+          <a class="badge prebuilt-yes" href="/prebuilt/{{ prebuilt_id_by_testcase_id[tc.id] }}" target="_blank" rel="noopener"
+             title="Open the matching Prebuilt template in a new tab" aria-label="Open the matching Prebuilt template for {{ tc.display_code }}">{{ icon_prebuilt() }} Yes</a>
+          {% else %}
+          <span class="muted">&mdash;</span>
+          {% endif %}
+        </td>
         <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>
         <td style="width:1%; white-space:nowrap;">
           <a class="btn act edit" href="{{ tracker_url(tc.display_code) }}" target="_blank" rel="noopener"
@@ -245,7 +253,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty">No test cases yet.</td></tr>
+      <tr><td colspan="7" class="empty">No test cases yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

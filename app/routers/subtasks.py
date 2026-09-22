@@ -169,12 +169,29 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
     notes = db.query(Note).filter(
         Note.attach_type == NoteAttachType.SUBTASK, Note.attach_id == subtask_id
     ).all()
+    prebuilts = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all()
+    # A test case is flagged "in Prebuilt" only when BOTH match: the current
+    # title still equals the prebuilt's name, and the prebuilt's description
+    # is still exactly the "Saved from <code>" string save_testcase_as_
+    # prebuilt (app/routers/prebuilt.py) wrote for THIS test case's own
+    # display_code — description alone already pins it to one specific
+    # source test case (display codes are unique), and the title check on
+    # top means the badge disappears if either side has since drifted from
+    # what was actually saved, rather than resurfacing a stale/renamed match.
+    prebuilt_by_description = {p.description: p for p in prebuilts if p.description}
+    prebuilt_id_by_testcase_id = {
+        tc.id: match.id
+        for tc in subtask.testcases
+        if (match := prebuilt_by_description.get(f"Saved from {tc.display_code}")) is not None
+        and match.name == tc.title
+    }
     return templates.TemplateResponse(
         request,
         "subtasks/detail.html",
         {
             "subtask": subtask, "error": None, "notes": notes,
-            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
+            "prebuilts": prebuilts,
+            "prebuilt_id_by_testcase_id": prebuilt_id_by_testcase_id,
             "statuses": list(TaskStatus),
             "subtask_labels": get_labels(db, LabelAttachType.SUBTASK, subtask_id),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],
