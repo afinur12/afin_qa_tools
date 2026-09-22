@@ -146,13 +146,58 @@
   }
 
   // ── Tree: expand/collapse + search filter ────────────────────────────────
+  // Collections/folders default to collapsed, remembering only what the
+  // user has explicitly expanded — so an empty/missing localStorage entry
+  // (first visit, or a folder created since) naturally means "collapsed",
+  // matching the default without needing separate first-visit handling.
+  const TREE_EXPANDED_KEY = "qa-toolbox:api-client-tree-expanded";
+
+  function loadExpandedNodes() {
+    try {
+      const raw = localStorage.getItem(TREE_EXPANDED_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      return new Set();
+    }
+  }
+  function persistExpandedNodes(set) {
+    try {
+      localStorage.setItem(TREE_EXPANDED_KEY, JSON.stringify(Array.from(set)));
+    } catch {}
+  }
+  // Collection rows carry only data-ac-drop-collection; folder rows carry
+  // both that and data-ac-drop-folder — folder ids are unique on their own
+  // (a DB primary key), so a folder's node id doesn't need the collection
+  // id folded in too.
+  function treeNodeIdFor(row) {
+    if (row.classList.contains("is-collection")) return `collection-${row.dataset.acDropCollection}`;
+    if (row.classList.contains("is-folder")) return `folder-${row.dataset.acDropFolder}`;
+    return null;
+  }
+
+  const expandedNodes = loadExpandedNodes();
+
   root.querySelectorAll("[data-ac-tree-toggle]").forEach((row) => {
+    const nodeId = treeNodeIdFor(row);
+    if (nodeId && !expandedNodes.has(nodeId)) {
+      row.classList.add("is-collapsed");
+      const initialChildren = row.nextElementSibling;
+      if (initialChildren && initialChildren.classList.contains("ac-tree-children")) {
+        initialChildren.classList.add("is-collapsed");
+      }
+    }
     row.querySelector(".ac-chev").addEventListener("click", (event) => {
       event.preventDefault();
       row.classList.toggle("is-collapsed");
       const children = row.nextElementSibling;
       if (children && children.classList.contains("ac-tree-children")) {
         children.classList.toggle("is-collapsed");
+      }
+      if (nodeId) {
+        if (row.classList.contains("is-collapsed")) expandedNodes.delete(nodeId);
+        else expandedNodes.add(nodeId);
+        persistExpandedNodes(expandedNodes);
       }
     });
   });
@@ -161,6 +206,12 @@
   if (treeSearch) {
     treeSearch.addEventListener("input", () => {
       const q = treeSearch.value.trim().toLowerCase();
+      // Force every folder open while searching (without touching the
+      // persisted collapse state above) — otherwise a match nested under a
+      // collapsed folder would filter to visible yet still render nothing,
+      // since a collapsed ancestor's display:none hides it regardless of
+      // its own inline style.
+      root.classList.toggle("ac-tree-searching", !!q);
       root.querySelectorAll(".ac-tree-row").forEach((row) => {
         const name = row.querySelector(".ac-tree-name").textContent.toLowerCase();
         // Requests also carry their URL (data-ac-tree-url) — a saved curl
@@ -2416,6 +2467,10 @@
   // the tree rows already in the DOM — no separate data source, no fetch.
   const pinnedCenterEl = document.getElementById("ac-pinned-center");
   let pinnedCenterView = "folders";
+  // Which pinned folder cards are currently expanded inline (showing their
+  // requests right in the panel) — session-only, not persisted, same as
+  // pinnedCenterView above.
+  const pinnedFolderExpanded = new Set();
 
   function findTreeRowFor(bucket, type, id) {
     const selector = bucket === "requests"
@@ -2458,6 +2513,26 @@
     return names.join(" / ");
   }
 
+  // Immediate child requests of a pinned folder's tree row, for its inline
+  // expansion in Pinned Center — mirrors item_count's own "immediate
+  // children only" semantic (app/routers/api_client.py). A folder's
+  // .ac-tree-children container holds both its own request rows AND, as
+  // flat siblings, each nested sub-folder's header row plus that
+  // sub-folder's own .ac-tree-children — filtering for .is-request alone
+  // already excludes both of those, no depth-tracking needed.
+  function childRequestsFor(row) {
+    const children = row.nextElementSibling;
+    if (!children || !children.classList.contains("ac-tree-children")) return [];
+    return Array.from(children.children)
+      .filter((el) => el.classList.contains("ac-tree-row") && el.classList.contains("is-request"))
+      .map((el) => ({
+        id: el.dataset.acDragRequest,
+        name: el.querySelector(".ac-tree-name")?.textContent.trim() || "",
+        method: el.querySelector(".ac-method-badge")?.textContent.trim() || "GET",
+        methodClass: el.querySelector(".ac-method-badge")?.className || "ac-method-badge m-get",
+      }));
+  }
+
   function renderPinnedCenter() {
     const folderCards = pinsStore.folders
       .map(({ type, id }) => {
@@ -2465,7 +2540,7 @@
         if (!row) return null;
         const name = row.querySelector(".ac-tree-name")?.textContent.trim() || "";
         const count = row.dataset.acTreeCount || "0";
-        return { type, id, name, count };
+        return { type, id: String(id), name, count, row };
       })
       .filter(Boolean);
 
@@ -2485,14 +2560,33 @@
     pinnedCenterEl.querySelector('[data-ac-pinned-count="requests"]').textContent = String(requestCards.length);
 
     const folderListEl = pinnedCenterEl.querySelector('[data-ac-pinned-list="folders"]');
-    folderListEl.innerHTML = folderCards.map((card) => `
-      <div class="ac-pinned-card" data-ac-pinned-goto-type="${card.type}" data-ac-pinned-goto-id="${card.id}">
-        ${icon_folder_svg}
-        <span class="ac-pinned-card-name">${escapeHtml(card.name)}</span>
-        <span class="ac-pinned-card-count">${escapeHtml(card.count)}</span>
-        <button type="button" class="ac-tree-pin is-pinned" data-ac-pin-bucket="folders" data-ac-pin-type="${card.type}" data-ac-pin-id="${card.id}" title="Unpin" aria-pressed="true">${icon_pin_svg}</button>
+    folderListEl.innerHTML = folderCards.map((card) => {
+      // Composite key: a collection id and a folder id can collide (they're
+      // separate DB tables/PKs), so `type` has to be part of the identity
+      // here, same as findTreeRowFor's own selector above.
+      const expandKey = `${card.type}-${card.id}`;
+      const expanded = pinnedFolderExpanded.has(expandKey);
+      const childRows = expanded
+        ? childRequestsFor(card.row).map((req) => `
+            <a class="ac-pinned-folder-child" href="/api-client?request_id=${req.id}">
+              <span class="${escapeAttr(req.methodClass)}">${escapeHtml(req.method)}</span>
+              <span class="ac-tree-name">${escapeHtml(req.name)}</span>
+            </a>
+          `).join("") || `<div class="ac-pinned-folder-empty">No requests directly in this folder</div>`
+        : "";
+      return `
+      <div class="ac-pinned-folder-group">
+        <div class="ac-pinned-card${expanded ? " is-expanded" : ""}" role="button" tabindex="0" aria-expanded="${expanded}" data-ac-pinned-folder-key="${expandKey}">
+          <span class="ac-pinned-expand-chev">${CHEVRON_SVG}</span>
+          ${icon_folder_svg}
+          <span class="ac-pinned-card-name">${escapeHtml(card.name)}</span>
+          <span class="ac-pinned-card-count">${escapeHtml(card.count)}</span>
+          <button type="button" class="ac-tree-pin is-pinned" data-ac-pin-bucket="folders" data-ac-pin-type="${card.type}" data-ac-pin-id="${card.id}" title="Unpin" aria-pressed="true">${icon_pin_svg}</button>
+        </div>
+        ${expanded ? `<div class="ac-pinned-folder-children">${childRows}</div>` : ""}
       </div>
-    `).join("");
+    `;
+    }).join("");
 
     const requestListEl = pinnedCenterEl.querySelector('[data-ac-pinned-list="requests"]');
     requestListEl.innerHTML = requestCards.map((card) => `
@@ -2522,27 +2616,15 @@
       renderPinnedCenter();
       return;
     }
-    const gotoCard = event.target.closest("[data-ac-pinned-goto-id]");
-    if (!gotoCard || event.target.closest(".ac-tree-pin")) return;
-    const row = findTreeRowFor("folders", gotoCard.dataset.acPinnedGotoType, gotoCard.dataset.acPinnedGotoId);
-    if (!row) return;
-    // Expand the target row and every ancestor folder above it, mirroring
-    // parentPathFor's own .ac-tree-children walk, so a pinned folder buried
-    // several levels deep is actually visible after jumping to it.
-    row.classList.remove("is-collapsed");
-    if (row.nextElementSibling && row.nextElementSibling.classList.contains("ac-tree-children")) {
-      row.nextElementSibling.classList.remove("is-collapsed");
-    }
-    let el = row.closest(".ac-tree-children");
-    while (el) {
-      const headerRow = el.previousElementSibling;
-      if (headerRow && headerRow.classList.contains("ac-tree-row")) {
-        headerRow.classList.remove("is-collapsed");
-        el.classList.remove("is-collapsed");
-      }
-      el = el.parentElement ? el.parentElement.closest(".ac-tree-children") : null;
-    }
-    row.scrollIntoView({ block: "nearest" });
+    // Clicking a pinned folder card (anywhere but its own unpin button)
+    // expands it in place, listing its requests right here — it does not
+    // jump to or touch the tree below at all.
+    const folderCard = event.target.closest("[data-ac-pinned-folder-key]");
+    if (!folderCard || event.target.closest(".ac-tree-pin")) return;
+    const key = folderCard.dataset.acPinnedFolderKey;
+    if (pinnedFolderExpanded.has(key)) pinnedFolderExpanded.delete(key);
+    else pinnedFolderExpanded.add(key);
+    renderPinnedCenter();
   });
 
   renderPinnedCenter();

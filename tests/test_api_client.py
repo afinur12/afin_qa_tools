@@ -288,6 +288,20 @@ def test_collections_drawer_footer_shows_version(client):
     assert page.count(APP_VERSION) == 2
 
 
+def test_api_client_js_defines_tree_collapse_persistence(client):
+    resp = client.get("/static/js/api_client.js")
+    assert resp.status_code == 200
+    for name in ("TREE_EXPANDED_KEY", "loadExpandedNodes", "persistExpandedNodes", "treeNodeIdFor", "ac-tree-searching"):
+        assert name in resp.text
+
+
+def test_api_client_js_defines_pinned_folder_inline_expand(client):
+    resp = client.get("/static/js/api_client.js")
+    assert "childRequestsFor" in resp.text
+    assert "pinnedFolderExpanded" in resp.text
+    assert "ac-pinned-folder-children" in resp.text
+
+
 def test_tab_bar_has_overflow_scroll_arrows(client):
     page = client.get("/api-client").text
     assert "data-ac-tabs-scroll-left" in page

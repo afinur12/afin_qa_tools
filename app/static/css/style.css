@@ -1713,7 +1713,7 @@ tbody tr:hover { background: var(--surface-sunk); }
   width: 340px; max-width: 88vw; max-height: 100vh; height: 100%;
   border-radius: 0; box-shadow: -14px 0 34px rgba(27, 27, 25, 0.14);
   display: flex; flex-direction: column; padding: 22px 16px;
-  background: var(--bg-sidebar); color: #d5d2e0;
+  background: var(--bg-sidebar); color: #d5d2e0; overflow-x: hidden;
 }
 .ac-drawer-body { flex: 1 1 auto; overflow-y: auto; padding: 0 0 4px; }
 .ac-drawer-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 4px 0; border-top: 1px solid var(--sidebar-line); font-size: 11px; color: var(--ink-3); }
@@ -1727,6 +1727,11 @@ tbody tr:hover { background: var(--surface-sunk); }
 .modal--drawer .ac-tree-row.is-active { background: var(--sidebar-line); color: var(--lime); }
 .modal--drawer .ac-tree-row { color: #d5d2e0; }
 .modal--drawer .ac-tree-row.is-request { color: #a3a099; }
+/* .is-active and .is-request are both 3-class selectors (tied specificity);
+   without this 4-class tiebreaker the currently-open request's row falls
+   through to the dimmer .is-request color above instead of the lime "you
+   are here" accent, since it comes later in source order. */
+.modal--drawer .ac-tree-row.is-active.is-request { color: var(--lime); }
 .modal--drawer .ac-tree-name, .modal--drawer .ac-folder-icon, .modal--drawer .ac-chev { color: inherit; }
 .ac-drawer-resize-handle {
   position: absolute; top: 0; left: -3px; bottom: 0; width: 7px;
@@ -1738,7 +1743,12 @@ tbody tr:hover { background: var(--surface-sunk); }
 .ac-drawer-resize-handle:hover::after { background: var(--indigo); }
 body.is-resizing-drawer { cursor: col-resize; user-select: none; }
 body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indigo); }
-.ac-tree-scroll { flex-grow: 1; overflow-y: auto; margin: 0 -8px; padding: 0 8px; }
+.ac-tree-scroll { flex-grow: 1; overflow-y: auto; overflow-x: hidden; margin: 0 -8px; padding: 0 8px; }
+/* While the search box has a query, force every folder open regardless of
+   its actual (persisted) collapsed state, so a match nested under a
+   collapsed ancestor is still visible — cleared on an empty query, which
+   reverts to whatever the user actually left expanded/collapsed. */
+.ac-tree-searching .ac-tree-children.is-collapsed { display: block; }
 
 .ac-tree-search { position: relative; margin: 0 8px 10px; }
 .ac-tree-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
@@ -1767,9 +1777,26 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-pinned-card-body { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
 .ac-pinned-card-path { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.ac-pinned-folder-group { display: flex; flex-direction: column; gap: 2px; }
+.ac-pinned-folder-group .ac-pinned-card { cursor: pointer; }
+.ac-pinned-expand-chev { flex-shrink: 0; color: var(--ink-3); display: flex; }
+.ac-pinned-expand-chev svg { transition: transform 120ms ease; }
+.ac-pinned-card.is-expanded .ac-pinned-expand-chev svg { transform: rotate(90deg); }
+.ac-pinned-folder-children { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 2px 26px; }
+.ac-pinned-folder-child { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; color: #d5d2e0; text-decoration: none; font-size: 12px; }
+.ac-pinned-folder-child:hover { background: var(--sidebar-line); }
+.ac-pinned-folder-empty { font-size: 11px; color: var(--ink-3); padding: 4px 6px 4px 26px; }
+
 .ac-tree-row {
   display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px;
   border-radius: 8px; font-size: 12.5px; color: var(--ink); text-decoration: none;
+  /* A flex item's default min-width is auto (its content's intrinsic
+     width), which overrides flex-grow/shrink and .ac-tree-name's own
+     ellipsis truncation — a long name refused to shrink and pushed this
+     row (and the drawer around it) wider than its box, showing up as an
+     unwanted horizontal scrollbar. min-width: 0 lets the row actually
+     shrink to its container. */
+  min-width: 0;
   /* Set per-row from the tree_*_row macros (builder.html) as an inline
      custom property — a collection is depth 0, each nesting level below it
      (folders can nest arbitrarily deep) adds one increment. Replaces a
@@ -1784,7 +1811,7 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-tree-row .ac-chev svg { transition: transform 120ms ease; }
 .ac-tree-row.is-collapsed > .ac-chev svg { transform: rotate(-90deg); }
 .ac-tree-row .ac-folder-icon { flex-shrink: 0; color: var(--ink-3); }
-.ac-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+.ac-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; min-width: 0; }
 .ac-tree-count { font-size: 11px; color: var(--ink-3); flex-shrink: 0; }
 .ac-tree-row.is-collection .ac-tree-name { font-weight: 700; }
 .ac-tree-row.is-folder .ac-tree-name { font-weight: 600; }
