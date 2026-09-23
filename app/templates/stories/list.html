@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_link, icon_upload, icon_plus with context %}
+{% from "macros.html" import modal, icon_link, icon_upload, icon_plus, icon_search with context %}
 {% block title %}Tasks - QA Toolbox{% endblock %}
 {% block content %}
 
+<div data-filterable-table>
 <div class="page-head">
   <div>
     <div class="eyebrow">Workspace</div>
@@ -10,6 +11,11 @@
     <div class="page-sub">{{ stories | length }} stor{{ 'y' if stories | length == 1 else 'ies' }} tracked</div>
   </div>
   <div class="spacer"></div>
+  <label class="search-field">
+    <span style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);">Search stories</span>
+    {{ icon_search(15) }}
+    <input type="text" placeholder="Search stories…" data-table-search>
+  </label>
   <a class="btn act edit" href="#" data-modal-open="import-task" title="Import a task from JSON" aria-label="Import a task from JSON">{{ icon_upload() }}</a>
   <a class="btn act add" href="/stories/new" data-modal-open="new-story" title="New story" aria-label="New story">{{ icon_plus() }}</a>
 </div>
@@ -71,14 +77,38 @@
 
 <div class="card flush">
   <div class="table-scroll">
-  <table>
-    <thead><tr><th>Code</th><th>Title</th><th>Status</th><th>Phases</th><th>Created</th><th></th></tr></thead>
+  <table data-sortable-table>
+    <thead><tr>
+      <th data-sort-key="code">Code</th>
+      <th data-sort-key="title">Title</th>
+      <th data-sort-key="status">Status</th>
+      <th data-sort-key="progress">Progress</th>
+      <th data-sort-key="phases">Phases</th>
+      <th data-sort-key="created">Created</th>
+      <th></th>
+    </tr></thead>
     <tbody>
       {% for s in stories %}
-      <tr>
+      <tr data-filter-search="{{ (s.display_code ~ ' ' ~ s.title) | lower }}"
+          data-sort-code="{{ s.display_code | lower }}"
+          data-sort-title="{{ s.title | lower }}"
+          data-sort-status="{{ s.status.value | lower }}"
+          data-sort-progress="{{ s.progress_pct }}"
+          data-sort-phases="{{ s.phases | length }}"
+          data-sort-created="{{ s.created_at.isoformat() }}">
         <td><a class="badge code" href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
         <td><a href="/stories/{{ s.id }}" style="color:var(--ink); font-weight:500;">{{ s.title }}</a></td>
         <td><span class="badge badge--{{ s.status.value | lower }}">{{ s.status.label }}</span></td>
+        <td style="white-space:nowrap;">
+          {% if s.subtask_total %}
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="progress-track"><div class="progress-fill" style="width:{{ s.progress_pct }}%;"></div></div>
+            <span class="mono" style="font-size:12px; font-weight:650; color:var(--ink-2);">{{ s.progress_pct }}%</span>
+          </div>
+          {% else %}
+          <span class="muted" style="font-size:12.5px;">No subtasks</span>
+          {% endif %}
+        </td>
         <td class="muted">{{ s.phases | length }}</td>
         <td class="muted">{{ s.created_at.strftime("%d %b %Y") }}</td>
         <td style="width:1%; white-space:nowrap;">
@@ -86,11 +116,15 @@
              title="Open {{ s.display_code }} in the tracker" aria-label="Open {{ s.display_code }} in the tracker">{{ icon_link() }}</a>
         </td>
       </tr>
-      {% else %}
-      <tr><td colspan="6" class="empty">No stories yet. Create one to get started.</td></tr>
       {% endfor %}
+      {% if stories %}
+      <tr data-filter-empty hidden><td colspan="7" class="empty">No stories match your search.</td></tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">No stories yet. Create one to get started.</td></tr>
+      {% endif %}
     </tbody>
   </table>
   </div>
+</div>
 </div>
 {% endblock %}

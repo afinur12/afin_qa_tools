@@ -672,6 +672,43 @@ document.addEventListener("click", (event) => {
   sync();
 })();
 
+// ── Collapsed-sidebar nav tooltip ────────────────────────────────────────
+// A single shared [data-nav-tooltip] element, positioned per-hover — not a
+// child of the link itself, since .sidebar's own vertical scroll (overflow-y:
+// auto) forces the x-axis into a clipping context too, hiding anything an
+// absolutely-positioned descendant renders outside the 68px collapsed rail.
+// position: fixed escapes that: it's relative to the viewport, not scoped by
+// any scrolling ancestor. Only wired above the mobile breakpoint (820px),
+// where .is-collapsed stops meaning "narrow icon rail" and labels already
+// show inline in the nav links themselves.
+(function initNavTooltip() {
+  const tooltip = document.querySelector("[data-nav-tooltip]");
+  if (!tooltip) return;
+
+  function show(link) {
+    if (window.innerWidth <= 820 || !document.body.classList.contains("is-collapsed")) return;
+    const label = link.querySelector("span")?.textContent?.trim();
+    if (!label) return;
+    const rect = link.getBoundingClientRect();
+    tooltip.textContent = label;
+    tooltip.style.left = `${rect.right + 14}px`;
+    tooltip.style.top = `${rect.top + rect.height / 2}px`;
+    tooltip.style.transform = "translateY(-50%)";
+    tooltip.hidden = false;
+  }
+
+  function hide() {
+    tooltip.hidden = true;
+  }
+
+  document.querySelectorAll(".nav-link").forEach((link) => {
+    link.addEventListener("mouseenter", () => show(link));
+    link.addEventListener("mouseleave", hide);
+    link.addEventListener("focus", () => show(link));
+    link.addEventListener("blur", hide);
+  });
+})();
+
 // ── Light/dark theme ─────────────────────────────────────────────────────
 // The choice is applied before paint by an inline script in <head>, so the
 // page never flashes light-then-dark; this only handles the toggle.
@@ -1386,6 +1423,12 @@ document.addEventListener("click", (event) => {
   table.querySelectorAll("th[data-sort-key]").forEach((h) => delete h.dataset.sortDir);
   th.dataset.sortDir = asc ? "asc" : "desc";
   rows.forEach((row) => tbody.appendChild(row));
+  // appendChild relocates each sorted row to the end of the tbody in turn,
+  // which pushes any row NOT in `rows` (e.g. a [data-filter-empty] "no
+  // results" row) up to the front instead of leaving it trailing. Move it
+  // back to the end so it stays last regardless of sort order.
+  const emptyRow = tbody.querySelector("[data-filter-empty]");
+  if (emptyRow) tbody.appendChild(emptyRow);
 });
 
 // ── Search + filter tables ────────────────────────────────────────────────

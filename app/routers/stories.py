@@ -1,12 +1,13 @@
 import json
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import Label, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, Story, TaskStatus, User, UserType, generate_internal_key
+from app.models import Label, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, Story, Subtask, TaskStatus, User, UserType, generate_internal_key
 from app.labels import clear_labels, get_labels, set_labels
 from app.testcase_io import dict_to_task
 
@@ -22,6 +23,31 @@ def _user_dropdowns(db: Session) -> dict:
     }
 
 
+def story_progress(db: Session) -> dict[int, tuple[int, int]]:
+    """story_id -> (done subtasks, total subtasks), one grouped query."""
+    rows = (
+        db.query(
+            Phase.story_id,
+            func.count(Subtask.id),
+            func.sum(case((Subtask.status == TaskStatus.DONE, 1), else_=0)),
+        )
+        .join(Subtask, Subtask.phase_id == Phase.id)
+        .group_by(Phase.story_id)
+        .all()
+    )
+    return {story_id: (int(done or 0), int(total or 0)) for story_id, total, done in rows}
+
+
+def attach_story_progress(db: Session, stories: list[Story]) -> None:
+    """Sets .subtask_done/.subtask_total/.progress_pct on each story in place."""
+    progress = story_progress(db)
+    for story in stories:
+        done, total = progress.get(story.id, (0, 0))
+        story.subtask_done = done
+        story.subtask_total = total
+        story.progress_pct = round(done / total * 100) if total else 0
+
+
 def _parse_id(raw: str) -> int | None:
     return int(raw) if raw.strip().isdecimal() else None
 
@@ -29,6 +55,7 @@ def _parse_id(raw: str) -> int | None:
 @router.get("/stories")
 def list_stories(request: Request, db: Session = Depends(get_db)):
     stories = db.query(Story).order_by(Story.created_at.desc()).all()
+    attach_story_progress(db, stories)
     return templates.TemplateResponse(
         request, "stories/list.html", {"stories": stories, **_user_dropdowns(db)}
     )

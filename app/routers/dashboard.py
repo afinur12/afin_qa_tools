@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templating import templates
-from app.models import Bug, BugStatus, Story, TaskStatus, TestCase, TestCaseStatus
-from app.routers.stories import _user_dropdowns
+from app.models import Bug, BugStatus, PrebuiltTestCase, Story, TaskStatus, TestCase, TestCaseStatus
+from app.routers.stories import _user_dropdowns, attach_story_progress
 
 router = APIRouter()
 
@@ -28,12 +28,17 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     done_tasks = db.query(func.count(Story.id)).filter(Story.status == TaskStatus.DONE).scalar()
     task_done_pct = round(done_tasks / total_tasks * 100) if total_tasks else 0
 
+    attach_story_progress(db, stories)
+
+    prebuilt_count = db.query(func.count(PrebuiltTestCase.id)).scalar()
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "stories": stories, "status_counts": status_counts, "open_bugs": open_bugs,
             "total_tasks": total_tasks, "done_tasks": done_tasks, "task_done_pct": task_done_pct,
+            "prebuilt_count": prebuilt_count,
             **_user_dropdowns(db),
         },
     )

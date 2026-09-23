@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_trash, icon_pencil, icon_plus, icon_search, icon_save with context %}
+{% from "macros.html" import modal, icon_trash, icon_pencil, icon_plus, icon_search, icon_save, icon_download, icon_upload with context %}
 {% block title %}Users - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -20,6 +20,8 @@
       {{ icon_search(15) }}
       <input type="text" placeholder="Search users…" data-table-search>
     </label>
+    <a class="btn act export" href="/settings/export" title="Export all settings" aria-label="Export all settings" download>{{ icon_download() }}</a>
+    <a class="btn act edit" href="#" data-modal-open="import-settings" title="Import settings" aria-label="Import settings">{{ icon_upload() }}</a>
     <a class="btn act add" href="#" data-modal-open="add-user" title="Add User" aria-label="Add User">{{ icon_plus() }}</a>
   </div>
 </div>
@@ -46,6 +48,14 @@
   </div>
 {% endcall %}
 
+{% call modal('import-settings', 'Import Settings', '/settings/import', hint='Accepts a settings JSON file exported from this same page — covers Services, Simulate Types, Test Types, Test Priorities, Labels and Users. Existing names are skipped; only new rows are added.', enctype='multipart/form-data') %}
+  <div class="field"><label>File</label><input type="file" name="file" accept="application/json" required></div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Import</button>
+  </div>
+{% endcall %}
+
   <div class="stack">
     {% for user in users %}
     <div class="list-row" data-row data-filter-search="{{ user.name | lower }} {{ (user.jira_username or '') | lower }}">
@@ -68,10 +78,12 @@
         <button class="btn act remove" type="submit" title="Delete {{ user.name }}" aria-label="Delete {{ user.name }}">{{ icon_trash() }}</button>
       </form>
     </div>
+    {% endfor %}
+    {% if users %}
+    <div class="empty" data-filter-empty hidden>No users match your search.</div>
     {% else %}
     <div class="empty">No users yet.</div>
-    {% endfor %}
-    <div class="empty" data-filter-empty hidden>No users match your search.</div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

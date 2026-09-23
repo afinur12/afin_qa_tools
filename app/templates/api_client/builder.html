@@ -337,15 +337,14 @@
     <div class="modal-head">
       <div class="modal-title" id="view-curl-title">cURL Snippet</div>
       <div class="spacer"></div>
+      <button class="btn lime icon" type="button" data-ac-curl-copy title="Copy" aria-label="Copy" style="margin-right: 8px;">
+        {{ icon_copy(15) }}
+      </button>
       <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
     <pre class="snippet-pre"><code data-ac-curl-code></code></pre>
-    <div class="form-actions" style="justify-content: flex-end; margin-top: 14px;">
-      <button class="btn secondary" type="button" data-modal-close>Close</button>
-      <button class="btn lime" type="button" data-ac-curl-copy>Copy</button>
-    </div>
   </div>
 </div>
 

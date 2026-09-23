@@ -10,16 +10,22 @@ neither of which fits this dict's one-model-per-slug shape, so it gets
 its own router (see app/routers/users.py).
 """
 
-from fastapi import APIRouter, Depends, Form, Request
+import json
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestPriority, TestType
+from app.flash import redirect_with_flash
+from app.models import Label, PrebuiltTestCase, Service, Simulate, TestCase, TestPriority, TestType, User, UserType
+from app.routers.docx_export import _json_response
 from app.templating import templates
 
 router = APIRouter(prefix="/settings")
+
+SETTINGS_SCHEMA_VERSION = 1
 
 TABLES = {
     "services": {
@@ -42,6 +48,88 @@ TABLES = {
         "refs": [(TestCase, "test_priority_id", "test case")],
     },
 }
+
+
+def _export_settings_data(db: Session) -> dict:
+    """One JSON-friendly dict covering every settings table — the 4 in
+    TABLES plus Label and User, which live outside it (see module docstring)."""
+    data: dict = {}
+    for slug, cfg in TABLES.items():
+        key = slug.replace("-", "_")
+        rows = db.query(cfg["model"]).order_by(cfg["model"].name).all()
+        data[key] = [row.name for row in rows]
+    data["labels"] = [row.name for row in db.query(Label).order_by(Label.name).all()]
+    data["users"] = [
+        {"name": u.name, "type": u.type.value, "jira_username": u.jira_username}
+        for u in db.query(User).order_by(User.name).all()
+    ]
+    return data
+
+
+def _import_names(db: Session, model, names) -> int:
+    """Adds each new (non-existing, non-blank) name to `model`; existing
+    names are left untouched. Returns how many rows were added."""
+    if not isinstance(names, list):
+        return 0
+    existing = {row.name for row in db.query(model).all()}
+    added = 0
+    for name in names:
+        name = name.strip() if isinstance(name, str) else ""
+        if name and name not in existing:
+            db.add(model(name=name))
+            existing.add(name)
+            added += 1
+    return added
+
+
+def _import_users(db: Session, users_payload) -> int:
+    if not isinstance(users_payload, list):
+        return 0
+    existing = {row.name for row in db.query(User).all()}
+    added = 0
+    for entry in users_payload:
+        if not isinstance(entry, dict):
+            continue
+        name = (entry.get("name") or "").strip()
+        if not name or name in existing:
+            continue
+        try:
+            user_type = UserType(entry.get("type"))
+        except ValueError:
+            continue
+        jira_username = (entry.get("jira_username") or "").strip() or None
+        db.add(User(name=name, type=user_type, jira_username=jira_username))
+        existing.add(name)
+        added += 1
+    return added
+
+
+@router.get("/export")
+def export_settings(db: Session = Depends(get_db)):
+    payload = {"kind": "settings", "schema_version": SETTINGS_SCHEMA_VERSION, "settings": _export_settings_data(db)}
+    return _json_response(payload, "qa-toolbox-settings.json")
+
+
+@router.post("/import")
+async def import_settings(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    try:
+        data = json.loads(await file.read())
+    except json.JSONDecodeError:
+        return redirect_with_flash("/settings/services", "That file isn't valid JSON.", category="danger")
+    if not isinstance(data, dict) or data.get("kind") != "settings" or not isinstance(data.get("settings"), dict):
+        return redirect_with_flash(
+            "/settings/services", "That file isn't a QA Toolbox settings export.", category="danger"
+        )
+    payload = data["settings"]
+    added = 0
+    for slug, cfg in TABLES.items():
+        added += _import_names(db, cfg["model"], payload.get(slug.replace("-", "_")))
+    added += _import_names(db, Label, payload.get("labels"))
+    added += _import_users(db, payload.get("users"))
+    db.commit()
+    return redirect_with_flash(
+        "/settings/services", f"Imported {added} row{'' if added == 1 else 's'} (existing names were skipped)."
+    )
 
 
 def _usage_counts(db: Session, cfg: dict) -> dict[int, int]:

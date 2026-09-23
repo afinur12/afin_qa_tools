@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal with context %}
+{% from "macros.html" import modal, icon_search, icon_template with context %}
 {% block title %}Dashboard - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -73,61 +73,113 @@
 {% endcall %}
 
 <div class="stat-grid">
-  <div class="card dark">
+  <div class="card stat-accent-lime">
+    <div class="stat-card-icon lime">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2.2"/><path d="M8 10h8M8 14h5"/></svg>
+    </div>
     <div class="stat-label">Test cases</div>
     <div class="stat-value">{{ total }}</div>
     <div class="stat-foot"><span class="dot"></span>{{ executed }} executed &middot; {{ ns.pending }} pending</div>
   </div>
 
-  <div class="card">
+  <div class="card stat-accent-pass">
+    <div class="stat-card-icon pass">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+    </div>
     <div class="stat-label">Passed</div>
     <div class="stat-value">{{ ns.passed }}</div>
     <div class="stat-foot">Across all phases</div>
   </div>
 
-  <div class="card">
+  <div class="card stat-accent-fail">
+    <div class="stat-card-icon fail">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </div>
     <div class="stat-label">Failed</div>
     <div class="stat-value">{{ ns.failed }}</div>
     <div class="stat-foot">Needs attention</div>
   </div>
 
-  <div class="card">
+  <div class="card stat-accent-warn">
+    <div class="stat-card-icon warn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M8 6a4 4 0 0 1 8 0"/><rect x="6" y="7" width="12" height="13" rx="6"/><path d="M3 12h3M18 12h3M4 17.5l2.5-1.5M20 17.5l-2.5-1.5M4 7.5 6.5 9M20 7.5 17.5 9"/></svg>
+    </div>
     <div class="stat-label">Open bugs</div>
     <div class="stat-value">{{ open_bugs }}</div>
     <div class="stat-foot">Open or in progress</div>
   </div>
 
-  <div class="card">
+  <div class="card stat-accent-progress">
+    <div class="stat-card-icon progress">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+    </div>
     <div class="stat-label">Tasks done</div>
     <div class="stat-value">{{ task_done_pct }}<span style="font-size:18px; opacity:.7;">%</span></div>
     <div class="stat-foot">{{ done_tasks }} of {{ total_tasks }} task{{ '' if total_tasks == 1 else 's' }} done</div>
+  </div>
+
+  <div class="card stat-accent-indigo">
+    <div class="stat-card-icon indigo">{{ icon_template(15) }}</div>
+    <div class="stat-label">Prebuilt coverage</div>
+    <div class="stat-value">{{ total }}<span style="font-size:18px; opacity:.6;"> / {{ prebuilt_count }}</span></div>
+    <div class="stat-foot">Total test case{{ '' if total == 1 else 's' }} &middot; {{ prebuilt_count }} prebuilt template{{ '' if prebuilt_count == 1 else 's' }}</div>
   </div>
 </div>
 
 <div class="split">
 
-  <div class="card flush">
+  <div class="card flush" data-filterable-table>
     <div class="card-head" style="padding: 22px 22px 0; margin-bottom: 14px;">
       <div>
         <div class="card-title">Stories</div>
         <div class="card-sub">Every task tracked in this workspace</div>
       </div>
       <div class="spacer"></div>
+      <label class="search-field" style="max-width: 200px;">
+        <span style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);">Search stories</span>
+        {{ icon_search(15) }}
+        <input type="text" placeholder="Search stories…" data-table-search>
+      </label>
       <a class="btn secondary sm" href="/stories">View all</a>
     </div>
     <div class="table-scroll">
-    <table>
-      <thead><tr><th>Code</th><th>Title</th><th>Created</th></tr></thead>
+    <table data-sortable-table>
+      <thead><tr>
+        <th data-sort-key="code">Code</th>
+        <th data-sort-key="title">Title</th>
+        <th data-sort-key="status">Status</th>
+        <th data-sort-key="progress">Progress</th>
+        <th data-sort-key="created">Created</th>
+      </tr></thead>
       <tbody>
         {% for s in stories %}
-        <tr>
+        <tr data-filter-search="{{ (s.display_code ~ ' ' ~ s.title) | lower }}"
+            data-sort-code="{{ s.display_code | lower }}"
+            data-sort-title="{{ s.title | lower }}"
+            data-sort-status="{{ s.status.value | lower }}"
+            data-sort-progress="{{ s.progress_pct }}"
+            data-sort-created="{{ s.created_at.isoformat() }}">
           <td><a class="badge code" href="/stories/{{ s.id }}">{{ s.display_code }}</a></td>
           <td>{{ s.title }}</td>
+          <td><span class="badge badge--{{ s.status.value | lower }}">{{ s.status.label }}</span></td>
+          <td style="white-space:nowrap;">
+            {% if s.subtask_total %}
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="progress-track"><div class="progress-fill" style="width:{{ s.progress_pct }}%;"></div></div>
+              <span class="mono" style="font-size:12px; font-weight:650; color:var(--ink-2);">{{ s.progress_pct }}%</span>
+            </div>
+            {% else %}
+            <span class="muted" style="font-size:12.5px;">No subtasks</span>
+            {% endif %}
+          </td>
           <td class="muted">{{ s.created_at.strftime("%d %b %Y") }}</td>
         </tr>
-        {% else %}
-        <tr><td colspan="3" class="empty">No stories yet. Create one to get started.</td></tr>
         {% endfor %}
+        {% if stories %}
+        <tr data-filter-empty hidden><td colspan="5" class="empty">No stories match your search.</td></tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No stories yet. Create one to get started.</td></tr>
+        {% endif %}
       </tbody>
     </table>
     </div>

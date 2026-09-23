@@ -44,6 +44,8 @@
   --idle-bg:   #eeece5;
   --progress:    #1d63c9;
   --progress-bg: #dce8fb;
+  --yellow:      #8a7209;
+  --yellow-bg:   #fdf6cf;
 
   /* Shape */
   --r-card: 16px;
@@ -84,6 +86,8 @@
   --idle-bg:   #232226;
   --progress:    #7db4f5;
   --progress-bg: #123258;
+  --yellow:      #f0d64d;
+  --yellow-bg:   #3a330c;
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-pop:  0 16px 40px rgba(0, 0, 0, 0.6);
@@ -180,9 +184,10 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; margin: 0; }
   font-size: 14px;
   font-weight: 500;
   color: var(--sidebar-ink-2);
-  transition: background 120ms ease, color 120ms ease;
+  transform-origin: left center;
+  transition: background 120ms ease, color 120ms ease, transform 160ms ease;
 }
-.nav-link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); }
+.nav-link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); transform: translateX(4px) scale(1.035); }
 .nav-link.active {
   background: var(--lime);
   color: var(--ink-inverse);
@@ -241,6 +246,28 @@ body.is-collapsed .nav-link span,
 body.is-collapsed .sidebar-toggle span { display: none; }
 body.is-collapsed .nav-link { justify-content: center; padding: 10px 0; }
 body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
+
+/* Collapsed rail: hovering an icon shows its page name in a flyout
+   tooltip (JS-positioned, see [data-nav-tooltip] in app.js) rather than
+   just vanishing. It's `position: fixed` rather than an absolutely
+   positioned child of .nav-link — .sidebar's own `overflow-y: auto` would
+   otherwise clip anything that visually escapes its box on the x-axis
+   too (per the CSS overflow spec, a non-visible overflow-y forces
+   overflow-x to also become a clipping context). */
+[data-nav-tooltip] {
+  position: fixed;
+  background: var(--ink-inverse);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+  z-index: 200;
+}
+[data-nav-tooltip][hidden] { display: none; }
 
 /* ── Page header ─────────────────────────────────────────────────────────── */
 
@@ -343,6 +370,40 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 }
 .stat-grid .card { margin-bottom: 0; }
 
+/* Icon + accent-border stat cards — the card itself stays the plain dark
+   surface; color shows up only as a left stripe and a small icon tile, one
+   pair of classes per metric so the color carries the same meaning it
+   already has everywhere else (badges, priority chips, ...). */
+.stat-grid .card { position: relative; border-left-width: 3px; border-left-style: solid; }
+.stat-card-icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.stat-card-icon svg { display: block; }
+
+.stat-accent-lime     { border-left-color: var(--lime-deep); }
+.stat-accent-pass     { border-left-color: var(--pass); }
+.stat-accent-fail     { border-left-color: var(--fail); }
+.stat-accent-warn     { border-left-color: var(--warn); }
+.stat-accent-progress { border-left-color: var(--progress); }
+.stat-accent-indigo   { border-left-color: var(--indigo); }
+
+.stat-card-icon.lime     { background: var(--lime-soft);   color: var(--ink-inverse); }
+.stat-card-icon.pass     { background: var(--pass-bg);     color: var(--pass); }
+.stat-card-icon.fail     { background: var(--fail-bg);     color: var(--fail); }
+.stat-card-icon.warn     { background: var(--warn-bg);     color: var(--warn); }
+.stat-card-icon.progress { background: var(--progress-bg); color: var(--progress); }
+.stat-card-icon.indigo   { background: var(--indigo-soft); color: var(--indigo-ink); }
+.stat-grid .stat-label { padding-right: 40px; }
+
 .stat-label {
   font-size: 13px;
   font-weight: 600;
@@ -382,6 +443,19 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
   background: rgba(255, 255, 255, 0.26);
 }
 .meter i.on { background: var(--lime); }
+
+/* A single-bar progress meter for a table row (per-story completion on the
+   dashboard) — themed with the page's own tokens rather than .meter's
+   fixed white-on-purple tint, which only reads right on .card.accent. */
+.progress-track {
+  width: 72px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.progress-fill { height: 100%; background: var(--lime-deep); border-radius: 999px; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
@@ -519,8 +593,9 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 /* status variants — class is built from the enum value, lowercased */
 .badge--pass, .badge--resolved, .badge--closed, .badge--done { background: var(--pass-bg); color: var(--pass); }
 .badge--fail, .badge--critical            { background: var(--fail-bg); color: var(--fail); }
-.badge--blocked, .badge--postponed,
+.badge--blocked,
 .badge--high, .badge--medium              { background: var(--warn-bg); color: var(--warn); }
+.badge--postponed                         { background: var(--yellow-bg); color: var(--yellow); }
 .badge--in_progress                       { background: var(--progress-bg); color: var(--progress); }
 .badge--to_do, .badge--cancelled,
 .badge--open, .badge--low                 { background: var(--idle-bg); color: var(--idle); }
