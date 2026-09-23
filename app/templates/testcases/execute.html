@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces, icon_image, icon_copy, icon_wand, icon_eye with context %}
+{% from "testcases/_step_data_macros.html" import data_item_block %}
 {% block title %}{{ testcase.display_code }} - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -257,58 +258,6 @@
     <button type="button" class="btn secondary sm" data-collapse-all>Collapse All</button>
   </div>
 
-{# Test Data: any number of titled, syntax-highlighted items per step (curl,
-   SQL, etc.) — unlike step_text/expected_result, which are always exactly
-   one value per step. Reuses the API Client builder's request-body editor
-   verbatim: a transparent-text textarea stacked on a read-only hljs overlay
-   underneath it (.ac-code-editor/.ac-code-overlay/.ac-code-textarea — see
-   attachCodeEditor in app/static/js/app.js), so a value is always shown in
-   color while you type, with no separate "click to see it highlighted"
-   step the way a first attempt at this (a toggling plain textarea /
-   read-only <pre> pair) needed. Also reuses several of the Note Section's
-   already-wired-up generic JS handlers verbatim (data-copy, data-note-
-   delete + its sibling data-note-delete-form) — see
-   app/templates/notes/_panel.html for that half of the pattern. #}
-{% macro data_item_block(testcase, step, item, index) %}
-{% set starts_collapsed = item.value | trim | length > 0 %}
-<form class="code-block ac-code-editor step-data-block{{ ' is-collapsed' if starts_collapsed else '' }}" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
-  <input type="hidden" name="language" value="{{ item.language }}" data-note-language>
-  <div class="snippet-actions">
-    <button class="snippet-icon-btn" type="button" data-step-data-toggle title="Collapse/Expand" aria-label="Collapse or expand data item {{ index }}" aria-expanded="{{ 'false' if starts_collapsed else 'true' }}">
-      <svg class="step-data-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <button class="snippet-icon-btn" type="button" data-step-data-format title="Beautify / format">
-      {{ icon_wand(14) }}
-    </button>
-    <button class="snippet-icon-btn" type="button" data-copy title="Copy">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      <span class="sr-only" data-copy-label>Copy</span>
-    </button>
-    <button class="snippet-icon-btn" type="button" data-note-delete title="Remove" aria-label="Remove data item {{ index }}">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-    </button>
-  </div>
-
-  <div class="snippet-header">
-    <div class="snippet-header-row">
-      <span class="data-item-index">[{{ index }}]</span>
-      <span class="badge code" data-step-data-lang-label>{{ item.language }}</span>
-      <input class="step-data-title-input" name="title" value="{{ item.title }}" placeholder="Untitled data item" autocomplete="off">
-      <span class="save-state snippet-save-state" data-save-state></span>
-    </div>
-  </div>
-
-  <div class="snippet-code ac-code-scroll" data-step-data-code-wrap {% if starts_collapsed %}hidden{% endif %}>
-    <div class="snippet-gutter"><span>1</span></div>
-    <div class="ac-code-editor-inner">
-      <pre class="snippet-pre ac-code-overlay" aria-hidden="true"><code class="hljs"></code></pre>
-      <textarea class="ac-code-textarea" name="value" data-note-content data-step-data-textarea spellcheck="false" autocomplete="off">{{ item.value }}</textarea>
-    </div>
-  </div>
-</form>
-<form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/delete" data-note-delete-form hidden></form>
-{% endmacro %}
-
 {% macro step_block(step) %}
 <div class="step is-collapsed" data-step-id="{{ step.id }}">
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit" data-autosave>
@@ -332,12 +281,15 @@
     <div class="form-actions">
       <button class="btn secondary sm" type="submit" data-manual-save>Save Step</button>
     </div>
+    </div>
   </form>
 
   <div class="field" style="margin-top:12px;">
     <label>Test Data</label>
-    {% for item in step.data_items %}{{ data_item_block(testcase, step, item, loop.index) }}{% endfor %}
-    <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data">
+    <div data-step-data-list>
+      {% for item in step.data_items %}{{ data_item_block(testcase, step, item, loop.index) }}{% endfor %}
+    </div>
+    <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data" data-step-data-add-form>
       <button class="btn secondary sm" type="submit">+ Add Data</button>
     </form>
   </div>
@@ -365,7 +317,6 @@
     <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete">
       <button class="btn act remove" type="submit" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash() }}</button>
     </form>
-  </div>
   </div>
 </div>
 {% endmacro %}

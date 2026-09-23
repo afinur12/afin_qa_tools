@@ -129,6 +129,43 @@ def test_add_edit_and_delete_step_data(client):
     assert "Query check client_id" not in page4.text
 
 
+def test_add_step_data_via_fetch_returns_item_fragment_not_a_redirect(client):
+    testcase_id = _create_testcase(client, "EX-412")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s1", "expected_result": "e1", "actual_result": "a1"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
+
+    created = client.post(
+        f"/testcases/{testcase_id}/steps/{step_id}/data",
+        headers={"X-Requested-With": "fetch"},
+        follow_redirects=False,
+    )
+    assert created.status_code == 200
+    assert "step-data-block" in created.text
+    assert "[1]" in created.text
+    assert "/data" not in created.headers.get("location", "")
+
+
+def test_delete_step_data_via_fetch_returns_no_content_not_a_redirect(client):
+    testcase_id = _create_testcase(client, "EX-413")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s1", "expected_result": "e1", "actual_result": "a1"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
+    client.post(f"/testcases/{testcase_id}/steps/{step_id}/data")
+    page2 = client.get(f"/testcases/{testcase_id}/execute")
+    data_id = re.search(rf"/steps/{step_id}/data/(\d+)/edit", page2.text).group(1)
+
+    deleted = client.post(
+        f"/testcases/{testcase_id}/steps/{step_id}/data/{data_id}/delete",
+        headers={"X-Requested-With": "fetch"},
+        follow_redirects=False,
+    )
+    assert deleted.status_code == 204
+    assert deleted.text == ""
+    page3 = client.get(f"/testcases/{testcase_id}/execute")
+    assert f"/data/{data_id}/edit" not in page3.text
+
+
 def test_step_data_shows_sequential_index_across_multiple_items(client):
     testcase_id = _create_testcase(client, "EX-411")
     client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s1", "expected_result": "e1", "actual_result": "a1"})

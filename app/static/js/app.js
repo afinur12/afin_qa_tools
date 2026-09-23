@@ -234,14 +234,22 @@ const SAVE_LABELS = {
   error: "Not saved — retry",
 };
 
-// The indicator lives beside the form (a step block's header, or the card
-// head for Section 1), so resolve it from the nearest enclosing block rather
-// than from inside the form. Scoping to .step first keeps sibling steps in
-// the same section card from sharing one indicator.
+// The indicator lives beside the form (a step block's header, a Test Data
+// item's own header, or the card head for Section 1), so resolve it from
+// the nearest enclosing block rather than from inside the form.
+// .code-block first, not .step: Test Data's own items are .code-block
+// forms nested *inside* a .step (added after the .step-first ordering
+// below was written for step_text/expected_result, which has no
+// .code-block ancestor at all), so checking .step first was finding and
+// updating the whole step's indicator instead of the item's own — every
+// Test Data autosave looked like it landed on the step header, and the
+// item's own "Saved" label never changed. .code-block still correctly
+// falls through to .step for a step's own fields (no .code-block ancestor
+// there), and to .card for a note (no .step ancestor there either) — same
+// as before, just reordered so the more specific match wins when both
+// apply.
 function indicatorFor(form) {
-  // .code-block before .card: a note's own block, not the shared Note
-  // Section card holding every other note too (same reasoning as .step).
-  const scope = form.closest(".step") || form.closest(".code-block") || form.closest(".card") || form;
+  const scope = form.closest(".code-block") || form.closest(".step") || form.closest(".card") || form;
   return scope.querySelector("[data-save-state]");
 }
 
@@ -277,7 +285,11 @@ async function submitAutosave(form) {
   }
 }
 
-document.querySelectorAll("form[data-autosave]").forEach((form) => {
+// A named function (not an inline arrow in the forEach below) so a form
+// inserted after page load — Test Data's "+ Add Data", in
+// testcases_step_data.js — can get the identical wiring instead of only
+// ever autosaving after its first full page reload.
+function wireAutosaveForm(form) {
   form.querySelectorAll("[data-manual-save]").forEach((button) => {
     button.hidden = true;
   });
@@ -302,7 +314,9 @@ document.querySelectorAll("form[data-autosave]").forEach((form) => {
       submitAutosave(form);
     }
   });
-});
+}
+
+document.querySelectorAll("form[data-autosave]").forEach(wireAutosaveForm);
 
 // ── Keep the scroll position across full-page form posts ────────────────────
 // Adding a step or a section posts and redirects, which used to drop the

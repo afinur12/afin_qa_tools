@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -307,8 +307,22 @@ def create_step_data(request: Request, testcase_id: int, step_id: int, db: Sessi
     if step is None or step.testcase_id != testcase_id:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     next_order = max((item.order_no for item in step.data_items), default=0) + 1
-    db.add(TestCaseStepData(step_id=step.id, order_no=next_order, title="", value="", language="TEXT"))
+    new_item = TestCaseStepData(step_id=step.id, order_no=next_order, title="", value="", language="TEXT")
+    db.add(new_item)
     db.commit()
+    # The page's own JS (testcases_step_data.js) inserts this straight into
+    # the DOM instead of following the redirect below, so "+ Add Data"
+    # doesn't collapse the step or lose scroll position the way a full page
+    # reload would. A plain form submit (no-JS, or JS that failed to load)
+    # still gets the redirect — same fallback pattern already used for the
+    # paste-screenshot upload in app/routers/screenshots.py.
+    if request.headers.get("X-Requested-With") == "fetch":
+        db.refresh(step)
+        return templates.TemplateResponse(
+            request,
+            "testcases/_step_data_item.html",
+            {"testcase": db.get(TestCase, testcase_id), "step": step, "item": new_item, "index": len(step.data_items)},
+        )
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
 
 
@@ -340,6 +354,10 @@ def delete_step_data(request: Request, testcase_id: int, step_id: int, data_id: 
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     db.delete(data_item)
     db.commit()
+    # Same AJAX/full-page-fallback split as create_step_data above — the
+    # page's own JS removes the item's DOM node itself, no body needed.
+    if request.headers.get("X-Requested-With") == "fetch":
+        return Response(status_code=204)
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
 
 

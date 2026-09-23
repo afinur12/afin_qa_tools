@@ -159,7 +159,11 @@ function stepDataFormatFailureMessage(language) {
   return label ? `Not valid ${label} — can't beautify` : `No formatter for ${language} yet — can't beautify`;
 }
 
-document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
+// Named (not an inline arrow in the forEach below) so a textarea inserted
+// after page load — a freshly added item, see the "+ Add Data" handling
+// further down — can get the identical wiring instead of only ever working
+// after the next full page reload.
+function wireStepDataItem(textarea) {
   // Named codeWrapEl, not "wrap", to keep it distinct from attachCodeEditor's
   // unrelated `wrap` option (CSS word-wrap) passed in below.
   const codeWrapEl = textarea.closest("[data-step-data-code-wrap]");
@@ -215,4 +219,82 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
       textarea.focus();
     });
   }
+}
+
+document.querySelectorAll("[data-step-data-textarea]").forEach(wireStepDataItem);
+
+// Renumbers the [n] badges (and their aria-labels) after an insert or
+// removal — order_no isn't resequenced server-side when an item in the
+// middle is deleted, so the display position (this function's whole
+// purpose) and order_no can legitimately diverge; a full page reload
+// already re-derives this fresh from loop.index, this just does the same
+// thing in place.
+function renumberStepDataList(list) {
+  list.querySelectorAll(".step-data-block").forEach((block, i) => {
+    const index = i + 1;
+    const indexBadge = block.querySelector(".data-item-index");
+    if (indexBadge) indexBadge.textContent = `[${index}]`;
+    const toggleBtn = block.querySelector("[data-step-data-toggle]");
+    if (toggleBtn) toggleBtn.setAttribute("aria-label", `Collapse or expand data item ${index}`);
+    const deleteBtn = block.querySelector("[data-note-delete]");
+    if (deleteBtn) deleteBtn.setAttribute("aria-label", `Remove data item ${index}`);
+  });
+}
+
+// ── Add / Remove without a full page reload ───────────────────────────────
+// A plain form POST+redirect (the no-JS fallback, still what create_step_
+// data/delete_step_data do for a request without this header) reloads the
+// whole page — collapsing every step back to its default state and losing
+// scroll position, just to add or remove one Test Data item. Posting via
+// fetch instead keeps the page exactly as it was.
+document.querySelectorAll("[data-step-data-add-form]").forEach((form) => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const list = form.previousElementSibling;
+    if (!list || !list.matches("[data-step-data-list]")) {
+      form.submit(); // markup changed under us somehow — fall back rather than silently do nothing
+      return;
+    }
+    let html;
+    try {
+      const response = await fetch(form.action, { method: "POST", headers: { "X-Requested-With": "fetch" } });
+      if (!response.ok) throw new Error(`create_step_data returned ${response.status}`);
+      html = await response.text();
+    } catch {
+      form.submit(); // network/server hiccup — the normal full-page path still works
+      return;
+    }
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = html;
+    const nodes = Array.from(wrapper.children);
+    nodes.forEach((node) => list.appendChild(node));
+    const newBlock = nodes.find((node) => node.classList.contains("step-data-block"));
+    const newTextarea = newBlock?.querySelector("[data-step-data-textarea]");
+    if (newTextarea) {
+      wireStepDataItem(newTextarea);
+      wireAutosaveForm(newBlock);
+      newTextarea.focus();
+    }
+  });
+});
+
+// Delegated (not one listener per delete form): "+ Add Data" can create
+// new ones after page load, and a plain per-element listener wired up only
+// at load time would silently miss every one of those.
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  if (!form.matches("[data-step-data-delete-form]")) return;
+  event.preventDefault();
+  const block = form.previousElementSibling; // the .step-data-block this delete form belongs to (see the macro: they're always adjacent siblings)
+  const list = form.closest("[data-step-data-list]");
+  try {
+    const response = await fetch(form.action, { method: "POST", headers: { "X-Requested-With": "fetch" } });
+    if (!response.ok) throw new Error(`delete_step_data returned ${response.status}`);
+  } catch {
+    form.submit(); // network/server hiccup — fall back to the normal full-page path
+    return;
+  }
+  block?.remove();
+  form.remove();
+  if (list) renumberStepDataList(list);
 });
