@@ -257,6 +257,46 @@
     <button type="button" class="btn secondary sm" data-collapse-all>Collapse All</button>
   </div>
 
+{# Test Data: any number of titled, syntax-highlighted items per step (curl,
+   SQL, etc.) — unlike step_text/expected_result, which are always exactly
+   one value per step. Reuses the Note Section's own .code-block/.snippet-*
+   markup and its already-wired-up generic JS handlers verbatim (data-copy,
+   data-note-delete + its sibling data-note-delete-form, data-note-content's
+   gutter-sync, data-note-language's submit-time detectSnippetLanguage()) —
+   see app/templates/notes/_panel.html for the pattern this mirrors and
+   app/static/js/app.js for why none of that needs a single new JS line. #}
+{% macro data_item_block(testcase, step, item, index) %}
+<form class="code-block" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
+  <input type="hidden" name="language" value="{{ item.language }}" data-note-language>
+  <div class="snippet-actions">
+    <button class="snippet-icon-btn" type="button" data-copy title="Copy">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span class="sr-only" data-copy-label>Copy</span>
+    </button>
+    <button class="snippet-icon-btn" type="button" data-note-delete title="Remove" aria-label="Remove data item {{ index }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="snippet-header">
+    <div class="snippet-header-row">
+      <span class="data-item-index">[{{ index }}]</span>
+      <div class="snippet-title">{{ item.language }}</div>
+      <span class="save-state snippet-save-state" data-save-state></span>
+    </div>
+    <input class="snippet-remark-input" name="title" value="{{ item.title }}" placeholder="Title for this data item&hellip;" autocomplete="off">
+  </div>
+
+  <div class="snippet-code" data-note-raw-view>
+    <div class="snippet-gutter">
+      {% for _ in item.value.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}
+    </div>
+    <textarea class="snippet-pre snippet-textarea is-wrapped" name="value" data-note-content spellcheck="false" autocomplete="off">{{ item.value }}</textarea>
+  </div>
+</form>
+<form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/delete" data-note-delete-form hidden></form>
+{% endmacro %}
+
 {% macro step_block(step) %}
 <div class="step is-collapsed" data-step-id="{{ step.id }}">
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit" data-autosave>
@@ -281,6 +321,14 @@
       <button class="btn secondary sm" type="submit" data-manual-save>Save Step</button>
     </div>
   </form>
+
+  <div class="field" style="margin-top:12px;">
+    <label>Test Data</label>
+    {% for item in step.data_items %}{{ data_item_block(testcase, step, item, loop.index) }}{% endfor %}
+    <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data">
+      <button class="btn secondary sm" type="submit">+ Add Data</button>
+    </form>
+  </div>
 
   <div class="dropzone" style="margin-top:12px;" tabindex="0" data-step-id="{{ step.id }}">
     {% if step.screenshots %}

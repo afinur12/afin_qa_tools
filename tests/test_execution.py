@@ -101,6 +101,60 @@ def test_edit_and_delete_step(client):
     assert "changed" not in page3.text
 
 
+def test_add_edit_and_delete_step_data(client):
+    testcase_id = _create_testcase(client, "EX-410")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s1", "expected_result": "e1", "actual_result": "a1"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
+
+    created = client.post(f"/testcases/{testcase_id}/steps/{step_id}/data", follow_redirects=False)
+    assert created.status_code == 303
+    page2 = client.get(f"/testcases/{testcase_id}/execute")
+    data_id = re.search(rf"/steps/{step_id}/data/(\d+)/edit", page2.text).group(1)
+
+    edited = client.post(
+        f"/testcases/{testcase_id}/steps/{step_id}/data/{data_id}/edit",
+        data={"title": "Query check client_id", "value": 'SELECT * FROM "consent_requirement"', "language": "SQL"},
+        follow_redirects=False,
+    )
+    assert edited.status_code == 303
+    page3 = client.get(f"/testcases/{testcase_id}/execute")
+    assert "Query check client_id" in page3.text
+    assert "consent_requirement" in page3.text
+    assert 'value="SQL"' in page3.text
+
+    deleted = client.post(f"/testcases/{testcase_id}/steps/{step_id}/data/{data_id}/delete", follow_redirects=False)
+    assert deleted.status_code == 303
+    page4 = client.get(f"/testcases/{testcase_id}/execute")
+    assert "Query check client_id" not in page4.text
+
+
+def test_step_data_shows_sequential_index_across_multiple_items(client):
+    testcase_id = _create_testcase(client, "EX-411")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s1", "expected_result": "e1", "actual_result": "a1"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = re.search(r"/steps/(\d+)/edit", page.text).group(1)
+
+    client.post(f"/testcases/{testcase_id}/steps/{step_id}/data")
+    client.post(f"/testcases/{testcase_id}/steps/{step_id}/data")
+    page2 = client.get(f"/testcases/{testcase_id}/execute")
+    assert "[1]" in page2.text and "[2]" in page2.text
+
+
+def test_delete_step_cascades_to_its_data_items(client, db_session):
+    from app.models import TestCaseStepData
+
+    testcase_id = _create_testcase(client, "EX-412")
+    client.post(f"/testcases/{testcase_id}/steps", data={"section": "MAIN", "step_text": "s1", "expected_result": "e1", "actual_result": "a1"})
+    page = client.get(f"/testcases/{testcase_id}/execute")
+    step_id = int(re.search(r"/steps/(\d+)/edit", page.text).group(1))
+    client.post(f"/testcases/{testcase_id}/steps/{step_id}/data")
+
+    assert db_session.query(TestCaseStepData).filter_by(step_id=step_id).count() == 1
+    client.post(f"/testcases/{testcase_id}/steps/{step_id}/delete")
+    assert db_session.query(TestCaseStepData).filter_by(step_id=step_id).count() == 0
+
+
 def test_update_section1_sets_assignee_tester_developer_and_labels(client):
     import re
 

@@ -26,6 +26,8 @@ def _remove_screenshot(db: Session, screenshot) -> None:
 def delete_step(db: Session, step) -> None:
     for screenshot in list(step.screenshots):
         _remove_screenshot(db, screenshot)
+    for data_item in list(step.data_items):
+        db.delete(data_item)
     db.delete(step)
 
 

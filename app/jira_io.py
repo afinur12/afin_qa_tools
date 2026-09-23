@@ -26,7 +26,7 @@ from app.labels import get_labels, set_labels
 from app.master_data import get_or_create
 from app.models import (
     DEFAULT_SECTION_KINDS, Label, LabelAttachType, StepSection, Subtask, TestCase,
-    TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, TestType, User, UserType,
+    TestCaseSection, TestCaseStatus, TestCaseStep, TestCaseStepData, TestPriority, TestType, User, UserType,
     generate_internal_key,
 )
 
@@ -68,7 +68,21 @@ def _is_placeholder(value) -> bool:
 
 
 def _numbered_block(lines: list[str]) -> str:
-    return "\r\n".join(f"{i}. {text}" for i, text in enumerate(lines, start=1))
+    return "\r\n".join(f"- [{i}] {text}" for i, text in enumerate(lines, start=1))
+
+
+def _bundle_step_data(steps: list["TestCaseStep"]) -> str:
+    """All of a section's steps' Test Data items, flattened into one
+    continuously-numbered block — "- [1] *title*\\r\\n----\\r\\n{code}value
+    {code}", items separated by a blank line. Numbered across every step in
+    the section (not restarted per step) since Jira/Zephyr's own data model
+    has no concept of "which step" a data item belongs to — the same
+    simplification _numbered_block already applies to step/expected_result,
+    just more visible here since a step can hold any number of data items
+    (0, 1, or many) rather than exactly one value."""
+    items = [item for step in steps for item in step.data_items]
+    parts = [f"- [{i}] *{item.title}*\r\n----\r\n{{code}}{item.value}{{code}}" for i, item in enumerate(items, start=1)]
+    return "\r\n\r\n".join(parts)
 
 
 def _bundled_header(label: str) -> str:
@@ -116,17 +130,20 @@ def _person(user: "User | None", field: str) -> dict:
 def _zephyr_entry(section: "TestCaseSection") -> dict:
     label = _SECTION_LABEL[section.kind]
     steps = section.steps
+    key = section.kind.value.lower()
     if steps:
         step_text = _bundled_header(label) + _numbered_block([s.step_text for s in steps])
         expected_text = _numbered_block([s.expected_result for s in steps])
+        data_text = _bundle_step_data(steps) or _placeholder(f"{key}_data")
     else:
-        key = section.kind.value.lower()
         step_text = _placeholder(f"{key}_step")
         expected_text = _placeholder(f"{key}_expected")
+        data_text = _placeholder(f"{key}_data")
     return {
         "order_id": _SECTION_ORDER_ID[section.kind],
         "step_type": label,
         "step": step_text,
+        "data": data_text,
         "expected_result": expected_text,
     }
 
@@ -196,11 +213,32 @@ def subtask_to_jira_json(subtask: "Subtask", db: Session) -> dict:
 
 
 def _split_numbered_block(text: str) -> list[str]:
-    """Reverse of _numbered_block: "1. a\\r\\n2. b" -> ["a", "b"]."""
+    """Reverse of _numbered_block: "- [1] a\\r\\n- [2] b" -> ["a", "b"].
+    Also accepts the older "1. a\\r\\n2. b" prefix this app used to export
+    before the "- [n]" format, so a file exported before that change still
+    imports correctly (same backward-compat approach _strip_bundled_header
+    already takes for the header line)."""
     if not text:
         return []
     lines = [line for line in text.split("\r\n") if line.strip()]
-    return [re.sub(r"^\d+\.\s*", "", line) for line in lines]
+    return [re.sub(r"^(?:-\s*\[\d+\]|\d+\.)\s*", "", line) for line in lines]
+
+
+_DATA_ITEM_RE = re.compile(
+    r"-\s*\[\d+\]\s*\*(?P<title>.*?)\*\s*\r?\n-{2,}\r?\n\{code(?::[^}]*)?\}(?P<value>.*?)\{code\}",
+    re.DOTALL,
+)
+
+
+def _parse_data_items(data_text: str) -> list[tuple[str, str]]:
+    """Reverse of _bundle_step_data: "- [n] *title*\\r\\n----\\r\\n{code}
+    value{code}" -> [(title, value), ...]. Tolerant of hand-edited Jira
+    text: accepts \\n as well as \\r\\n line endings, and a language-suffixed
+    `{code:xml}`-style macro (Jira supports both {code} and {code:lang})
+    even though this app only ever emits the bare form."""
+    if not data_text or _is_placeholder(data_text):
+        return []
+    return [(m.group("title").strip(), m.group("value")) for m in _DATA_ITEM_RE.finditer(data_text)]
 
 
 def _resolve(entry: dict, key: str, current):
@@ -256,6 +294,36 @@ def _is_bundled_entry(entry: dict, label: str) -> bool:
     return False
 
 
+def _apply_step_data(db: Session, entry: dict, old_data: list[tuple[str, str, str]], new_steps: list["TestCaseStep"]) -> None:
+    """Attach Test Data items to the FIRST of a section's just-recreated
+    steps. `old_data` is every data item that lived on the section's OLD
+    steps (title, value, language), captured by the caller BEFORE deleting
+    those steps — deletion.delete_step cascades to data_items, so reading
+    it after would find nothing.
+
+    Same placeholder rule as step_text/expected_result: a missing or
+    placeholder "data" field means "nothing real supplied", so the OLD data
+    items are carried forward rather than wiped — there is no per-position
+    fallback the way step_text/expected_result have (data has no 1:1
+    correspondence to a step), so the whole old set is preserved wholesale,
+    reattached to the new first step. `language` is re-detected client-side
+    the next time an item is actually edited in the UI; there is no
+    server-side port of detectSnippetLanguage, so a freshly-imported item
+    (never re-typed since) keeps whatever language it already had (old
+    items) or defaults to "TEXT" (newly parsed items — see _parse_data_items
+    callers below)."""
+    if not new_steps:
+        return
+    first_step = new_steps[0]
+    if "data" not in entry or _is_placeholder(entry.get("data", "")):
+        for i, (title, value, language) in enumerate(old_data, start=1):
+            db.add(TestCaseStepData(step_id=first_step.id, order_no=i, title=title, value=value, language=language))
+        return
+    items = _parse_data_items(entry.get("data", ""))
+    for i, (title, value) in enumerate(items, start=1):
+        db.add(TestCaseStepData(step_id=first_step.id, order_no=i, title=title, value=value, language="TEXT"))
+
+
 def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict, label: str) -> None:
     """Replace a section's steps from one Jira zephyr_steps entry.
 
@@ -300,16 +368,21 @@ def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict, la
         actual_value = old.actual_result if old else ""
         new_rows.append((step_value, expected_value, actual_value))
 
+    old_data = [(item.title, item.value, item.language) for step in old_steps for item in step.data_items]
+
     for step in old_steps:
         deletion.delete_step(db, step)
     db.flush()
+    new_steps = []
     for i, (step_value, expected_value, actual_value) in enumerate(new_rows):
-        db.add(
-            TestCaseStep(
-                section_id=section.id, step_no=i + 1,
-                step_text=step_value, expected_result=expected_value, actual_result=actual_value,
-            )
+        new_step = TestCaseStep(
+            section_id=section.id, step_no=i + 1,
+            step_text=step_value, expected_result=expected_value, actual_result=actual_value,
         )
+        db.add(new_step)
+        new_steps.append(new_step)
+    db.flush()
+    _apply_step_data(db, entry, old_data, new_steps)
 
 
 def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", entries: list[dict]) -> None:
@@ -329,6 +402,7 @@ def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", en
         return  # nothing real in any of this section's entries — leave existing steps alone
 
     new_rows = []
+    old_data_by_position = []
     for i, entry in enumerate(entries):
         old = old_steps[i] if i < len(old_steps) else None
         step_text = entry.get("step", "")
@@ -337,17 +411,27 @@ def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", en
         expected_value = (old.expected_result if old else "") if _is_placeholder(expected_text) else expected_text
         actual_value = old.actual_result if old else ""
         new_rows.append((step_value, expected_value, actual_value))
+        old_data_by_position.append([(item.title, item.value, item.language) for item in old.data_items] if old else [])
 
     for step in old_steps:
         deletion.delete_step(db, step)
     db.flush()
+    new_steps = []
     for i, (step_value, expected_value, actual_value) in enumerate(new_rows):
-        db.add(
-            TestCaseStep(
-                section_id=section.id, step_no=i + 1,
-                step_text=step_value, expected_result=expected_value, actual_result=actual_value,
-            )
+        new_step = TestCaseStep(
+            section_id=section.id, step_no=i + 1,
+            step_text=step_value, expected_result=expected_value, actual_result=actual_value,
         )
+        db.add(new_step)
+        new_steps.append(new_step)
+    db.flush()
+    # Unlike _apply_zephyr_entry's single bundled entry (where "data" has no
+    # per-step attribution at all — see _apply_step_data), each entry here
+    # corresponds to exactly one step, so a "data" field on an individual
+    # entry attaches to THAT entry's own new step, not just the section's
+    # first one — proper positional attribution is possible in this shape.
+    for i, entry in enumerate(entries):
+        _apply_step_data(db, entry, old_data_by_position[i], [new_steps[i]])
 
 
 def _apply_labels(db: Session, attach_type: "LabelAttachType", attach_id: int, names: list[str]) -> None:

@@ -277,10 +277,32 @@ class TestCaseStep(Base):
     screenshots: Mapped[list["Screenshot"]] = relationship(
         "Screenshot", back_populates="step", order_by="Screenshot.id"
     )
+    data_items: Mapped[list["TestCaseStepData"]] = relationship(
+        "TestCaseStepData", back_populates="step", order_by="TestCaseStepData.order_no"
+    )
 
     @property
     def testcase_id(self) -> int:
         return self.section.testcase_id
+
+
+class TestCaseStepData(Base):
+    """One titled, syntax-highlighted data item (a curl command, a SQL
+    query, etc.) attached to a step. A step can hold any number of these —
+    unlike step_text/expected_result, which are always exactly one value
+    per step. `language` is detected client-side (same detectSnippetLanguage
+    heuristic Notes already uses) and stored, not picked from a dropdown."""
+
+    __tablename__ = "testcase_step_data"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    step_id: Mapped[int] = mapped_column(ForeignKey("testcase_steps.id"), nullable=False)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    value: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    language: Mapped[str] = mapped_column(String(16), nullable=False, default="TEXT")
+
+    step: Mapped["TestCaseStep"] = relationship("TestCaseStep", back_populates="data_items")
 
 
 class Screenshot(Base):

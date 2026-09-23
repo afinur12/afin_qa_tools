@@ -6,7 +6,7 @@ from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import SECTION_LABELS, DEFAULT_SECTION_KINDS, LabelAttachType, PrebuiltTestCase, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestPriority, TestType
+from app.models import SECTION_LABELS, DEFAULT_SECTION_KINDS, LabelAttachType, PrebuiltTestCase, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestCaseStepData, TestPriority, TestType
 from app.labels import get_labels, set_labels
 from app.routers.stories import _parse_id, _user_dropdowns
 
@@ -297,6 +297,48 @@ def delete_step(request: Request, testcase_id: int, step_id: int, db: Session = 
     if step is None or step.testcase_id != testcase_id:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     deletion.delete_step(db, step)
+    db.commit()
+    return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
+
+
+@router.post("/testcases/{testcase_id}/steps/{step_id}/data")
+def create_step_data(request: Request, testcase_id: int, step_id: int, db: Session = Depends(get_db)):
+    step = db.get(TestCaseStep, step_id)
+    if step is None or step.testcase_id != testcase_id:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    next_order = max((item.order_no for item in step.data_items), default=0) + 1
+    db.add(TestCaseStepData(step_id=step.id, order_no=next_order, title="", value="", language="TEXT"))
+    db.commit()
+    return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
+
+
+@router.post("/testcases/{testcase_id}/steps/{step_id}/data/{data_id}/edit")
+def edit_step_data(
+    request: Request,
+    testcase_id: int,
+    step_id: int,
+    data_id: int,
+    title: str = Form(""),
+    value: str = Form(""),
+    language: str = Form("TEXT"),
+    db: Session = Depends(get_db),
+):
+    data_item = db.get(TestCaseStepData, data_id)
+    if data_item is None or data_item.step_id != step_id or data_item.step.testcase_id != testcase_id:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    data_item.title = title
+    data_item.value = value
+    data_item.language = language.strip() or "TEXT"
+    db.commit()
+    return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
+
+
+@router.post("/testcases/{testcase_id}/steps/{step_id}/data/{data_id}/delete")
+def delete_step_data(request: Request, testcase_id: int, step_id: int, data_id: int, db: Session = Depends(get_db)):
+    data_item = db.get(TestCaseStepData, data_id)
+    if data_item is None or data_item.step_id != step_id or data_item.step.testcase_id != testcase_id:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    db.delete(data_item)
     db.commit()
     return RedirectResponse(url=f"/testcases/{testcase_id}/execute", status_code=303)
 
