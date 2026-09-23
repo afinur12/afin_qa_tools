@@ -1,3 +1,21 @@
+// ── Toast (brief, auto-dismissing status message) ─────────────────────────
+// Originally lived only in api_client.js, for actions on that page with no
+// full-page redirect to carry the usual flash-cookie message — moved here
+// once Test Data's beautify button (testcases_step_data.js) needed the
+// same thing on a page that mostly does use redirects+flash elsewhere.
+function toast(message, kind) {
+  const el = document.createElement("div");
+  el.className = `toast toast--${kind || "success"}`;
+  el.setAttribute("role", "status");
+  el.textContent = message;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("is-visible"));
+  setTimeout(() => {
+    el.classList.remove("is-visible");
+    setTimeout(() => el.remove(), 250);
+  }, 3200);
+}
+
 // ── Styled confirm dialog (replaces window.confirm on [data-confirm] forms) ─
 let pendingConfirmForm = null;
 

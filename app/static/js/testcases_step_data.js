@@ -129,6 +129,36 @@ function flashFormatError(el) {
   setTimeout(() => el.classList.remove("is-error"), 700);
 }
 
+// detectSnippetLanguage only calls something JSON if it actually parses —
+// exactly the case that isn't true for what the format button most needs
+// to recognize: invalid or still-being-typed JSON (a trailing comma, a
+// missing closing brace). Shape alone (a leading {, [, or <) is a much
+// better signal of what the user was going for than strict validity, so
+// the format button guesses from shape first and only falls back to the
+// stricter general-purpose detector for anything that doesn't match one.
+function guessFormatLanguage(text) {
+  const trimmed = text.trim();
+  if (/^curl\b/i.test(trimmed)) return "CURL";
+  if (/^[{[]/.test(trimmed)) return "JSON";
+  if (/^</.test(trimmed)) return "XML";
+  if (/^(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|CREATE\s+(TABLE|INDEX|VIEW)|ALTER\s+TABLE|DROP\s+TABLE|WITH)\b/i.test(trimmed)) {
+    return "SQL";
+  }
+  return detectSnippetLanguage(text) || "TEXT";
+}
+
+// Matches the API Client request body's own beautify button (its
+// data-ac-body-beautify handler in api_client.js): silently do nothing on
+// empty content, and on failure show a toast naming what's wrong rather
+// than just an icon flash — useful there because there's only one body
+// field on the page, but Test Data can have many items in one step, so the
+// icon flash is kept too, to point at which one.
+const STEP_DATA_FORMAT_LANGUAGES = { JSON: "JSON", SQL: "SQL", CURL: "a curl command", XML: "XML" };
+function stepDataFormatFailureMessage(language) {
+  const label = STEP_DATA_FORMAT_LANGUAGES[language];
+  return label ? `Not valid ${label} — can't beautify` : `No formatter for ${language} yet — can't beautify`;
+}
+
 document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   // Named codeWrapEl, not "wrap", to keep it distinct from attachCodeEditor's
   // unrelated `wrap` option (CSS word-wrap) passed in below.
@@ -167,9 +197,12 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
 
   if (formatBtn) {
     formatBtn.addEventListener("click", () => {
-      const formatted = formatStepDataValue(textarea.value, currentLanguage());
+      if (!textarea.value.trim()) return; // nothing to format yet
+      const language = guessFormatLanguage(textarea.value);
+      const formatted = formatStepDataValue(textarea.value, language);
       if (formatted === null) {
         flashFormatError(formatBtn);
+        toast(stepDataFormatFailureMessage(language), "danger");
         return;
       }
       textarea.value = formatted;

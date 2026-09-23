@@ -93,20 +93,10 @@
   // edit by the autosave/tab-sync listeners below.
   let applyingTab = false;
 
-  // ── Toast (no full-page redirect here, so the flash-cookie mechanism the
-  // rest of the app relies on doesn't apply — a minimal local version). ──
-  function toast(message, kind) {
-    const el = document.createElement("div");
-    el.className = `toast toast--${kind || "success"}`;
-    el.setAttribute("role", "status");
-    el.textContent = message;
-    document.body.appendChild(el);
-    requestAnimationFrame(() => el.classList.add("is-visible"));
-    setTimeout(() => {
-      el.classList.remove("is-visible");
-      setTimeout(() => el.remove(), 250);
-    }, 3200);
-  }
+  // toast() is a shared global from app.js — this page has no full-page
+  // redirect for most actions, so the flash-cookie mechanism the rest of
+  // the app relies on doesn't apply here. Moved out of this file once Test
+  // Data's beautify button (testcases_step_data.js) needed the same thing.
 
   async function copyText(text) {
     try {
