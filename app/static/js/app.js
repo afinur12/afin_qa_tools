@@ -236,6 +236,17 @@ function setSaveState(form, state) {
 
 async function submitAutosave(form) {
   setSaveState(form, "saving");
+  // A [data-note-language] field is normally kept current by other
+  // listeners (the per-keystroke one further down this file, or Test
+  // Data's own blur handler in testcases_step_data.js) — recomputed here
+  // too, synchronously, right before the FormData snapshot is taken, so a
+  // save can never go out carrying a stale language value regardless of
+  // which of those already ran (or didn't, for whatever reason) first.
+  const contentField = form.querySelector("[data-note-content]");
+  const languageField = form.querySelector("[data-note-language]");
+  if (contentField && languageField) {
+    languageField.value = detectSnippetLanguage(contentField.value) || "TEXT";
+  }
   try {
     const response = await fetch(form.action, {
       method: "POST",

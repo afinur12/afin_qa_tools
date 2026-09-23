@@ -859,6 +859,20 @@ tbody tr:hover { background: var(--surface-sunk); }
   overflow: hidden; /* height is kept in sync with content in app.js — no inner scrollbar */
   color: #d5d2e0;
 }
+/* .snippet-textarea's own `display: block` above is an author rule, which
+   always outranks the browser's UA-level `[hidden] { display: none }`
+   default regardless of specificity — the same pitfall already hit and
+   documented for .ac-kv-bulk/.ac-pinned-list/.ac-tabs-scroll-btn elsewhere
+   in this file. Without this, Test Data's edit/highlighted-view toggle
+   (app/static/js/testcases_step_data.js) sets textarea.hidden = true and
+   nothing visually happens. */
+.snippet-textarea[hidden] { display: none; }
+
+/* Test Data's read-only, syntax-highlighted view (app/static/js/
+   testcases_step_data.js) — a plain .snippet-pre otherwise, plus a cursor
+   and hover cue so "click to edit" is discoverable. */
+[data-step-data-highlighted-view] { cursor: text; border-radius: 4px; margin: 0; }
+[data-step-data-highlighted-view]:hover, [data-step-data-highlighted-view]:focus-visible { background: rgba(255, 255, 255, 0.04); outline: none; }
 
 .snippet-markdown-preview {
   padding: 4px 18px 18px;

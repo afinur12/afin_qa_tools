@@ -260,11 +260,18 @@
 {# Test Data: any number of titled, syntax-highlighted items per step (curl,
    SQL, etc.) — unlike step_text/expected_result, which are always exactly
    one value per step. Reuses the Note Section's own .code-block/.snippet-*
-   markup and its already-wired-up generic JS handlers verbatim (data-copy,
-   data-note-delete + its sibling data-note-delete-form, data-note-content's
-   gutter-sync, data-note-language's submit-time detectSnippetLanguage()) —
-   see app/templates/notes/_panel.html for the pattern this mirrors and
-   app/static/js/app.js for why none of that needs a single new JS line. #}
+   markup and several of its already-wired-up generic JS handlers verbatim
+   (data-copy, data-note-delete + its sibling data-note-delete-form,
+   data-note-content's gutter-sync) — see app/templates/notes/_panel.html
+   for the pattern this mirrors.
+
+   One thing Notes does NOT need that this does: a genuinely colored,
+   syntax-highlighted display. highlight.js only meaningfully applies to a
+   read-only <code> element, never to a live <textarea> — so a value shows
+   as a plain textarea while focused (editable), and swaps to a highlighted
+   read-only <pre><code> once you click/tab away, re-detecting the language
+   fresh at that point. See data-step-data-* wiring in
+   app/static/js/testcases_step_data.js. #}
 {% macro data_item_block(testcase, step, item, index) %}
 <form class="code-block" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
   <input type="hidden" name="language" value="{{ item.language }}" data-note-language>
@@ -281,17 +288,18 @@
   <div class="snippet-header">
     <div class="snippet-header-row">
       <span class="data-item-index">[{{ index }}]</span>
-      <div class="snippet-title">{{ item.language }}</div>
+      <div class="snippet-title" data-step-data-lang-label>{{ item.language }}</div>
       <span class="save-state snippet-save-state" data-save-state></span>
     </div>
     <input class="snippet-remark-input" name="title" value="{{ item.title }}" placeholder="Title for this data item&hellip;" autocomplete="off">
   </div>
 
-  <div class="snippet-code" data-note-raw-view>
+  <div class="snippet-code" data-step-data-code-wrap>
     <div class="snippet-gutter">
       {% for _ in item.value.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}
     </div>
-    <textarea class="snippet-pre snippet-textarea is-wrapped" name="value" data-note-content spellcheck="false" autocomplete="off">{{ item.value }}</textarea>
+    <textarea class="snippet-pre snippet-textarea is-wrapped" name="value" data-note-content data-step-data-textarea spellcheck="false" autocomplete="off" {% if item.value %}hidden{% endif %}>{{ item.value }}</textarea>
+    <pre class="snippet-pre is-wrapped" data-step-data-highlighted-view tabindex="0" title="Click to edit" {% if not item.value %}hidden{% endif %}><code data-step-data-highlighted-code data-snippet-code="{{ item.language }}">{{ item.value }}</code></pre>
   </div>
 </form>
 <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/delete" data-note-delete-form hidden></form>
@@ -460,4 +468,5 @@
 
 {% block scripts %}
 <script src="{{ static_url('js/paste_screenshot.js') }}"></script>
+<script src="{{ static_url('js/testcases_step_data.js') }}"></script>
 {% endblock %}
