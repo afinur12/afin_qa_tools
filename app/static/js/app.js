@@ -706,6 +706,112 @@ const HLJS_LANGUAGE_MAP = {
   YAML: "yaml", XML: "xml", BASH: "bash", PYTHON: "python", JAVASCRIPT: "javascript",
 };
 
+// ── Editable dark code-block (gutter + hljs, live-highlighted overlay) ────
+// Shared by the API Client's request body / variable Script fields
+// (api_client.js) and Test Data's value field (testcases_step_data.js): a
+// transparent-text textarea stacked exactly on top of a read-only hljs
+// overlay underneath it, so what you're typing is always shown in color —
+// no separate "click to see it highlighted" step. Originally lived only in
+// api_client.js; moved here once Test Data needed the identical mechanism,
+// rather than keeping two copies of a technique this fiddly (see
+// attachCodeEditor's own comments below for why it can't wrap).
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+// `postProcess`, when given, runs on the highlighted HTML before it's
+// used — e.g. api_client.js's wrapVarTokens, which re-wraps {{var}} tokens
+// on top of hljs's own spans. Callers with nothing to add (Test Data) just
+// omit it.
+function renderCodeHighlight(text, language, postProcess) {
+  let html;
+  if (window.hljs) {
+    try {
+      html = window.hljs.highlight(text, { language, ignoreIllegals: true }).value;
+    } catch {
+      html = escapeHtml(text);
+    }
+  } else {
+    html = escapeHtml(text);
+  }
+  return postProcess ? postProcess(html) : html;
+}
+
+let codeWidthMirror = null;
+function measureNaturalTextWidth(referenceField, text) {
+  if (!codeWidthMirror) {
+    codeWidthMirror = document.createElement("div");
+    codeWidthMirror.style.cssText = "position:absolute; visibility:hidden; left:-99999px; top:0; white-space:pre;";
+    document.body.appendChild(codeWidthMirror);
+  }
+  const cs = getComputedStyle(referenceField);
+  codeWidthMirror.style.fontFamily = cs.fontFamily;
+  codeWidthMirror.style.fontSize = cs.fontSize;
+  codeWidthMirror.style.fontWeight = cs.fontWeight;
+  codeWidthMirror.style.letterSpacing = cs.letterSpacing;
+  codeWidthMirror.textContent = text;
+  return codeWidthMirror.scrollWidth;
+}
+
+// `language` may be a plain string (always the same grammar) or a function
+// re-evaluated on every sync (Test Data and the request body: the language
+// can change as the content itself, or a header, changes). `options`:
+// `postProcess` is handed through to renderCodeHighlight; `onSync(text,
+// language)`, when given, runs at the end of every sync — e.g. Test Data
+// updates its language badge and hidden form field there.
+function attachCodeEditor(textarea, language, options) {
+  if (!textarea || textarea.dataset.acCodeEditor) return;
+  textarea.dataset.acCodeEditor = "1";
+  const container = textarea.closest(".ac-code-editor");
+  const overlay = container?.querySelector(".ac-code-overlay code");
+  const gutter = container?.querySelector(".snippet-gutter");
+  const inner = container?.querySelector(".ac-code-editor-inner");
+  const scroller = container?.querySelector(".snippet-code");
+
+  function sync() {
+    const text = textarea.value;
+    const lang = typeof language === "function" ? language() : language;
+    if (overlay) overlay.innerHTML = renderCodeHighlight(text, lang, options?.postProcess);
+    if (gutter) {
+      const lineCount = text.split("\n").length;
+      let html = "";
+      for (let i = 1; i <= lineCount; i++) html += `<span>${i}</span>`;
+      gutter.innerHTML = html;
+    }
+    // resize:none hands height entirely to this — grow to fit content
+    // exactly (no internal textarea scrollbar), so it's the *outer*
+    // .ac-code-scroll wrapper that scrolls once things get long, with
+    // the gutter and highlight overlay scrolling right along with it.
+    // scrollHeight is meaningless while a display:none ancestor (a still-
+    // closed modal, a collapsed Test Data item, the hidden Value/Script
+    // sub-field) hides this — callers that can toggle that visibility
+    // re-dispatch an "input" event at the moment it actually becomes
+    // visible to force a resync (see the modal-open and kind-toggle
+    // listeners in api_client.js, and the collapse toggle in
+    // testcases_step_data.js).
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+
+    // Horizontal counterpart of the height auto-grow above: with wrap
+    // disabled (see .ac-code-textarea's own comment on why), nothing
+    // else makes this box — or the overlay stacked on top of it, sized
+    // to match via inset: 0 — wide enough for its longest line. A
+    // <textarea>'s own intrinsic width isn't driven by its content the
+    // way a block of text is, so it's measured here instead, the same
+    // "render off-screen and read scrollWidth" trick used for the
+    // {{var}}-drift + wrap-divergence diagnosis that found this bug.
+    if (inner && scroller) {
+      const natural = measureNaturalTextWidth(textarea, text) + 24; // headroom so the last glyph isn't flush against the scroll edge
+      const gutterWidth = gutter ? gutter.getBoundingClientRect().width : 0;
+      const available = scroller.getBoundingClientRect().width - gutterWidth;
+      inner.style.width = `${Math.max(natural, available)}px`;
+    }
+    options?.onSync?.(text, lang);
+  }
+  textarea.addEventListener("input", sync);
+  sync();
+}
+
 // ── Note Section: direct editing ─────────────────────────────────────────
 // An existing note's content is now a plain <textarea> inside .snippet-code
 // (autosaved via the generic form[data-autosave] handling above) instead of

@@ -48,28 +48,6 @@
   // further down, never wiring it up.
   const SENSITIVE_HEADER_PATTERN = /authorization|cookie|api[-_]?key|token|secret|password/i;
 
-  // Same TDZ hazard again: attachCodeEditor (used for both the request
-  // body and every variable's Script field) is itself called unconditionally
-  // a few lines down, for the Built-in/standalone Variables page — which
-  // has no request body, so this is the only attachCodeEditor call that
-  // page ever makes, well before a `let` declared near attachCodeEditor's
-  // own definition further down would have run.
-  let codeWidthMirror = null;
-  function measureNaturalTextWidth(referenceField, text) {
-    if (!codeWidthMirror) {
-      codeWidthMirror = document.createElement("div");
-      codeWidthMirror.style.cssText = "position:absolute; visibility:hidden; left:-99999px; top:0; white-space:pre;";
-      document.body.appendChild(codeWidthMirror);
-    }
-    const cs = getComputedStyle(referenceField);
-    codeWidthMirror.style.fontFamily = cs.fontFamily;
-    codeWidthMirror.style.fontSize = cs.fontSize;
-    codeWidthMirror.style.fontWeight = cs.fontWeight;
-    codeWidthMirror.style.letterSpacing = cs.letterSpacing;
-    codeWidthMirror.textContent = text;
-    return codeWidthMirror.scrollWidth;
-  }
-
   // Registered unconditionally: the Variables modal's Value/Script toggle
   // is also used on the standalone Built-in Variables page, which has none
   // of the builder-only elements the early-return below guards.
@@ -89,11 +67,12 @@
 
   // Also unconditional: every variable's Script field (builder page and
   // Built-in Variables page alike) gets the same editable-code-block
-  // treatment as the request body. attachCodeEditor/renderCodeHighlight
-  // are `function` declarations further down this same IIFE — hoisted,
-  // so calling them here (ahead of their literal source position, and
-  // ahead of the builder-only early-return below) is safe.
-  document.querySelectorAll("[data-ac-script-editor]").forEach((ta) => attachCodeEditor(ta, "python"));
+  // treatment as the request body. attachCodeEditor/renderCodeHighlight are
+  // shared globals from app.js now (loaded before this file), so calling
+  // them here — ahead of the builder-only early-return below, and ahead of
+  // wrapVarTokens's own literal source position further down this same
+  // IIFE (a hoisted `function` declaration, safe to call early) — is safe.
+  document.querySelectorAll("[data-ac-script-editor]").forEach((ta) => attachCodeEditor(ta, "python", { postProcess: wrapVarTokens }));
 
   // A script field wired up while its modal was still hidden has a stale
   // auto-grown height — force a resync the moment its modal opens.
@@ -586,82 +565,14 @@
     }
   }
 
-  // ── Editable dark code-block (gutter + hljs syntax + {{var}}) ────────────
-  // Shared by the request body and every variable's Script field (Python)
-  // — same look, same {{var}} overlay trick, just a different hljs
-  // language. `language` may be a plain string (Script fields: always
-  // Python) or a function re-evaluated on every sync (the request body:
-  // its language can change as Content-Type is edited).
-  function renderCodeHighlight(text, language) {
-    let html;
-    if (window.hljs) {
-      try {
-        html = window.hljs.highlight(text, { language, ignoreIllegals: true }).value;
-      } catch {
-        html = escapeHtml(text);
-      }
-    } else {
-      html = escapeHtml(text);
-    }
-    // Re-wraps {{var}} tokens on top of hljs's own spans. Safe in the
-    // common case — a variable used inside a JSON string value, or a
-    // Python string literal — since hljs keeps the whole quoted string as
-    // one token, so {{name}} stays contiguous in the resulting HTML
-    // instead of being split across span boundaries by hljs's tokenizing.
-    return wrapVarTokens(html);
-  }
-
-  function attachCodeEditor(textarea, language) {
-    if (!textarea || textarea.dataset.acCodeEditor) return;
-    textarea.dataset.acCodeEditor = "1";
-    const container = textarea.closest(".ac-code-editor");
-    const overlay = container?.querySelector(".ac-code-overlay code");
-    const gutter = container?.querySelector(".snippet-gutter");
-    const inner = container?.querySelector(".ac-code-editor-inner");
-    const scroller = container?.querySelector(".snippet-code");
-
-    function sync() {
-      const text = textarea.value;
-      const lang = typeof language === "function" ? language() : language;
-      if (overlay) overlay.innerHTML = renderCodeHighlight(text, lang);
-      if (gutter) {
-        const lineCount = text.split("\n").length;
-        let html = "";
-        for (let i = 1; i <= lineCount; i++) html += `<span>${i}</span>`;
-        gutter.innerHTML = html;
-      }
-      // resize:none hands height entirely to this — grow to fit content
-      // exactly (no internal textarea scrollbar), so it's the *outer*
-      // .ac-code-scroll wrapper that scrolls once things get long, with
-      // the gutter and highlight overlay scrolling right along with it.
-      // scrollHeight is meaningless while a display:none ancestor (a
-      // still-closed modal, or the hidden Value/Script sub-field) hides
-      // this — see the modal-open and kind-toggle listeners below, which
-      // force a resync at the moment this actually becomes visible.
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-
-      // Horizontal counterpart of the height auto-grow above: with wrap
-      // disabled (see .ac-code-textarea's own comment on why), nothing
-      // else makes this box — or the overlay stacked on top of it, sized
-      // to match via inset: 0 — wide enough for its longest line. A
-      // <textarea>'s own intrinsic width isn't driven by its content the
-      // way a block of text is, so it's measured here instead, the same
-      // "render off-screen and read scrollWidth" trick used for the
-      // {{var}}-drift + wrap-divergence diagnosis that found this bug.
-      if (inner && scroller) {
-        const natural = measureNaturalTextWidth(textarea, text) + 24; // headroom so the last glyph isn't flush against the scroll edge
-        const gutterWidth = gutter ? gutter.getBoundingClientRect().width : 0;
-        const available = scroller.getBoundingClientRect().width - gutterWidth;
-        inner.style.width = `${Math.max(natural, available)}px`;
-      }
-    }
-    textarea.addEventListener("input", sync);
-    sync();
-  }
-
+  // renderCodeHighlight/attachCodeEditor are shared globals from app.js —
+  // Test Data (testcases_step_data.js) needs the exact same mechanism, so
+  // it moved there rather than staying duplicated in two files. wrapVarTokens
+  // is passed in as attachCodeEditor's optional postProcess hook, since
+  // re-wrapping {{var}} tokens on top of hljs's own spans is specific to
+  // this page (Test Data has no variable-token concept).
   const bodyField = document.querySelector("[data-ac-body]");
-  attachCodeEditor(bodyField, () => detectBodyLanguage(currentHeaders(), bodyField ? bodyField.value : ""));
+  attachCodeEditor(bodyField, () => detectBodyLanguage(currentHeaders(), bodyField ? bodyField.value : ""), { postProcess: wrapVarTokens });
 
   // Content-Type drives the request body's highlighting language (see
   // detectBodyLanguage above) — since it's the "language" argument that
@@ -1566,9 +1477,7 @@
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-  }
+  // escapeHtml is a shared global from app.js now.
 
   sendBtn?.addEventListener("click", async () => {
     sendBtn.disabled = true;
@@ -1796,7 +1705,7 @@
     // class here that rule doesn't match, so those characters fall back
     // to the browser's default text color, invisible on the dark background.
     code.className = "hljs";
-    code.innerHTML = renderCodeHighlight(rowsInColumn.map((r) => r.text).join("\n"), language);
+    code.innerHTML = renderCodeHighlight(rowsInColumn.map((r) => r.text).join("\n"), language, wrapVarTokens);
     pre.appendChild(code);
 
     const block = document.createElement("div");

@@ -259,22 +259,19 @@
 
 {# Test Data: any number of titled, syntax-highlighted items per step (curl,
    SQL, etc.) — unlike step_text/expected_result, which are always exactly
-   one value per step. Reuses the Note Section's own .code-block/.snippet-*
-   markup and several of its already-wired-up generic JS handlers verbatim
-   (data-copy, data-note-delete + its sibling data-note-delete-form,
-   data-note-content's gutter-sync) — see app/templates/notes/_panel.html
-   for the pattern this mirrors.
-
-   One thing Notes does NOT need that this does: a genuinely colored,
-   syntax-highlighted display. highlight.js only meaningfully applies to a
-   read-only <code> element, never to a live <textarea> — so a value shows
-   as a plain textarea while focused (editable), and swaps to a highlighted
-   read-only <pre><code> once you click/tab away, re-detecting the language
-   fresh at that point. See data-step-data-* wiring in
-   app/static/js/testcases_step_data.js. #}
+   one value per step. Reuses the API Client builder's request-body editor
+   verbatim: a transparent-text textarea stacked on a read-only hljs overlay
+   underneath it (.ac-code-editor/.ac-code-overlay/.ac-code-textarea — see
+   attachCodeEditor in app/static/js/app.js), so a value is always shown in
+   color while you type, with no separate "click to see it highlighted"
+   step the way a first attempt at this (a toggling plain textarea /
+   read-only <pre> pair) needed. Also reuses several of the Note Section's
+   already-wired-up generic JS handlers verbatim (data-copy, data-note-
+   delete + its sibling data-note-delete-form) — see
+   app/templates/notes/_panel.html for that half of the pattern. #}
 {% macro data_item_block(testcase, step, item, index) %}
 {% set starts_collapsed = item.value | trim | length > 0 %}
-<form class="code-block step-data-block{{ ' is-collapsed' if starts_collapsed else '' }}" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
+<form class="code-block ac-code-editor step-data-block{{ ' is-collapsed' if starts_collapsed else '' }}" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
   <input type="hidden" name="language" value="{{ item.language }}" data-note-language>
   <div class="snippet-actions">
     <button class="snippet-icon-btn" type="button" data-step-data-toggle title="Collapse/Expand" aria-label="Collapse or expand data item {{ index }}" aria-expanded="{{ 'false' if starts_collapsed else 'true' }}">
@@ -301,12 +298,12 @@
     </div>
   </div>
 
-  <div class="snippet-code" data-step-data-code-wrap {% if starts_collapsed %}hidden{% endif %}>
-    <div class="snippet-gutter">
-      {% for _ in item.value.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}
+  <div class="snippet-code ac-code-scroll" data-step-data-code-wrap {% if starts_collapsed %}hidden{% endif %}>
+    <div class="snippet-gutter"><span>1</span></div>
+    <div class="ac-code-editor-inner">
+      <pre class="snippet-pre ac-code-overlay" aria-hidden="true"><code class="hljs"></code></pre>
+      <textarea class="ac-code-textarea" name="value" data-note-content data-step-data-textarea spellcheck="false" autocomplete="off">{{ item.value }}</textarea>
     </div>
-    <textarea class="snippet-pre snippet-textarea is-wrapped" name="value" data-note-content data-step-data-textarea spellcheck="false" autocomplete="off" {% if item.value %}hidden{% endif %}>{{ item.value }}</textarea>
-    <pre class="snippet-pre is-wrapped" data-step-data-highlighted-view tabindex="0" title="Click to edit" {% if not item.value %}hidden{% endif %}><code data-step-data-highlighted-code data-snippet-code="{{ item.language }}">{{ item.value }}</code></pre>
   </div>
 </form>
 <form class="inline-form" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/delete" data-note-delete-form hidden></form>

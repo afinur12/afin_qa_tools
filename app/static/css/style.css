@@ -909,45 +909,6 @@ tbody tr:hover { background: var(--surface-sunk); }
    nothing visually happens. */
 .snippet-textarea[hidden] { display: none; }
 
-/* Test Data's textarea (unlike Notes' own identical .snippet-textarea)
-   sits inside a `.field` wrapper (the "Test Data" label needs one) —
-   `.field textarea` (specificity 0,1,1) otherwise beats the bare
-   `.snippet-textarea` (0,1,0) above on every property they both set
-   (padding, border, background, width...), silently reverting it to the
-   generic bordered field look with a lime focus ring — the exact same
-   cascade trap documented in detail at .ac-code-editor .ac-code-textarea
-   further down this file. Three ancestor classes (0,3,0) beats
-   `.field textarea:focus` (0,2,1) outright, so every property below wins
-   unconditionally rather than needing to be restated per state. */
-.step-data-block .snippet-code .snippet-textarea {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 0 18px 0 0;
-  border: none;
-  border-radius: 0;
-  outline: none;
-  box-shadow: none;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
-  color: #d5d2e0;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.7;
-}
-.step-data-block .snippet-code .snippet-textarea:focus {
-  outline: none;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-/* Test Data's read-only, syntax-highlighted view (app/static/js/
-   testcases_step_data.js) — a plain .snippet-pre otherwise, plus a cursor
-   and hover cue so "click to edit" is discoverable. */
-[data-step-data-highlighted-view] { cursor: text; border-radius: 4px; margin: 0; }
-[data-step-data-highlighted-view]:hover, [data-step-data-highlighted-view]:focus-visible { background: rgba(255, 255, 255, 0.04); outline: none; }
-
 .snippet-markdown-preview {
   padding: 4px 18px 18px;
   font-size: 13px;
@@ -2353,10 +2314,19 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
 .ac-code-textarea::placeholder { color: #6b6875; opacity: 1; }
 .ac-code-textarea::selection { background: rgba(201, 242, 77, 0.4); color: transparent; }
 
+/* Test Data's items (unlike the request body, which is one big field users
+   expect ample room for) are often a single short line — a URL, a small
+   JSON blob. The shared rule's 160px min-height would waste a lot of space
+   repeated across several items in one step; a fourth class outweighs its
+   three. */
+.step-data-block.ac-code-editor .ac-code-editor-inner .ac-code-textarea { min-height: 40px; }
+
 /* Caps a long request body or response so it scrolls internally instead
-   of stretching the whole page — resize:none above hands textarea
-   height entirely to the auto-grow JS (see attachBodyCodeEditor /
-   syncTextareaHeight in api_client.js), which is what this then clips. */
+   of stretching the whole page — resize:none on .ac-code-textarea above
+   hands its height entirely to the auto-grow JS (attachCodeEditor's sync(),
+   in app.js), which is what this then clips. Also Test Data's own code
+   editor (see .step-data-block above and testcases_step_data.js), which
+   reuses this same class. */
 .ac-code-scroll { max-height: 560px; overflow-y: auto; }
 
 /* The exported image can be much taller than the modal — cap the modal

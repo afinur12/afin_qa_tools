@@ -1,26 +1,13 @@
 // Test Case execute page: Test Data items (see the data_item_block macro in
-// app/templates/testcases/execute.html). A value shows as a plain editable
-// textarea while focused, and swaps to a read-only, syntax-highlighted
-// <pre><code> once you click/tab away — highlight.js can't meaningfully
-// color a live <textarea>, only a static <code> element, so this is the
-// closest thing to "always looks highlighted" that doesn't require a
-// pixel-synced textarea/overlay editor.
-//
-// The initial highlight on page load (for an item that already has a saved
-// value) is handled for free by app.js's existing [data-snippet-code] loop
-// — this file only needs to handle RE-highlighting after an edit, since
-// that loop only ever runs once, at load.
-
-function reHighlightStepDataCode(codeEl) {
-  if (!window.hljs) return;
-  // hljs.highlightElement isn't safely re-callable on an already-highlighted
-  // node without clearing its own bookkeeping first.
-  codeEl.className = codeEl.className.replace(/\blanguage-\S+/g, "").replace(/\bhljs\b/g, "").trim();
-  delete codeEl.dataset.highlighted;
-  const lang = HLJS_LANGUAGE_MAP[codeEl.dataset.snippetCode] || "plaintext";
-  codeEl.classList.add(`language-${lang}`);
-  window.hljs.highlightElement(codeEl);
-}
+// app/templates/testcases/execute.html). Uses the exact same live,
+// always-syntax-highlighted code editor as the API Client builder's request
+// body field (attachCodeEditor, in app.js) — a transparent-text textarea
+// stacked on a read-only hljs overlay underneath it, so what you're typing
+// is always shown in color, with no separate "click to see it highlighted"
+// step. See attachCodeEditor's own comments in app.js for why it can't
+// wrap (the overlay and the textarea would disagree on where a long line
+// wraps, and the caret — which only ever tracks the real textarea — would
+// drift away from the colored text underneath it).
 
 // ── Beautify / format ───────────────────────────────────────────────────
 // Only languages with an unambiguous, deterministic "pretty" form get a real
@@ -144,81 +131,52 @@ function flashFormatError(el) {
 
 document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   const wrap = textarea.closest("[data-step-data-code-wrap]");
-  const highlightedView = wrap.querySelector("[data-step-data-highlighted-view]");
-  const codeEl = wrap.querySelector("[data-step-data-highlighted-code]");
   const form = textarea.closest("form");
   const languageField = form.querySelector("[data-note-language]");
   const languageLabel = form.querySelector("[data-step-data-lang-label]");
   const toggleBtn = form.querySelector("[data-step-data-toggle]");
   const formatBtn = form.querySelector("[data-step-data-format]");
 
-  function showEditable() {
-    highlightedView.hidden = true;
-    textarea.hidden = false;
-    // app.js's syncNoteTextarea ran once already, at page load — but this
-    // textarea was `hidden` at that point for any item that starts in the
-    // highlighted view (i.e. any item with a saved value), and a hidden
-    // element's scrollHeight is always 0. That left textarea.style.height
-    // pinned at "0px" ever since, so making it visible again here needs its
-    // own fresh measurement or the box stays collapsed to a sliver.
-    syncNoteTextarea(textarea);
-    textarea.focus();
+  function currentLanguage() {
+    return detectSnippetLanguage(textarea.value) || "TEXT";
   }
 
-  function showHighlighted() {
-    const text = textarea.value;
-    if (!text.trim()) {
-      // Nothing to highlight yet — stay in edit mode so an empty new item
-      // doesn't collapse into a blank, unclickable box.
-      textarea.hidden = false;
-      highlightedView.hidden = true;
-      return;
-    }
-    const lang = detectSnippetLanguage(text) || "TEXT";
-    languageField.value = lang;
-    if (languageLabel) languageLabel.textContent = lang;
-    codeEl.textContent = text;
-    codeEl.dataset.snippetCode = lang;
-    reHighlightStepDataCode(codeEl);
-    textarea.hidden = true;
-    highlightedView.hidden = false;
-  }
-
-  function expand() {
-    form.classList.remove("is-collapsed");
-    wrap.hidden = false;
-    if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
-  }
-
-  highlightedView.addEventListener("click", showEditable);
-  highlightedView.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      showEditable();
-    }
+  attachCodeEditor(textarea, () => HLJS_LANGUAGE_MAP[currentLanguage()] || "plaintext", {
+    onSync: () => {
+      const lang = currentLanguage();
+      languageField.value = lang;
+      if (languageLabel) languageLabel.textContent = lang;
+    },
   });
-  textarea.addEventListener("blur", showHighlighted);
 
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
       const collapsed = form.classList.toggle("is-collapsed");
       wrap.hidden = collapsed;
       toggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      // scrollHeight/measured width are meaningless while a display:none
+      // ancestor hides this — force attachCodeEditor's listener to resync
+      // now that it's actually visible again (same pattern api_client.js
+      // uses for its modal-open and kind-toggle listeners).
+      if (!collapsed) textarea.dispatchEvent(new Event("input"));
     });
   }
 
   if (formatBtn) {
     formatBtn.addEventListener("click", () => {
-      const language = (languageField.value || "TEXT").toUpperCase();
-      const formatted = formatStepDataValue(textarea.value, language);
+      const formatted = formatStepDataValue(textarea.value, currentLanguage());
       if (formatted === null) {
         flashFormatError(formatBtn);
         return;
       }
       textarea.value = formatted;
+      if (form.classList.contains("is-collapsed")) {
+        form.classList.remove("is-collapsed");
+        wrap.hidden = false;
+        if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
+      }
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
-      expand();
-      showHighlighted();
+      textarea.focus();
     });
   }
 });
