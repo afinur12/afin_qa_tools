@@ -1082,13 +1082,24 @@ function renderSlideshowSlide() {
   overlay.querySelector(".slideshow-arrow.next").disabled = slideshowIndex === slideshowSlides.length - 1;
 }
 
-function openSlideshow() {
+function openSlideshow(startSrc) {
   slideshowSlides = collectSlideshowSlides();
   if (slideshowSlides.length === 0) return;
-  slideshowIndex = 0;
+  const startIndex = startSrc ? slideshowSlides.findIndex((slide) => slide.src === startSrc) : 0;
+  slideshowIndex = startIndex >= 0 ? startIndex : 0;
   renderSlideshowSlide();
   document.getElementById("slideshow-overlay").hidden = false;
 }
+
+// Clicking a screenshot thumbnail opens the same slideshow as the "View
+// Images" toolbar button, scrolled straight to that image instead of
+// always starting at the first one.
+document.querySelectorAll("[data-shot-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const img = button.querySelector("img");
+    openSlideshow(img ? img.src : undefined);
+  });
+});
 
 function closeSlideshow() {
   const overlay = document.getElementById("slideshow-overlay");

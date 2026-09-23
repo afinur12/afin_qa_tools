@@ -22,6 +22,115 @@ function reHighlightStepDataCode(codeEl) {
   window.hljs.highlightElement(codeEl);
 }
 
+// ── Beautify / format ───────────────────────────────────────────────────
+// Only languages with an unambiguous, deterministic "pretty" form get a real
+// formatter: JSON (built in), SQL (vendored sql-formatter, same one the
+// standalone SQL Formatter utility uses), cURL (a from-scratch multi-line
+// reflow, since no vendored curl formatter exists — including pretty-printing
+// any JSON body handed to -d/--data), and XML (a naive but standard
+// indent-by-tag-depth pass). Anything else (TEXT, YAML, BASH, PYTHON,
+// JAVASCRIPT, and formats this feature doesn't detect at all, like Markdown)
+// has no formatter here and the button is a no-op with visible feedback
+// rather than silently doing nothing.
+
+function tokenizeCurlLike(text) {
+  const tokens = [];
+  const re = /'[^']*'|"[^"]*"|\S+/g;
+  let match;
+  while ((match = re.exec(text))) tokens.push(match[0]);
+  return tokens;
+}
+
+function prettyJsonToken(token, indent) {
+  const quoteChar = token[0];
+  if (quoteChar !== "'" && quoteChar !== '"') return token;
+  const inner = token.slice(1, -1);
+  try {
+    const parsed = JSON.parse(inner);
+    const pretty = JSON.stringify(parsed, null, 2).split("\n").join("\n" + indent);
+    return quoteChar + pretty + quoteChar;
+  } catch {
+    return token;
+  }
+}
+
+function formatCurlValue(text) {
+  // Deliberately simple: splits on whitespace outside of quotes, so a flag
+  // value with an escaped quote inside it won't round-trip perfectly. Good
+  // enough for the curl commands QA engineers paste in by hand.
+  const tokens = tokenizeCurlLike(text);
+  if (tokens.length === 0 || tokens[0].toLowerCase() !== "curl") return null;
+  const indent = "  ";
+  const lines = [];
+  let current = ["curl"];
+  let i = 1;
+  if (tokens[i] && !tokens[i].startsWith("-")) {
+    current.push(tokens[i]);
+    i += 1;
+  }
+  lines.push(current.join(" "));
+  while (i < tokens.length) {
+    const tok = tokens[i];
+    if (tok.startsWith("-")) {
+      let line = tok;
+      if (tokens[i + 1] && !tokens[i + 1].startsWith("-")) {
+        line += " " + prettyJsonToken(tokens[i + 1], indent);
+        i += 2;
+      } else {
+        i += 1;
+      }
+      lines.push(line);
+    } else {
+      lines.push(tok);
+      i += 1;
+    }
+  }
+  if (lines.length === 1) return null;
+  return lines.join(" \\\n" + indent);
+}
+
+function formatXmlValue(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("<")) return null;
+  const withBreaks = trimmed.replace(/>\s*</g, ">\n<");
+  const lines = withBreaks.split("\n");
+  let depth = 0;
+  const out = [];
+  for (const line of lines) {
+    const isClosing = /^<\//.test(line);
+    const isSelfClosing = /\/>\s*$/.test(line) || /^<\?/.test(line) || /^<!--/.test(line);
+    const isOpeningOnly = /^<[^/!?][^>]*[^/]>$/.test(line);
+    if (isClosing) depth = Math.max(0, depth - 1);
+    out.push("  ".repeat(depth) + line);
+    if (!isClosing && !isSelfClosing && isOpeningOnly) depth += 1;
+  }
+  return out.join("\n");
+}
+
+function formatSqlValue(text) {
+  if (!window.sqlFormatter) return null;
+  return window.sqlFormatter.format(text, { language: "sql", keywordCase: "upper", tabWidth: 2 });
+}
+
+function formatStepDataValue(text, language) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  try {
+    if (language === "JSON") return JSON.stringify(JSON.parse(trimmed), null, 2);
+    if (language === "SQL") return formatSqlValue(trimmed);
+    if (language === "CURL") return formatCurlValue(trimmed);
+    if (language === "XML") return formatXmlValue(trimmed);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function flashFormatError(el) {
+  el.classList.add("is-error");
+  setTimeout(() => el.classList.remove("is-error"), 700);
+}
+
 document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   const wrap = textarea.closest("[data-step-data-code-wrap]");
   const highlightedView = wrap.querySelector("[data-step-data-highlighted-view]");
@@ -29,6 +138,8 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   const form = textarea.closest("form");
   const languageField = form.querySelector("[data-note-language]");
   const languageLabel = form.querySelector("[data-step-data-lang-label]");
+  const toggleBtn = form.querySelector("[data-step-data-toggle]");
+  const formatBtn = form.querySelector("[data-step-data-format]");
 
   function showEditable() {
     highlightedView.hidden = true;
@@ -55,6 +166,12 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
     highlightedView.hidden = false;
   }
 
+  function expand() {
+    form.classList.remove("is-collapsed");
+    wrap.hidden = false;
+    if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
+  }
+
   highlightedView.addEventListener("click", showEditable);
   highlightedView.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -63,4 +180,27 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
     }
   });
   textarea.addEventListener("blur", showHighlighted);
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      const collapsed = form.classList.toggle("is-collapsed");
+      wrap.hidden = collapsed;
+      toggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    });
+  }
+
+  if (formatBtn) {
+    formatBtn.addEventListener("click", () => {
+      const language = (languageField.value || "TEXT").toUpperCase();
+      const formatted = formatStepDataValue(textarea.value, language);
+      if (formatted === null) {
+        flashFormatError(formatBtn);
+        return;
+      }
+      textarea.value = formatted;
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      expand();
+      showHighlighted();
+    });
+  }
 });

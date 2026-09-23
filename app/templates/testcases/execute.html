@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces, icon_image, icon_copy with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_link, icon_braces, icon_image, icon_copy, icon_wand, icon_eye with context %}
 {% block title %}{{ testcase.display_code }} - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -273,9 +273,16 @@
    fresh at that point. See data-step-data-* wiring in
    app/static/js/testcases_step_data.js. #}
 {% macro data_item_block(testcase, step, item, index) %}
-<form class="code-block" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
+{% set starts_collapsed = item.value | trim | length > 0 %}
+<form class="code-block step-data-block{{ ' is-collapsed' if starts_collapsed else '' }}" method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/data/{{ item.id }}/edit" data-autosave>
   <input type="hidden" name="language" value="{{ item.language }}" data-note-language>
   <div class="snippet-actions">
+    <button class="snippet-icon-btn" type="button" data-step-data-toggle title="Collapse/Expand" aria-label="Collapse or expand data item {{ index }}" aria-expanded="{{ 'false' if starts_collapsed else 'true' }}">
+      <svg class="step-data-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <button class="snippet-icon-btn" type="button" data-step-data-format title="Beautify / format">
+      {{ icon_wand(14) }}
+    </button>
     <button class="snippet-icon-btn" type="button" data-copy title="Copy">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       <span class="sr-only" data-copy-label>Copy</span>
@@ -294,7 +301,7 @@
     </div>
   </div>
 
-  <div class="snippet-code" data-step-data-code-wrap>
+  <div class="snippet-code" data-step-data-code-wrap {% if starts_collapsed %}hidden{% endif %}>
     <div class="snippet-gutter">
       {% for _ in item.value.split('\n') %}<span>{{ loop.index }}</span>{% endfor %}
     </div>
@@ -343,7 +350,10 @@
     <div class="shots">
       {% for shot in step.screenshots %}
       <div class="shot">
-        <img src="/uploads/{{ shot.file_path }}" alt="Screenshot for step {{ step.step_no }}">
+        <button type="button" class="shot-view" data-shot-view aria-label="View screenshot for step {{ step.step_no }}">
+          <img src="/uploads/{{ shot.file_path }}" alt="Screenshot for step {{ step.step_no }}">
+          <span class="shot-view-overlay" aria-hidden="true">{{ icon_eye(16) }}</span>
+        </button>
         <form method="post" action="/screenshots/{{ shot.id }}/delete" style="margin-top:5px;">
           <button class="btn act remove" type="submit" style="width:100%;" title="Remove screenshot" aria-label="Remove screenshot">{{ icon_trash(13) }}</button>
         </form>
@@ -468,5 +478,6 @@
 
 {% block scripts %}
 <script src="{{ static_url('js/paste_screenshot.js') }}"></script>
+<script src="{{ static_url('js/vendor/sql-formatter/sql-formatter.min.js') }}"></script>
 <script src="{{ static_url('js/testcases_step_data.js') }}"></script>
 {% endblock %}

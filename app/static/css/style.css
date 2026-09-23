@@ -763,8 +763,22 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 .snippet-icon-btn:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .snippet-icon-btn.copied { background: var(--lime); color: var(--ink-inverse); }
+/* Format button's "nothing to format" feedback (app/static/js/
+   testcases_step_data.js's flashFormatError) — a brief flash so a no-op
+   click (unsupported language, invalid JSON/SQL/etc.) is visibly
+   acknowledged rather than silently doing nothing. */
+.snippet-icon-btn.is-error { background: rgba(226, 131, 122, 0.35); color: #e2837a; }
+/* Test Data's collapse/expand toggle (app/static/js/testcases_step_data.js)
+   — chevron rotates to point sideways while collapsed, matching the same
+   -90deg convention .step-toggle already uses for whole steps. */
+.step-data-toggle-icon { transition: transform 120ms ease; }
+.step-data-block.is-collapsed .step-data-toggle-icon { transform: rotate(-90deg); }
 
 .snippet-header { padding: 16px 110px 12px 18px; }
+/* Test Data's header reserves room for 4 actions (toggle, format, copy,
+   close) instead of Notes' 2 (copy, close) — the base .snippet-header rule
+   above still applies to Notes' own cards. */
+.step-data-block .snippet-header { padding-right: 176px; }
 .snippet-header-row { display: flex; align-items: center; gap: 10px; }
 /* Test Data items only (Test Case execute page) — a snippet-card that's
    part of a numbered list, unlike a Note's own flat/unordered ones. */
@@ -1164,6 +1178,26 @@ tbody tr:hover { background: var(--surface-sunk); }
   border: 1px solid var(--line);
   display: block;
 }
+/* Hover-to-view affordance for a step's screenshot thumbnails: an eye icon
+   fades in over the image, and clicking opens it in the existing "View
+   Images" slideshow (app/static/js/app.js's openSlideshow), scrolled
+   straight to that image instead of always starting at the first one. */
+.shot-view { position: relative; display: block; padding: 0; border: none; background: none; cursor: zoom-in; }
+.shot-view-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.shot-view:hover .shot-view-overlay,
+.shot-view:focus-visible .shot-view-overlay { opacity: 1; }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 
