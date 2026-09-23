@@ -55,10 +55,21 @@ function prettyJsonToken(token, indent) {
 }
 
 function formatCurlValue(text) {
+  // Collapse this formatter's own `\<newline>` line-continuation markers
+  // back to plain spaces before tokenizing, so formatting an already
+  // multi-line command is idempotent instead of compounding: without this,
+  // re-tokenizing a previously formatted value picked up each bare "\" as
+  // its own token (it doesn't start with "-", so it fell into the catch-all
+  // "give it its own line" branch below) and every re-click added another
+  // layer of stray "\ \" lines. A backslash isn't touched unless it's
+  // immediately followed by (optional trailing whitespace then) a newline,
+  // so it never reaches into an already-quoted multi-line JSON body's own
+  // newlines (those aren't preceded by a backslash).
+  const normalized = text.replace(/\\\s*\r?\n\s*/g, " ");
   // Deliberately simple: splits on whitespace outside of quotes, so a flag
   // value with an escaped quote inside it won't round-trip perfectly. Good
   // enough for the curl commands QA engineers paste in by hand.
-  const tokens = tokenizeCurlLike(text);
+  const tokens = tokenizeCurlLike(normalized);
   if (tokens.length === 0 || tokens[0].toLowerCase() !== "curl") return null;
   const indent = "  ";
   const lines = [];
@@ -144,6 +155,13 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   function showEditable() {
     highlightedView.hidden = true;
     textarea.hidden = false;
+    // app.js's syncNoteTextarea ran once already, at page load — but this
+    // textarea was `hidden` at that point for any item that starts in the
+    // highlighted view (i.e. any item with a saved value), and a hidden
+    // element's scrollHeight is always 0. That left textarea.style.height
+    // pinned at "0px" ever since, so making it visible again here needs its
+    // own fresh measurement or the box stays collapsed to a sliver.
+    syncNoteTextarea(textarea);
     textarea.focus();
   }
 

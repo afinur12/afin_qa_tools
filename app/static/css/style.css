@@ -909,6 +909,39 @@ tbody tr:hover { background: var(--surface-sunk); }
    nothing visually happens. */
 .snippet-textarea[hidden] { display: none; }
 
+/* Test Data's textarea (unlike Notes' own identical .snippet-textarea)
+   sits inside a `.field` wrapper (the "Test Data" label needs one) —
+   `.field textarea` (specificity 0,1,1) otherwise beats the bare
+   `.snippet-textarea` (0,1,0) above on every property they both set
+   (padding, border, background, width...), silently reverting it to the
+   generic bordered field look with a lime focus ring — the exact same
+   cascade trap documented in detail at .ac-code-editor .ac-code-textarea
+   further down this file. Three ancestor classes (0,3,0) beats
+   `.field textarea:focus` (0,2,1) outright, so every property below wins
+   unconditionally rather than needing to be restated per state. */
+.step-data-block .snippet-code .snippet-textarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0 18px 0 0;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: #d5d2e0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.step-data-block .snippet-code .snippet-textarea:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 /* Test Data's read-only, syntax-highlighted view (app/static/js/
    testcases_step_data.js) — a plain .snippet-pre otherwise, plus a cursor
    and hover cue so "click to edit" is discoverable. */
