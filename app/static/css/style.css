@@ -791,6 +791,33 @@ tbody tr:hover { background: var(--surface-sunk); }
 .snippet-remark-input::placeholder { color: #5c5966; }
 .snippet-remark-input:focus { color: #f2f1f6; }
 
+/* Test Data's title, inline in the header row next to the language badge
+   (unlike Notes' own .snippet-remark-input, which sits on its own row below
+   the title). Scoped under .code-block (two classes) so it reliably beats
+   the ".field input" descendant-selector rule (one class + one type, but a
+   higher-specificity combination) that this form inherits from its
+   ancestor .field wrapper — the same cascade trap that made the old
+   single-class title input render as a bordered/boxed field instead of the
+   plain inline text it was meant to be. */
+.code-block .step-data-title-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: #f2f1f6;
+  letter-spacing: 0.3px;
+}
+.code-block .step-data-title-input::placeholder { color: #5c5966; font-weight: 600; }
+.code-block .step-data-title-input:hover { background: rgba(255, 255, 255, 0.06); }
+.code-block .step-data-title-input:focus { background: rgba(255, 255, 255, 0.08); }
+
 /* .save-state.snippet-save-state (two classes), not just .snippet-save-state:
    the plain .save-state[data-state=...] rules further down have equal
    specificity to a single-class version of this and appear later in the

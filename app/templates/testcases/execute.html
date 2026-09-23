@@ -288,10 +288,10 @@
   <div class="snippet-header">
     <div class="snippet-header-row">
       <span class="data-item-index">[{{ index }}]</span>
-      <div class="snippet-title" data-step-data-lang-label>{{ item.language }}</div>
+      <span class="badge code" data-step-data-lang-label>{{ item.language }}</span>
+      <input class="step-data-title-input" name="title" value="{{ item.title }}" placeholder="Untitled data item" autocomplete="off">
       <span class="save-state snippet-save-state" data-save-state></span>
     </div>
-    <input class="snippet-remark-input" name="title" value="{{ item.title }}" placeholder="Title for this data item&hellip;" autocomplete="off">
   </div>
 
   <div class="snippet-code" data-step-data-code-wrap>
