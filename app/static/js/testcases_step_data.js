@@ -130,7 +130,9 @@ function flashFormatError(el) {
 }
 
 document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
-  const wrap = textarea.closest("[data-step-data-code-wrap]");
+  // Named codeWrapEl, not "wrap", to keep it distinct from attachCodeEditor's
+  // unrelated `wrap` option (CSS word-wrap) passed in below.
+  const codeWrapEl = textarea.closest("[data-step-data-code-wrap]");
   const form = textarea.closest("form");
   const languageField = form.querySelector("[data-note-language]");
   const languageLabel = form.querySelector("[data-step-data-lang-label]");
@@ -142,6 +144,7 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   }
 
   attachCodeEditor(textarea, () => HLJS_LANGUAGE_MAP[currentLanguage()] || "plaintext", {
+    wrap: true,
     onSync: () => {
       const lang = currentLanguage();
       languageField.value = lang;
@@ -152,7 +155,7 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
       const collapsed = form.classList.toggle("is-collapsed");
-      wrap.hidden = collapsed;
+      codeWrapEl.hidden = collapsed;
       toggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
       // scrollHeight/measured width are meaningless while a display:none
       // ancestor hides this — force attachCodeEditor's listener to resync
@@ -172,7 +175,7 @@ document.querySelectorAll("[data-step-data-textarea]").forEach((textarea) => {
       textarea.value = formatted;
       if (form.classList.contains("is-collapsed")) {
         form.classList.remove("is-collapsed");
-        wrap.hidden = false;
+        codeWrapEl.hidden = false;
         if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
       }
       textarea.dispatchEvent(new Event("input", { bubbles: true }));

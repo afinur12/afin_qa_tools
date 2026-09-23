@@ -758,7 +758,12 @@ function measureNaturalTextWidth(referenceField, text) {
 // can change as the content itself, or a header, changes). `options`:
 // `postProcess` is handed through to renderCodeHighlight; `onSync(text,
 // language)`, when given, runs at the end of every sync — e.g. Test Data
-// updates its language badge and hidden form field there.
+// updates its language badge and hidden form field there; `wrap: true`
+// (Test Data) switches to CSS word-wrap instead of the default horizontal
+// scroll — accepting some risk of the overlay and the real textarea
+// disagreeing on a wrap point for one especially long, unbreakable run of
+// text (the exact failure the no-wrap default exists to avoid), traded for
+// never showing a scrollbar next to content that isn't actually that wide.
 function attachCodeEditor(textarea, language, options) {
   if (!textarea || textarea.dataset.acCodeEditor) return;
   textarea.dataset.acCodeEditor = "1";
@@ -792,15 +797,17 @@ function attachCodeEditor(textarea, language, options) {
     textarea.style.height = "auto";
     textarea.style.height = `${textarea.scrollHeight}px`;
 
-    // Horizontal counterpart of the height auto-grow above: with wrap
-    // disabled (see .ac-code-textarea's own comment on why), nothing
-    // else makes this box — or the overlay stacked on top of it, sized
-    // to match via inset: 0 — wide enough for its longest line. A
-    // <textarea>'s own intrinsic width isn't driven by its content the
-    // way a block of text is, so it's measured here instead, the same
-    // "render off-screen and read scrollWidth" trick used for the
-    // {{var}}-drift + wrap-divergence diagnosis that found this bug.
-    if (inner && scroller) {
+    // Horizontal counterpart of the height auto-grow above — skipped
+    // entirely for a wrap-mode caller (options.wrap), which instead relies
+    // on CSS wrap: the point of this block is only relevant when wrap is
+    // off. With wrap disabled, nothing else makes this box — or the
+    // overlay stacked on top of it, sized to match via inset: 0 — wide
+    // enough for its longest line. A <textarea>'s own intrinsic width
+    // isn't driven by its content the way a block of text is, so it's
+    // measured here instead, the same "render off-screen and read
+    // scrollWidth" trick used for the {{var}}-drift + wrap-divergence
+    // diagnosis that found this bug in the first place.
+    if (!options?.wrap && inner && scroller) {
       const natural = measureNaturalTextWidth(textarea, text) + 24; // headroom so the last glyph isn't flush against the scroll edge
       const gutterWidth = gutter ? gutter.getBoundingClientRect().width : 0;
       const available = scroller.getBoundingClientRect().width - gutterWidth;

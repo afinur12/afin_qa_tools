@@ -2321,6 +2321,22 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
    three. */
 .step-data-block.ac-code-editor .ac-code-editor-inner .ac-code-textarea { min-height: 40px; }
 
+/* Test Data opts into wrap (attachCodeEditor's `wrap: true` option, in
+   testcases_step_data.js) instead of the request body's horizontal-scroll
+   default — see the no-wrap rationale on .ac-code-overlay above; the
+   tradeoff here is accepted deliberately, not overlooked. Both layers need
+   the identical wrap behavior or the caret (tracking the real textarea)
+   drifts from the overlay's colored text the moment the two disagree on
+   where a line breaks, so this restates the same word-break on both. */
+.step-data-block .ac-code-overlay { white-space: pre-wrap; word-break: break-word; }
+.step-data-block.ac-code-editor .ac-code-editor-inner .ac-code-textarea { white-space: pre-wrap; word-break: break-word; }
+/* With wrap on, content never actually needs to scroll sideways — the
+   sticky/left:0 gutter above is harmless but pointless without a
+   horizontal scroll to pin against. Suppressing it outright is one less
+   scrollbar that could flash in transiently while a line's wrap point is
+   still being recalculated. */
+.step-data-block .snippet-code { overflow-x: hidden; }
+
 /* Caps a long request body or response so it scrolls internally instead
    of stretching the whole page — resize:none on .ac-code-textarea above
    hands its height entirely to the auto-grow JS (attachCodeEditor's sync(),
@@ -2328,6 +2344,16 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
    editor (see .step-data-block above and testcases_step_data.js), which
    reuses this same class. */
 .ac-code-scroll { max-height: 560px; overflow-y: auto; }
+/* Thin, dark-themed scrollbar instead of the browser's default chunky,
+   light-colored one, which clashed hard with .code-block's near-black
+   background. scrollbar-color covers Firefox; the ::-webkit- rules cover
+   Chrome/Edge (no standard way to also round only the visible thumb's
+   ends without them, hence both). */
+.ac-code-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+.ac-code-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.ac-code-scroll::-webkit-scrollbar-track { background: transparent; }
+.ac-code-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 8px; }
+.ac-code-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
 
 /* The exported image can be much taller than the modal — cap the modal
    itself and let only the preview frame scroll, so the header and the
