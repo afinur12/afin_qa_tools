@@ -507,6 +507,12 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
   letter-spacing: 0;
 }
 .badge.lime { background: var(--lime); color: var(--ink-inverse); }
+.badge.count { background: var(--lime-soft); color: var(--ink-inverse); }
+
+/* User role badges — own classes (not badge--*) since "Tester"/"Developer"
+   aren't a status enum, just User.type. */
+.badge.role-tester    { background: var(--progress-bg); color: var(--progress); }
+.badge.role-developer { background: var(--indigo-soft);  color: var(--indigo-ink); }
 .badge.prebuilt-yes { background: var(--progress-bg); color: var(--progress); }
 .badge.prebuilt-yes:hover { opacity: 0.85; }
 
@@ -527,6 +533,82 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .priority-high                { background: var(--warn-bg); color: var(--warn); }
 .priority-medium              { background: var(--warn-bg); color: var(--warn); }
 .priority-low, .priority-lowest { background: var(--progress-bg); color: var(--progress); }
+
+/* ── Settings list rows (Services / Simulate Types / Test Types / Test
+   Priorities / Labels / Users) — an avatar tile + inline click-to-edit,
+   built on the .stack/.list-row pattern above. ─────────────────────────── */
+.settings-avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--lime-soft);
+  color: var(--ink-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.settings-avatar.idle { background: var(--idle-bg); color: var(--idle); }
+.settings-avatar.role-tester    { border-radius: 999px; background: var(--progress-bg); color: var(--progress); }
+.settings-avatar.role-developer { border-radius: 999px; background: var(--indigo-soft);  color: var(--indigo-ink); }
+
+/* [data-row-view]/[data-row-edit] toggle between a flex view row and a
+   flex edit form via the `hidden` attribute. `.list-row-main`/`.row` set
+   `display: flex` with the same specificity as the UA's `[hidden]` rule,
+   which — being an author rule — wins the tie and would keep the element
+   visible; these compound selectors outrank both to make hidden stick. */
+[data-row-view][hidden], [data-row-edit][hidden] { display: none; }
+
+/* The tabs + search/add row on settings pages: pills on the left, search
+   and add on the right, one line. */
+.settings-tabrow { justify-content: space-between; margin-bottom: 18px; }
+.settings-tabrow .tabs { margin-bottom: 0; }
+/* .page-head-actions normally lets its own buttons wrap; here the search
+   field and add button must always stay on one line together (the whole
+   cluster wraps below the tabs instead, via .settings-tabrow's own wrap). */
+.settings-tabrow .page-head-actions { flex-wrap: nowrap; }
+
+/* The inline rename form's inputs are bare (no .field wrapper, so they
+   don't pick up .field input's styling) — give them their own themed
+   look rather than the browser's unstyled/white default. */
+[data-row-edit] input {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+}
+[data-row-edit] input:focus {
+  outline: none;
+  border-color: var(--lime-deep);
+  box-shadow: 0 0 0 3px rgba(182, 223, 54, 0.35);
+}
+
+.search-field { position: relative; flex: 1 1 220px; min-width: 200px; max-width: 280px; }
+.search-field svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.search-field input {
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 12px 0 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+}
+.search-field input:focus {
+  outline: none;
+  border-color: var(--lime-deep);
+  box-shadow: 0 0 0 3px rgba(182, 223, 54, 0.35);
+}
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 

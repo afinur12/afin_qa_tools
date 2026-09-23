@@ -22,6 +22,11 @@ router = APIRouter()
 
 def _render(request: Request, db: Session, error: str | None = None, status_code: int = 200):
     labels = db.query(Label).order_by(Label.name).all()
+    counts = dict(
+        db.query(LabelAssignment.label_id, func.count(LabelAssignment.id)).group_by(LabelAssignment.label_id).all()
+    )
+    for label in labels:
+        label.usage_count = counts.get(label.id, 0)
     return templates.TemplateResponse(
         request, "settings/labels.html", {"slug": "labels", "labels": labels, "error": error}, status_code=status_code,
     )

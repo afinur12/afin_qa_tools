@@ -191,6 +191,36 @@ document.addEventListener("click", (event) => {
   if (event.target.matches("[data-modal]")) closeModal(event.target);
 });
 
+// A settings list row (Services, Simulate Types, ...) shows a static
+// [data-row-view] block by default; a pencil button swaps it for the
+// [data-row-edit] rename form in place, without a page reload. Cancel (or
+// toggling again) swaps back without submitting.
+document.addEventListener("click", (event) => {
+  const toggle = event.target.closest("[data-row-edit-toggle]");
+  if (toggle) {
+    const row = toggle.closest("[data-row]");
+    const view = row?.querySelector("[data-row-view]");
+    const edit = row?.querySelector("[data-row-edit]");
+    if (view && edit) {
+      view.hidden = !view.hidden;
+      edit.hidden = !edit.hidden;
+      if (!edit.hidden) edit.querySelector("input")?.focus();
+    }
+    return;
+  }
+
+  const cancel = event.target.closest("[data-row-edit-cancel]");
+  if (cancel) {
+    const row = cancel.closest("[data-row]");
+    const view = row?.querySelector("[data-row-view]");
+    const edit = row?.querySelector("[data-row-edit]");
+    if (view && edit) {
+      view.hidden = false;
+      edit.hidden = true;
+    }
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   const top = modalStack[modalStack.length - 1];
@@ -1360,17 +1390,17 @@ document.addEventListener("click", (event) => {
 
 // ── Search + filter tables ────────────────────────────────────────────────
 // A `[data-filterable-table]` wrapper holds a `[data-table-search]` input,
-// zero or more `[data-table-filter="<key>"]` selects, and a table whose rows
-// carry `data-filter-search` (lowercased text to match against) and
-// `data-filter-<key>` per filterable column. A row shows only while it
-// matches the search text and every active filter; an optional
-// `[data-filter-empty]` row shows only once none do.
+// zero or more `[data-table-filter="<key>"]` selects, and rows (table `<tr>`
+// or plain `.list-row` divs) that carry `data-filter-search` (lowercased
+// text to match against) and `data-filter-<key>` per filterable column. A
+// row shows only while it matches the search text and every active filter;
+// an optional `[data-filter-empty]` row shows only once none do.
 function applyTableFilter(wrapper) {
   const search = (wrapper.querySelector("[data-table-search]")?.value || "").trim().toLowerCase();
   const filters = Array.from(wrapper.querySelectorAll("[data-table-filter]"))
     .filter((select) => select.value)
     .map((select) => [select.dataset.tableFilter, select.value]);
-  const rows = Array.from(wrapper.querySelectorAll("tbody tr[data-filter-search]"));
+  const rows = Array.from(wrapper.querySelectorAll("[data-filter-search]"));
   let visible = 0;
   rows.forEach((row) => {
     const matchesSearch = !search || row.getAttribute("data-filter-search").includes(search);

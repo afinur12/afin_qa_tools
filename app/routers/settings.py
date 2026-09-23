@@ -44,9 +44,25 @@ TABLES = {
 }
 
 
+def _usage_counts(db: Session, cfg: dict) -> dict[int, int]:
+    """Row id -> how many records across cfg['refs'] point at it, summed
+    across every ref model (e.g. a Service referenced by both prebuilt
+    templates and test cases counts both). One grouped query per ref."""
+    counts: dict[int, int] = {}
+    for ref_model, fk_column, _label in cfg["refs"]:
+        column = getattr(ref_model, fk_column)
+        rows = db.query(column, func.count(ref_model.id)).filter(column.isnot(None)).group_by(column).all()
+        for row_id, count in rows:
+            counts[row_id] = counts.get(row_id, 0) + count
+    return counts
+
+
 def _render_table(request: Request, slug: str, db: Session, error: str | None = None, status_code: int = 200):
     cfg = TABLES[slug]
     rows = db.query(cfg["model"]).order_by(cfg["model"].name).all()
+    counts = _usage_counts(db, cfg)
+    for row in rows:
+        row.usage_count = counts.get(row.id, 0)
     return templates.TemplateResponse(
         request,
         "settings/table.html",
