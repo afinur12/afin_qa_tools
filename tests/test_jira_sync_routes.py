@@ -223,3 +223,29 @@ def test_subtask_detail_shows_jira_sync_button_and_modal(client):
     assert 'data-modal-open="jira-sync"' in page.text
     assert f"/subtasks/{subtask_id}/export-jira-json" in page.text
     assert f"/subtasks/{subtask_id}/import-jira-json" in page.text
+
+
+def test_import_testcases_button_accepts_a_jira_shaped_file(client):
+    """The generic Import Test Cases upload hands a Jira-shaped file (no
+    "kind", a "test_cases" list) to the Jira import instead of rejecting it."""
+    subtask_id = _create_subtask(client, "SND-9920")
+    payload = {
+        "parent_ticket": "SND-9920",
+        "parent_ticket_info": {"labels": ["SITScenario"]},
+        "test_cases": [
+            {
+                "issue_key": "SND-30100",
+                "summary": "Uploaded through Import Test Cases",
+                "category": "Positive",
+                "zephyr_steps": [],
+                "fields": {"description": "{{placeholder_description}}", "priority": {"name": "Highest"}, "labels": ["SITScenario"]},
+            },
+        ],
+    }
+    files = {"file": ("jira.json", json.dumps(payload), "application/json")}
+    response = client.post(f"/subtasks/{subtask_id}/testcases/import-preview", files=files, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.cookies.get("flash_type") != "danger"
+
+    page = client.get(f"/subtasks/{subtask_id}")
+    assert "Uploaded through Import Test Cases" in page.text

@@ -1,3 +1,6 @@
+import pytest
+
+
 def _create_story_and_phase(client, code="EX-200", phase_type="SIT"):
     create = client.post("/stories", data={"display_code": code, "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]
@@ -24,10 +27,14 @@ def test_create_subtask(client):
     assert response.status_code == 303
 
 
-def test_staging_after_rollback_restricts_to_single_execution_subtask(client):
-    create = client.post("/stories", data={"display_code": "EX-202", "title": "A"}, follow_redirects=False)
+@pytest.mark.parametrize("phase_type, code", [
+    ("STAGING_AFTER_ROLLBACK", "EX-202"),
+    ("SIT_AFTER_ROLLBACK", "EX-203"),
+])
+def test_after_rollback_phase_restricts_to_single_execution_subtask(client, phase_type, code):
+    create = client.post("/stories", data={"display_code": code, "title": "A"}, follow_redirects=False)
     story_id = create.headers["location"].rstrip("/").split("/")[-1]
-    client.post(f"/stories/{story_id}/phases", data={"type": "STAGING_AFTER_ROLLBACK"})
+    client.post(f"/stories/{story_id}/phases", data={"type": phase_type})
     story_page = client.get(f"/stories/{story_id}")
     phase_id = story_page.text.split('/subtasks/new')[0].split('/phases/')[-1]
 

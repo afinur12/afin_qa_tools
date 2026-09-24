@@ -14,6 +14,7 @@ def generate_internal_key() -> str:
 
 class PhaseType(str, enum.Enum):
     SIT = "SIT"
+    SIT_AFTER_ROLLBACK = "SIT_AFTER_ROLLBACK"
     STAGING = "STAGING"
     STAGING_AFTER_ROLLBACK = "STAGING_AFTER_ROLLBACK"
     SANITY = "SANITY"
@@ -93,11 +94,11 @@ class Phase(Base):
     def allowed_subtask_types(self) -> list["SubtaskType"]:
         """Subtask types this phase will still accept.
 
-        STAGING_AFTER_ROLLBACK skips the usual five-way breakdown: it takes a
-        single EXECUTION subtask and nothing more. Lives on the model so the
-        routers and the templates agree on one rule.
+        The after-rollback phases (SIT and STAGING) skip the usual five-way
+        breakdown: each takes a single EXECUTION subtask and nothing more.
+        Lives on the model so the routers and the templates agree on one rule.
         """
-        if self.type == PhaseType.STAGING_AFTER_ROLLBACK:
+        if self.type in (PhaseType.SIT_AFTER_ROLLBACK, PhaseType.STAGING_AFTER_ROLLBACK):
             return [] if self.subtasks else [SubtaskType.EXECUTION]
         return list(SubtaskType)
 

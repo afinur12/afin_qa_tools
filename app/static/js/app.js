@@ -987,6 +987,8 @@ function renderNoteMarkdown(rawText) {
   let list = null; // { tag: "ul"|"ol", items: [] }
   let inFence = false;
   let fenceLines = [];
+  // Unlike standard Markdown, every blank line becomes an empty line in the
+  // preview, so a note's deliberate spacing survives instead of collapsing.
 
   function closeList() {
     if (!list) return;
@@ -994,7 +996,7 @@ function renderNoteMarkdown(rawText) {
     list = null;
   }
 
-  escapeHtmlForMarkdown(rawText).split("\n").forEach((line) => {
+  escapeHtmlForMarkdown(rawText).replace(/\r\n?/g, "\n").split("\n").forEach((line) => {
     if (/^```/.test(line.trim())) {
       if (inFence) {
         html.push(`<pre><code>${fenceLines.join("\n")}</code></pre>`);
@@ -1007,6 +1009,11 @@ function renderNoteMarkdown(rawText) {
     }
     if (inFence) {
       fenceLines.push(line);
+      return;
+    }
+    if (!line.trim()) {
+      closeList();
+      html.push('<div class="md-blank-line"></div>');
       return;
     }
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
@@ -1024,7 +1031,7 @@ function renderNoteMarkdown(rawText) {
       return;
     }
     closeList();
-    if (line.trim()) html.push(`<p>${inline(line)}</p>`);
+    html.push(`<p>${inline(line)}</p>`);
   });
   closeList();
   if (inFence && fenceLines.length) html.push(`<pre><code>${fenceLines.join("\n")}</code></pre>`);

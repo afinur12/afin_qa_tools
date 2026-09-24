@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
+from app.jira_io import apply_jira_json_to_subtask
 from app.templating import templates
 from app.models import (
     DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
@@ -115,6 +116,17 @@ async def import_testcases_preview(request: Request, subtask_id: int, file: Uplo
         data = json.loads(await file.read())
     except json.JSONDecodeError:
         return redirect_with_flash(f"/subtasks/{subtask_id}", "That file isn't valid JSON.", category="danger")
+    # A Jira-shaped file (no "kind", a "test_cases" list) belongs to the Jira
+    # Sync import, not this one — hand it over rather than rejecting it, so
+    # either upload button takes it.
+    if isinstance(data, dict) and "kind" not in data and isinstance(data.get("test_cases"), list):
+        try:
+            apply_jira_json_to_subtask(db, subtask, data)
+        except ValueError as exc:
+            db.rollback()
+            return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
+        db.commit()
+        return redirect_with_flash(f"/subtasks/{subtask_id}", f"Jira data imported into {subtask.display_code}.")
     try:
         candidates = extract_testcase_candidates(data)
     except ValueError as exc:

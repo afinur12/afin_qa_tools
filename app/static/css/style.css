@@ -1079,6 +1079,7 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 .snippet-markdown-preview :first-child { margin-top: 0; }
 .snippet-markdown-preview p { margin: 0 0 10px; }
+.snippet-markdown-preview .md-blank-line { height: 1.6em; }
 .snippet-markdown-preview ul, .snippet-markdown-preview ol { margin: 0 0 10px; padding-left: 22px; }
 .snippet-markdown-preview li { margin-bottom: 4px; }
 .snippet-markdown-preview code {
