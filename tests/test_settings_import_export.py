@@ -46,8 +46,10 @@ def test_export_then_import_round_trips_into_a_fresh_target(client):
     page_services = client.get("/settings/services").text
     assert page_services.count('data-filter-search="auth-service"') == 1
     assert "TIMEOUT" in client.get("/settings/simulates").text
-    assert "SMOKE" in client.get("/settings/test-types").text
-    assert "URGENT" in client.get("/settings/test-priorities").text
+    # Test Type/Test Priority values are capitalize()'d on save ("SMOKE" ->
+    # "Smoke"), so the export (and the re-import of it) carries that form.
+    assert "Smoke" in client.get("/settings/test-types").text
+    assert "Urgent" in client.get("/settings/test-priorities").text
     assert "flaky" in client.get("/settings/labels").text
     users_page = client.get("/settings/users").text
     assert "Alex Kim" in users_page

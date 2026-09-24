@@ -10,6 +10,7 @@ import re
 import time as time_module
 import uuid
 from collections import defaultdict
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -232,12 +233,34 @@ def builder(
 
 # ── Send / resolve ──────────────────────────────────────────────────────
 
+# RFC 3986 gen-delims + sub-delims, plus "%" itself — every character that
+# already has a structural meaning in a URL (scheme/host/path separators,
+# the query string's own key=value&key=value delimiters, an existing
+# percent-escape) stays exactly as typed. Only characters outside that set
+# — a literal space above all, but also unicode, quotes, angle brackets,
+# backticks — get percent-encoded here. The address bar deliberately shows
+# values "as is" rather than pre-encoded (see api_client.js's
+# encodeQueryValue), so an unsafe raw character can genuinely reach this
+# point; some target servers' own URI parsers reject it outright (a plain
+# space in particular), where a browser or Postman would have silently
+# encoded it before ever putting it on the wire. This runs once, after
+# {{variable}} substitution, on the WHOLE url string, and applies to both
+# the real send and the /resolve preview so the shown curl command matches
+# what's actually sent.
+_URL_SAFE_CHARS = "%:/?#[]@!$&'()*+,;="
+
+
+def _sanitize_url_for_wire(url: str) -> str:
+    return quote(url, safe=_URL_SAFE_CHARS)
+
+
 def _resolve_request(db: Session, payload: dict) -> dict:
     collection_id = payload.get("collection_id")
     variables = load_variables(db, collection_id)
     sensitive_values: set[str] = set()
 
     url, url_errors = resolve_text(payload.get("url", ""), variables, sensitive_values)
+    url = _sanitize_url_for_wire(url)
     body, body_errors = resolve_text(payload.get("body", ""), variables, sensitive_values)
 
     headers: list[list[str]] = []
@@ -303,7 +326,14 @@ async def send_request(request: Request, db: Session = Depends(get_db)):
         # almost always behind a self-signed or internal-CA certificate —
         # the same reason Postman/Insomnia ship an "SSL verification" toggle
         # that teams routinely turn off for exactly this kind of endpoint.
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, verify=False) as client:
+        #
+        # follow_redirects=False: matches Postman/Insomnia/curl's own
+        # default. Auto-following silently swaps the 3xx response this tool
+        # actually hit for whatever page the redirect eventually lands on —
+        # the opposite of what testing an endpoint that's SUPPOSED to
+        # redirect (e.g. an OAuth /authorize call, where the Location
+        # header's value is the entire point of the test) needs to see.
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=False, verify=False) as client:
             resp = await client.request(
                 resolved["method"], resolved["url"],
                 headers={k: v for k, v in resolved["headers"]},

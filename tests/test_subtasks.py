@@ -170,7 +170,7 @@ def test_subtask_detail_shows_test_priority_badge_and_sort_attributes(client):
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "With priority"})
     testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
     client.post("/settings/test-priorities", data={"name": "HIGHEST"})
-    priority_id = re.search(r'value="HIGHEST"[\s\S]*?/settings/test-priorities/(\d+)/delete', client.get("/settings/test-priorities").text).group(1)
+    priority_id = re.search(r'value="Highest"[\s\S]*?/settings/test-priorities/(\d+)/delete', client.get("/settings/test-priorities").text).group(1)
     client.post(f"/testcases/{testcase_id}/section1", data={"status": "TO_DO", "test_priority_id": priority_id})
 
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-2", "title": "No priority"})
@@ -178,7 +178,7 @@ def test_subtask_detail_shows_test_priority_badge_and_sort_attributes(client):
     detail = client.get(f"/subtasks/{subtask_id}")
     assert detail.status_code == 200
     assert 'class="badge priority-highest">' in detail.text
-    assert "HIGHEST</span>" in detail.text
+    assert "Highest</span>" in detail.text
     assert f'data-sort-priority="{priority_id}"' in detail.text
     assert 'data-sort-priority="999999"' in detail.text  # TC-2 has no priority set
     assert "data-sortable-table" in detail.text

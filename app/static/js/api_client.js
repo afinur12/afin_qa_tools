@@ -528,6 +528,22 @@
 
   initVariableHighlighting(document);
 
+  // The URL bar auto-grows to fit wrapped text instead of horizontally
+  // scrolling — the same "height:auto then scrollHeight" trick
+  // syncNoteTextarea/attachCodeEditor use elsewhere. Re-queried fresh (not
+  // cached) since every call site that sets [data-ac-url].value
+  // programmatically (tab switch, curl paste, params sync) already
+  // dispatches its own "input" event right after, which this just piggybacks
+  // on rather than needing its own hook into each of them.
+  function autoGrowUrlBar() {
+    const field = document.querySelector("[data-ac-url]");
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight}px`;
+  }
+  document.querySelector("[data-ac-url]")?.addEventListener("input", autoGrowUrlBar);
+  autoGrowUrlBar();
+
   // ── Body language detection — shared by the request body editor and the
   // response payload viewer, so both highlight the same six content types
   // the same way. Content-Type is the primary signal (it's what actually
@@ -998,10 +1014,24 @@
     ]);
   }
 
+  // encodeURIComponent is tuned for embedding a value ANYWHERE in a URI, so
+  // it escapes characters (: / @ , ; + $ ! * ' ( )) that are actually safe
+  // and unambiguous inside a query-string VALUE specifically — over-encoding
+  // them just makes the address bar harder to read, and some servers build
+  // their own URIs by pasting a raw param value in without decoding it
+  // first, so a value like "https%3A%2F%2Fhost%2Fpath" can fail there even
+  // though it's perfectly valid. Only characters that would actually break
+  // the query string's own key=value&key=value syntax if left bare (& = # %,
+  // whitespace, unicode, control chars) stay escaped.
+  const QUERY_VALUE_SAFE_ESCAPES = /%(3A|2F|40|2C|3B|2B|24|21|2A|27|28|29)/gi;
+  function encodeQueryValue(v) {
+    return encodeURIComponent(v).replace(QUERY_VALUE_SAFE_ESCAPES, (m) => decodeURIComponent(m));
+  }
+
   function buildQueryString(params) {
     return params
       .filter(([k]) => k)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .map(([k, v]) => `${encodeQueryValue(k)}=${encodeQueryValue(v)}`)
       .join("&");
   }
 
@@ -1246,43 +1276,48 @@
         </div>
       </div>
       ${unresolvedNote}
-      <div class="ac-report-subhead ac-report-subhead-row">
-        <span class="ac-report-subhead-title">Response Payload <span class="badge code">${escapeHtml(contentType ? contentType[1] : "n/a")}</span></span>
-        <div style="display: flex; gap: 6px;">
-          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-toggle title="Search response" aria-label="Search response">
-            ${ICON_SEARCH_SVG}
+      <div class="tabgroup-nav ac-resp-tabgroup-nav">
+        <button type="button" class="tabgroup-btn is-active" data-ac-resp-tab="body">Body</button>
+        <button type="button" class="tabgroup-btn" data-ac-resp-tab="headers">Headers ${(data.headers || []).length}</button>
+      </div>
+      <div class="tabgroup-panel is-active" data-ac-resp-panel="body">
+        <div class="ac-report-subhead ac-report-subhead-row">
+          <span class="ac-report-subhead-title">Response Payload <span class="badge code">${escapeHtml(contentType ? contentType[1] : "n/a")}</span></span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-toggle title="Search response" aria-label="Search response">
+              ${ICON_SEARCH_SVG}
+            </button>
+            <button type="button" class="btn ac-resp-toolbar-btn" data-ac-copy-response title="Copy response body" aria-label="Copy response body">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button type="button" class="btn ac-resp-toolbar-btn" data-ac-wrap-toggle title="Wrap long lines" aria-label="Wrap long lines">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h13a3 3 0 0 1 0 6h-4m0 0 3-3m-3 3 3 3M3 18h4"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="ac-resp-search-bar" data-ac-search-bar hidden>
+          ${ICON_SEARCH_SVG}
+          <input type="text" placeholder="Search response" data-ac-search-input>
+          <span class="ac-resp-search-count" data-ac-search-count></span>
+          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-prev title="Previous match" aria-label="Previous match" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
           </button>
-          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-copy-response title="Copy response body" aria-label="Copy response body">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-next title="Next match" aria-label="Next match" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-wrap-toggle title="Wrap long lines" aria-label="Wrap long lines">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h13a3 3 0 0 1 0 6h-4m0 0 3-3m-3 3 3 3M3 18h4"/></svg>
+          <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-close title="Close search" aria-label="Close search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
-      </div>
-      <div class="ac-resp-search-bar" data-ac-search-bar hidden>
-        ${ICON_SEARCH_SVG}
-        <input type="text" placeholder="Search response" data-ac-search-input>
-        <span class="ac-resp-search-count" data-ac-search-count></span>
-        <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-prev title="Previous match" aria-label="Previous match" disabled>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
-        </button>
-        <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-next title="Next match" aria-label="Next match" disabled>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <button type="button" class="btn ac-resp-toolbar-btn" data-ac-search-close title="Close search" aria-label="Close search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="code-block">
-        <div class="snippet-code ac-code-scroll">
-          <div class="snippet-gutter">${gutter}</div>
-          <pre class="snippet-pre" data-ac-response-pre><code data-snippet-code="${lang}">${escapeHtml(data.body || "")}</code></pre>
+        <div class="code-block">
+          <div class="snippet-code ac-code-scroll">
+            <div class="snippet-gutter">${gutter}</div>
+            <pre class="snippet-pre" data-ac-response-pre><code data-snippet-code="${lang}">${escapeHtml(data.body || "")}</code></pre>
+          </div>
         </div>
       </div>
-      <div class="ac-collapsible">
-        <button type="button" class="ac-report-subhead ac-collapsible-summary" data-ac-headers-toggle><span class="ac-chev">${CHEVRON_SVG}</span>Response Headers</button>
-        <div class="ac-report-table-wrap" hidden>
+      <div class="tabgroup-panel" data-ac-resp-panel="headers">
+        <div class="ac-report-table-wrap">
           <table class="ac-report-table">
             <thead><tr><th>HEADER</th><th>VALUE</th></tr></thead>
             <tbody>
@@ -1292,11 +1327,19 @@
         </div>
       </div>`;
 
-    responseBox.querySelector("[data-ac-headers-toggle]")?.addEventListener("click", (event) => {
-      const wrap = event.currentTarget.closest(".ac-collapsible");
-      const table = wrap.querySelector(".ac-report-table-wrap");
-      table.hidden = !table.hidden;
-      wrap.classList.toggle("is-open", !table.hidden);
+    // A lightweight tab toggle scoped to this one response box, not the
+    // page-wide [data-tabgroup] wiring near the top of this file — that
+    // attaches listeners once at initial page load, so it never sees
+    // buttons that show up later via this innerHTML rebuild.
+    const respTabButtons = Array.from(responseBox.querySelectorAll("[data-ac-resp-tab]"));
+    respTabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.acRespTab;
+        respTabButtons.forEach((b) => b.classList.toggle("is-active", b === button));
+        responseBox.querySelectorAll("[data-ac-resp-panel]").forEach((panel) => {
+          panel.classList.toggle("is-active", panel.dataset.acRespPanel === target);
+        });
+      });
     });
 
     if (window.hljs) {
@@ -1605,13 +1648,15 @@
     });
   }
 
-  // A long request body or response is internally scrolled on the live
-  // page (see .ac-code-scroll) — for an export that's wrong, it would
-  // silently crop out whatever's currently scrolled out of view. The
-  // clone gets its scroll caps lifted first so html2canvas captures the
-  // whole thing at full height instead of just the visible window.
+  // A long request body/response (.ac-code-scroll) or a params/headers
+  // table past a handful of rows (.ac-report-table-wrap) is internally
+  // scrolled on the live page — for an export that's wrong, it would
+  // silently crop out whatever's currently scrolled out of view (e.g. a
+  // 6th query param hidden below the table's 220px cap). The clone gets
+  // its scroll caps lifted first so html2canvas captures the whole thing
+  // at full height instead of just the visible window.
   function expandScrollCaps(cloneRoot) {
-    cloneRoot.querySelectorAll(".ac-code-scroll").forEach((el) => {
+    cloneRoot.querySelectorAll(".ac-code-scroll, .ac-report-table-wrap").forEach((el) => {
       el.style.maxHeight = "none";
       el.style.overflow = "visible";
     });

@@ -1,8 +1,26 @@
 """app/master_data.py: get-or-create, default seeding, and the one-time
 free-text -> FK backfill migration for Service/Simulate/TestType."""
 
-from app.master_data import get_or_create, migrate_free_text_to_master, migrate_testcase_tester_to_user, seed_defaults
-from app.models import PrebuiltTestCase, Service, Simulate, TestCase, TestType, User, UserType
+from app.master_data import (
+    get_or_create,
+    merge_duplicate_names,
+    migrate_free_text_to_master,
+    migrate_testcase_tester_to_user,
+    seed_defaults,
+)
+from app.models import (
+    Label,
+    LabelAssignment,
+    LabelAttachType,
+    PrebuiltTestCase,
+    Service,
+    Simulate,
+    TestCase,
+    TestPriority,
+    TestType,
+    User,
+    UserType,
+)
 
 
 def test_get_or_create_returns_none_for_blank_name(db_session):
@@ -19,20 +37,20 @@ def test_get_or_create_trims_and_reuses_existing_row(db_session):
     assert db_session.query(Service).count() == 1
 
 
-def test_get_or_create_is_case_sensitive(db_session):
+def test_get_or_create_is_case_insensitive(db_session):
     lower = get_or_create(db_session, Service, "payment-service")
     db_session.commit()
     upper = get_or_create(db_session, Service, "Payment-Service")
     db_session.commit()
-    assert lower.id != upper.id
-    assert db_session.query(Service).count() == 2
+    assert lower.id == upper.id
+    assert db_session.query(Service).count() == 1
 
 
 def test_seed_defaults_populates_test_types_and_simulates_once(db_session):
     seed_defaults(db_session)
     test_type_names = {t.name for t in db_session.query(TestType).all()}
     simulate_names = {s.name for s in db_session.query(Simulate).all()}
-    assert test_type_names == {"POSITIVE", "NEGATIVE", "REGRESSION"}
+    assert test_type_names == {"Positive", "Negative", "Regression"}
     assert simulate_names == {"E2E", "API Testing"}
 
     # A custom value already in the table (e.g. from a real user's DB)
@@ -42,7 +60,7 @@ def test_seed_defaults_populates_test_types_and_simulates_once(db_session):
     db_session.commit()
     seed_defaults(db_session)
     assert db_session.query(TestType).filter(TestType.name == "CUSTOM").count() == 1
-    assert db_session.query(TestType).filter(TestType.name == "POSITIVE").count() == 1
+    assert db_session.query(TestType).filter(TestType.name == "Positive").count() == 1
 
 
 def _make_prebuilt_with_legacy_text(db, name, service_name=None, simulate=None, test_type=None):
@@ -277,3 +295,108 @@ def test_migrate_testcase_tester_does_not_restore_a_deliberately_cleared_fk(db_s
     db_session.refresh(tc)
 
     assert tc.tester_id is None, "a deliberately cleared tester_id must not be resurrected from stale legacy text"
+
+
+def _make_subtask_for_testcase(db, code="EX-90"):
+    from app.models import Phase, PhaseType, Story, Subtask, SubtaskType
+
+    story = Story(display_code=code, title="A", internal_key=f"k-{code}")
+    db.add(story)
+    db.commit()
+    phase = Phase(story_id=story.id, type=PhaseType.SIT)
+    db.add(phase)
+    db.commit()
+    subtask = Subtask(phase_id=phase.id, display_code="S-1", title="Exec",
+                       internal_key=f"k-{code}-s", subtask_type=SubtaskType.EXECUTION)
+    db.add(subtask)
+    db.commit()
+    return subtask
+
+
+def test_merge_duplicate_names_merges_test_type_case_variants_and_reassigns_fk(db_session):
+    all_caps = TestType(name="POSITIVE")
+    proper = TestType(name="Positive")
+    db_session.add_all([all_caps, proper])
+    db_session.commit()
+
+    subtask = _make_subtask_for_testcase(db_session, "EX-91")
+    tc = TestCase(subtask_id=subtask.id, display_code="TC-1", title="A", internal_key="k91",
+                   test_type_id=all_caps.id)
+    db_session.add(tc)
+    db_session.commit()
+
+    merge_duplicate_names(db_session)
+
+    remaining = db_session.query(TestType).filter(TestType.name.ilike("positive")).all()
+    assert len(remaining) == 1
+    assert remaining[0].name == "Positive"
+    db_session.refresh(tc)
+    assert tc.test_type_id == remaining[0].id
+
+
+def test_merge_duplicate_names_capitalizes_test_priority_survivor(db_session):
+    db_session.add_all([TestPriority(name="HIGH"), TestPriority(name="high")])
+    db_session.commit()
+
+    merge_duplicate_names(db_session)
+
+    remaining = db_session.query(TestPriority).all()
+    assert [p.name for p in remaining] == ["High"]
+
+
+def test_merge_duplicate_names_leaves_non_duplicate_rows_untouched(db_session):
+    """Only an actual case-collision group is touched — a lone all-caps
+    value with nothing to merge against keeps its existing spelling."""
+    db_session.add(TestType(name="SMOKE"))
+    db_session.commit()
+
+    merge_duplicate_names(db_session)
+
+    assert [t.name for t in db_session.query(TestType).all()] == ["SMOKE"]
+
+
+def test_merge_duplicate_names_does_not_capitalize_service_or_simulate_survivors(db_session):
+    db_session.add_all([Service(name="payment-service"), Service(name="Payment-Service")])
+    db_session.commit()
+
+    merge_duplicate_names(db_session)
+
+    remaining = db_session.query(Service).all()
+    assert len(remaining) == 1
+    assert remaining[0].name in ("payment-service", "Payment-Service")
+
+
+def test_merge_duplicate_names_merges_labels_and_drops_redundant_assignment_on_collision(db_session):
+    lower = Label(name="flaky")
+    proper = Label(name="Flaky")
+    db_session.add_all([lower, proper])
+    db_session.commit()
+
+    # Both duplicate labels attached to the SAME story — merging must not
+    # violate LabelAssignment's UNIQUE(label_id, attach_type, attach_id).
+    db_session.add_all([
+        LabelAssignment(label_id=lower.id, attach_type=LabelAttachType.STORY, attach_id=1),
+        LabelAssignment(label_id=proper.id, attach_type=LabelAttachType.STORY, attach_id=1),
+    ])
+    db_session.commit()
+
+    merge_duplicate_names(db_session)
+
+    remaining_labels = db_session.query(Label).all()
+    assert len(remaining_labels) == 1
+    survivor = remaining_labels[0]
+    assignments = db_session.query(LabelAssignment).filter(
+        LabelAssignment.attach_type == LabelAttachType.STORY, LabelAssignment.attach_id == 1
+    ).all()
+    assert len(assignments) == 1
+    assert assignments[0].label_id == survivor.id
+
+
+def test_merge_duplicate_names_is_idempotent(db_session):
+    db_session.add_all([TestType(name="POSITIVE"), TestType(name="Positive")])
+    db_session.commit()
+
+    merge_duplicate_names(db_session)
+    merge_duplicate_names(db_session)  # second call must be a no-op, not an error
+
+    assert db_session.query(TestType).count() == 1

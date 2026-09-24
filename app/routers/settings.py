@@ -42,12 +42,23 @@ TABLES = {
             (PrebuiltTestCase, "test_type_id", "prebuilt template"),
             (TestCase, "test_type_id", "test case"),
         ],
+        "normalize": str.capitalize,
     },
     "test-priorities": {
         "model": TestPriority, "label": "Test Priority", "label_plural": "Test Priorities",
         "refs": [(TestCase, "test_priority_id", "test case")],
+        "normalize": str.capitalize,
     },
 }
+
+
+def _normalize_name(cfg: dict, name: str) -> str:
+    """Test Type/Test Priority values are short display words ("High",
+    "Regression") that get capitalize()'d so "HIGH"/"high"/"High" can't
+    coexist as different rows; Service/Simulate names can be kebab-case
+    identifiers or intentionally-cased phrases ("API Testing") that
+    capitalize() would mangle, so those keep whatever casing was typed."""
+    return cfg.get("normalize", lambda n: n)(name)
 
 
 def _export_settings_data(db: Session) -> dict:
@@ -66,18 +77,20 @@ def _export_settings_data(db: Session) -> dict:
     return data
 
 
-def _import_names(db: Session, model, names) -> int:
+def _import_names(db: Session, model, names, normalize=lambda n: n) -> int:
     """Adds each new (non-existing, non-blank) name to `model`; existing
-    names are left untouched. Returns how many rows were added."""
+    names are left untouched, compared case-insensitively so an import
+    can't recreate a "HIGH"/"High"-style duplicate. Returns how many rows
+    were added."""
     if not isinstance(names, list):
         return 0
-    existing = {row.name for row in db.query(model).all()}
+    existing = {row.name.lower() for row in db.query(model).all()}
     added = 0
     for name in names:
-        name = name.strip() if isinstance(name, str) else ""
-        if name and name not in existing:
+        name = normalize(name.strip()) if isinstance(name, str) else ""
+        if name and name.lower() not in existing:
             db.add(model(name=name))
-            existing.add(name)
+            existing.add(name.lower())
             added += 1
     return added
 
@@ -85,13 +98,13 @@ def _import_names(db: Session, model, names) -> int:
 def _import_users(db: Session, users_payload) -> int:
     if not isinstance(users_payload, list):
         return 0
-    existing = {row.name for row in db.query(User).all()}
+    existing = {row.name.lower() for row in db.query(User).all()}
     added = 0
     for entry in users_payload:
         if not isinstance(entry, dict):
             continue
         name = (entry.get("name") or "").strip()
-        if not name or name in existing:
+        if not name or name.lower() in existing:
             continue
         try:
             user_type = UserType(entry.get("type"))
@@ -99,7 +112,7 @@ def _import_users(db: Session, users_payload) -> int:
             continue
         jira_username = (entry.get("jira_username") or "").strip() or None
         db.add(User(name=name, type=user_type, jira_username=jira_username))
-        existing.add(name)
+        existing.add(name.lower())
         added += 1
     return added
 
@@ -123,7 +136,9 @@ async def import_settings(file: UploadFile = File(...), db: Session = Depends(ge
     payload = data["settings"]
     added = 0
     for slug, cfg in TABLES.items():
-        added += _import_names(db, cfg["model"], payload.get(slug.replace("-", "_")))
+        added += _import_names(
+            db, cfg["model"], payload.get(slug.replace("-", "_")), normalize=cfg.get("normalize", lambda n: n)
+        )
     added += _import_names(db, Label, payload.get("labels"))
     added += _import_users(db, payload.get("users"))
     db.commit()
@@ -176,10 +191,10 @@ def create_row(request: Request, slug: str, name: str = Form(...), db: Session =
     if slug not in TABLES:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     cfg = TABLES[slug]
-    name = name.strip()
+    name = _normalize_name(cfg, name.strip())
     if not name:
         return _render_table(request, slug, db, error="Name is required.", status_code=422)
-    if db.query(cfg["model"]).filter(cfg["model"].name == name).first():
+    if db.query(cfg["model"]).filter(func.lower(cfg["model"].name) == name.lower()).first():
         return _render_table(request, slug, db, error=f'"{name}" already exists.', status_code=422)
     db.add(cfg["model"](name=name))
     db.commit()
@@ -194,10 +209,12 @@ def rename_row(request: Request, slug: str, row_id: int, name: str = Form(...), 
     row = db.get(cfg["model"], row_id)
     if row is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    name = name.strip()
+    name = _normalize_name(cfg, name.strip())
     if not name:
         return _render_table(request, slug, db, error="Name is required.", status_code=422)
-    conflict = db.query(cfg["model"]).filter(cfg["model"].name == name, cfg["model"].id != row_id).first()
+    conflict = db.query(cfg["model"]).filter(
+        func.lower(cfg["model"].name) == name.lower(), cfg["model"].id != row_id
+    ).first()
     if conflict:
         return _render_table(request, slug, db, error=f'"{name}" already exists.', status_code=422)
     row.name = name

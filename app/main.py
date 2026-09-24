@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, backfill_column, engine, ensure_columns, migrate_table
-from app.master_data import migrate_free_text_to_master, migrate_testcase_tester_to_user, seed_defaults
+from app.master_data import merge_duplicate_names, migrate_free_text_to_master, migrate_testcase_tester_to_user, seed_defaults
 from app.routers import api_client, bugs, jira_sync, labels, prebuilt, notes, dashboard, docx_export, execution, screenshots, settings, stories, subtasks, testcases, users, utility
 from app.variables import seed_builtin_variables
 
@@ -43,6 +43,7 @@ with SessionLocal() as _seed_db:
     seed_defaults(_seed_db)
     migrate_free_text_to_master(_seed_db)
     migrate_testcase_tester_to_user(_seed_db)
+    merge_duplicate_names(_seed_db)
 
 app = FastAPI(title="QA Toolbox")
 

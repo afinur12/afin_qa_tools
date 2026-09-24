@@ -42,7 +42,7 @@ def test_update_section1_fields(client):
     test_type_id = re.search(r"/settings/test-types/(\d+)/delete", client.get("/settings/test-types").text).group(1)
     client.post("/settings/test-priorities", data={"name": "HIGH"})
     priority_page = client.get("/settings/test-priorities")
-    priority_id = re.search(r'value="HIGH"[\s\S]*?/settings/test-priorities/(\d+)/delete', priority_page.text).group(1)
+    priority_id = re.search(r'value="High"[\s\S]*?/settings/test-priorities/(\d+)/delete', priority_page.text).group(1)
     client.post("/settings/users", data={"name": "Jane Doe", "type": "TESTER"})
     tester_id = re.search(r"/settings/users/(\d+)/delete", client.get("/settings/users").text).group(1)
     response = client.post(

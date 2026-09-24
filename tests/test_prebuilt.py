@@ -165,13 +165,13 @@ def test_prebuilt_service_simulate_test_type_round_trip(client):
 
     page = client.get(f"/prebuilt/{prebuilt_id}").text
     assert "payment-service" in page
-    assert "NEGATIVE" in page
+    assert "Negative" in page
     assert "API Testing" in page
     assert "flaky on staging" in page
 
     list_page = client.get("/prebuilt").text
     assert "payment-service" in list_page
-    assert "NEGATIVE" in list_page
+    assert "Negative" in list_page
     assert "API Testing" in list_page
 
 
@@ -191,7 +191,7 @@ def test_creating_a_testcase_from_a_prebuilt_prefills_test_type_and_remark(clien
 
     testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
     page = client.get(f"/testcases/{testcase_id}/execute").text
-    assert "REGRESSION" in page
+    assert "Regression" in page
     assert "run every release" in page
 
 
@@ -234,7 +234,7 @@ def test_prebuilt_list_exposes_search_filter_and_sort_hooks(client):
     assert 'data-table-filter="test-type"' in page
     assert 'data-table-filter="simulate"' in page
     assert 'data-filter-service="payment-service"' in page
-    assert 'data-filter-test-type="NEGATIVE"' in page
+    assert 'data-filter-test-type="Negative"' in page
     assert 'data-sort-key="name"' in page
     assert 'data-sort-key="sections"' in page
     assert "data-filter-empty" in page

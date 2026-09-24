@@ -42,7 +42,7 @@ def create_label(request: Request, name: str = Form(...), db: Session = Depends(
     name = name.strip()
     if not name:
         return _render(request, db, error="Name is required.", status_code=422)
-    if db.query(Label).filter(Label.name == name).first():
+    if db.query(Label).filter(func.lower(Label.name) == name.lower()).first():
         return _render(request, db, error=f'"{name}" already exists.', status_code=422)
     db.add(Label(name=name))
     db.commit()
@@ -57,7 +57,7 @@ def rename_label(request: Request, label_id: int, name: str = Form(...), db: Ses
     name = name.strip()
     if not name:
         return _render(request, db, error="Name is required.", status_code=422)
-    conflict = db.query(Label).filter(Label.name == name, Label.id != label_id).first()
+    conflict = db.query(Label).filter(func.lower(Label.name) == name.lower(), Label.id != label_id).first()
     if conflict:
         return _render(request, db, error=f'"{name}" already exists.', status_code=422)
     label.name = name

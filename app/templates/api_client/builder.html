@@ -119,7 +119,7 @@
           <option value="{{ m }}" {% if current.method == m %}selected{% endif %}>{{ m }}</option>
           {% endfor %}
         </select>
-        <input type="text" class="ac-url-input" data-ac-url placeholder="https://api.example.com/v1/..." value="{{ current.url }}">
+        <textarea class="ac-url-input" data-ac-url rows="1" placeholder="https://api.example.com/v1/...">{{ current.url }}</textarea>
         <button type="button" class="btn lime" data-ac-send>{{ icon_send() }} Send</button>
         {# Both live in the DOM at once; switching tabs client-side toggles
            which is shown (see applyTabToDom in api_client.js) rather than

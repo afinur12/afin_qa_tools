@@ -2182,6 +2182,14 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
 .ac-url-input {
   flex-grow: 1; min-width: 0; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl);
   font-size: 13.5px; font-family: var(--font-mono); color: var(--ink); background: var(--surface);
+  /* Auto-grows in height (see autoGrowUrlBar in api_client.js) instead of
+     horizontally scrolling a long URL. resize:none + overflow:hidden hand
+     height entirely to that JS, matching the request body/Test Data
+     editors' own auto-grow textareas. word-break must match the {{var}}
+     highlight overlay's (.ac-highlight-overlay.is-multiline) exactly, or
+     the two layers wrap at different points and the caret drifts from the
+     colored text sitting under it. */
+  resize: none; overflow: hidden; white-space: pre-wrap; word-break: break-word; line-height: 1.5;
 }
 .ac-hint { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 11.5px; color: var(--ink-3); }
 
@@ -2225,6 +2233,21 @@ body.is-resizing-drawer .ac-drawer-resize-handle::after { background: var(--indi
    additions are a scroll cap, a fixed first-column width so header names
    don't wrap mid-word, and input styling since these cells are editable. */
 .ac-report-table-wrap { max-height: 220px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+/* Thin themed scrollbar — same convention as .ac-code-scroll below, but
+   tuned for a light app surface instead of a dark code block (that one's
+   white-on-transparent thumb would be nearly invisible here). Shared with
+   .ac-export-preview-frame, which scrolls a tall exported image inside
+   the same kind of surface. */
+.ac-report-table-wrap,
+.ac-export-preview-frame { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.ac-report-table-wrap::-webkit-scrollbar,
+.ac-export-preview-frame::-webkit-scrollbar { width: 8px; height: 8px; }
+.ac-report-table-wrap::-webkit-scrollbar-track,
+.ac-export-preview-frame::-webkit-scrollbar-track { background: transparent; }
+.ac-report-table-wrap::-webkit-scrollbar-thumb,
+.ac-export-preview-frame::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
+.ac-report-table-wrap::-webkit-scrollbar-thumb:hover,
+.ac-export-preview-frame::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
 .ac-report-table { table-layout: fixed; }
 .ac-report-table td { word-break: break-word; }
 .ac-report-table th { position: sticky; top: 0; background: var(--surface-sunk); }

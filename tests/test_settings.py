@@ -62,9 +62,10 @@ def test_rename_rejects_conflict_with_another_row(client):
     client.post("/settings/test-types", data={"name": "POSITIVE"})
     client.post("/settings/test-types", data={"name": "NEGATIVE"})
     page = client.get("/settings/test-types")
-    negative_id = re.search(r"value=\"NEGATIVE\"[^>]*action=\"/settings/test-types/(\d+)/edit\"", page.text)
-    # Row ids appear in the edit form action; find NEGATIVE's row id directly.
-    row_id = re.search(r'action="/settings/test-types/(\d+)/edit"[^>]*>\s*<input name="name" value="NEGATIVE"', page.text, re.S)
+    # Row ids appear in the edit form action; find Negative's row id directly.
+    # Names are capitalize()'d on save ("NEGATIVE" -> "Negative") so a
+    # second, differently-cased "negative" can't be saved as a duplicate.
+    row_id = re.search(r'action="/settings/test-types/(\d+)/edit"[^>]*>\s*<input name="name" value="Negative"', page.text, re.S)
     assert row_id is not None
     response = client.post(f"/settings/test-types/{row_id.group(1)}/edit", data={"name": "POSITIVE"})
     assert response.status_code == 422
@@ -128,8 +129,37 @@ def test_test_priorities_seeded_with_defaults(client, db_session):
     seed_defaults(db_session)
     page = client.get("/settings/test-priorities")
     assert page.status_code == 200
-    for name in ["HIGHEST", "HIGH", "MEDIUM", "LOW"]:
+    for name in ["Highest", "High", "Medium", "Low"]:
         assert name in page.text
+
+
+def test_create_capitalizes_test_priority_name(client):
+    client.post("/settings/test-priorities", data={"name": "URGENT"})
+    assert "Urgent" in client.get("/settings/test-priorities").text
+
+
+def test_create_rejects_a_case_only_variant_of_an_existing_test_priority(client):
+    client.post("/settings/test-priorities", data={"name": "Critical"})
+    response = client.post("/settings/test-priorities", data={"name": "CRITICAL"})
+    assert response.status_code == 422
+    assert "already exists" in response.text
+    # Still exactly one row, not a second "CRITICAL"/"Critical" duplicate.
+    page = client.get("/settings/test-priorities").text
+    assert page.count('data-filter-search="critical"') == 1
+
+
+def test_create_rejects_a_case_only_variant_of_an_existing_test_type(client):
+    client.post("/settings/test-types", data={"name": "exploratory"})
+    response = client.post("/settings/test-types", data={"name": "EXPLORATORY"})
+    assert response.status_code == 422
+
+
+def test_create_does_not_capitalize_service_names(client):
+    """Services are kebab-case identifiers, not display words — normalize
+    is only wired up for test-types/test-priorities."""
+    client.post("/settings/services", data={"name": "payment-service"})
+    assert "payment-service" in client.get("/settings/services").text
+    assert "Payment-service" not in client.get("/settings/services").text
 
 
 def test_delete_blocked_when_test_priority_used_by_testcase(client, db_session):

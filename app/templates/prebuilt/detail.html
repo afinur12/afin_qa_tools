@@ -107,6 +107,11 @@
   <div data-steps data-reorder-action="/prebuilt/{{ prebuilt.id }}/sections/{{ section.id }}/steps/reorder">
   {% for step in section.steps %}
   <div class="step is-collapsed" data-step-id="{{ step.id }}">
+    {# Its own <form> (can't nest inside the autosave form below) — the
+       delete button lives inline in .step-head instead and targets this
+       one via the form="" attribute, which HTML allows regardless of
+       where the button itself sits in the document. #}
+    <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/delete" id="step-delete-{{ step.id }}" hidden></form>
     <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/edit" data-autosave>
       <div class="step-head">
         <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
@@ -116,6 +121,7 @@
         <input name="step_text" value="{{ step.step_text }}" placeholder="Describe the step">
         <span class="save-state" data-save-state></span>
         <span class="save-state" data-reorder-state></span>
+        <button class="btn act remove" type="submit" form="step-delete-{{ step.id }}" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash(14) }}</button>
         <span class="step-toggle" data-step-toggle title="Expand/collapse" aria-label="Expand or collapse this step">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
         </span>
@@ -130,11 +136,6 @@
       </div>
       </div>
     </form>
-    <div class="form-actions step-body" style="margin-top:10px;">
-      <form method="post" action="/prebuilt/{{ prebuilt.id }}/steps/{{ step.id }}/delete">
-        <button class="btn act remove" type="submit" title="Delete step" aria-label="Delete step {{ step.step_no }}">{{ icon_trash() }}</button>
-      </form>
-    </div>
   </div>
   {% endfor %}
   </div>
