@@ -1,4 +1,5 @@
 import copy
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -46,6 +47,12 @@ LINKED_FIELDS = {"project", "scenario"}
 # 1.27cm margins is 18.46cm, and the step tables are 18.44cm wide), so 18cm
 # fills the block without overflowing the page or the cell.
 SCREENSHOT_WIDTH = Cm(18)
+# ...but a tall screenshot (a long response payload) at that width would run
+# over several pages, so anything taller than this is cropped from the
+# bottom, keeping the full width. A4 minus the 1.27cm margins leaves
+# ~27cm; 24cm leaves room for the step block's No/Step, Actual/Expected and
+# "Screenshot" rows above it on the same page.
+SCREENSHOT_MAX_HEIGHT = Cm(24)
 
 # numId 1 in the template's numbering.xml is a real Word bullet list
 # (abstractNumId 0, numFmt "bullet"). Reusing it gives native bullets that
@@ -251,6 +258,18 @@ def _format_test_date(value: str) -> str:
     return f"{parsed.strftime('%A')}, {parsed.day} {parsed.strftime('%B %Y')}"
 
 
+def _format_rupiah(value: str | None) -> str | None:
+    """Same formatting as the execute page's formatRupiah (app.js):
+    "5000" / "Rp. 5000" -> "Rp 5.000". A value with no digits (the "Rp. -"
+    not-applicable placeholder) is left as is. Applied here too because a
+    stored value isn't guaranteed to have gone through that page's blur
+    handler first."""
+    digits = re.sub(r"\D", "", value or "")
+    if not digits:
+        return value
+    return "Rp " + f"{int(digits):,}".replace(",", ".")
+
+
 def _apply_bullet(paragraph) -> None:
     """Attach the template's native bullet numbering to a paragraph."""
     p_pr = paragraph._p.get_or_add_pPr()
@@ -309,8 +328,9 @@ def _write_cell(cell, text: str, bullet: bool = False) -> None:
     """Replace a cell's contents with ``text``.
 
     With ``bullet`` set, each non-empty line becomes its own bulleted
-    paragraph; otherwise the text is written as-is (newlines preserved as
-    line breaks within one paragraph).
+    paragraph, with one empty line before and after the list so it doesn't
+    sit tight against the cell's borders; otherwise the text is written
+    as-is (newlines preserved as line breaks within one paragraph).
     """
     if not bullet:
         cell.text = text
@@ -320,14 +340,15 @@ def _write_cell(cell, text: str, bullet: bool = False) -> None:
     cell.text = ""
     if not lines:
         return
-    for i, line in enumerate(lines):
-        paragraph = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
-        paragraph.text = line
+    # The cell's existing (now empty) first paragraph is the blank line above.
+    for line in lines:
+        paragraph = cell.add_paragraph(line)
         try:
             paragraph.style = "List Paragraph"
         except KeyError:
             pass
         _apply_bullet(paragraph)
+    cell.add_paragraph()
 
 
 # Depends on `table.rows[row_index].cells` being ROW-SCOPED (each row's own
@@ -358,13 +379,30 @@ def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actua
     table.cell(1, 5).text = expected or ""
 
 
+def _add_screenshot(paragraph, path: str) -> None:
+    """Add the image at SCREENSHOT_WIDTH; if that makes it taller than
+    SCREENSHOT_MAX_HEIGHT, crop the bottom off. The crop is Word's own
+    (<a:srcRect b=...> on the picture's fill, in 1/1000ths of a percent), so
+    the full image is still embedded and can be un-cropped in Word."""
+    shape = paragraph.add_run().add_picture(path, width=SCREENSHOT_WIDTH)
+    if shape.height <= SCREENSHOT_MAX_HEIGHT:
+        return
+    crop_bottom = round((1 - SCREENSHOT_MAX_HEIGHT / shape.height) * 100000)
+    shape.height = SCREENSHOT_MAX_HEIGHT
+    blip_fill = shape._inline.graphic.graphicData.pic.blipFill
+    src_rect = OxmlElement("a:srcRect")
+    src_rect.set("b", str(crop_bottom))
+    # Schema order inside blipFill is blip, srcRect, stretch/tile.
+    blip_fill.blip.addnext(src_rect)
+
+
 def _insert_screenshots(table: Table, screenshot_paths: list[str]) -> None:
     cell = table.cell(3, 0)
     for i, path in enumerate(screenshot_paths):
         paragraph = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
-            paragraph.add_run().add_picture(path, width=SCREENSHOT_WIDTH)
+            _add_screenshot(paragraph, path)
         except Exception:
             # Screenshot format/content is deliberately never validated at
             # upload time, so add_picture can fail here (e.g. WebP, a
@@ -378,14 +416,14 @@ def build_docx(testcase, output_path: str) -> str:
     doc = Document(str(TEMPLATE_PATH))
     _unwrap_content_controls(doc)
 
-    story = testcase.subtask.phase.story
+    subtask = testcase.subtask
     fields = {
-        # Project identifies the task (story); Scenario identifies the test
-        # case itself. Each renders as "<code> - <title>" with the code
-        # linking back to the ticket in the tracker.
+        # Project identifies the subtask the test case belongs to; Scenario
+        # identifies the test case itself. Each renders as "<code> - <title>"
+        # with the code linking back to the ticket in the tracker.
         "project": {
-            "code": story.display_code, "title": story.title,
-            "url": tracker_url(story.display_code),
+            "code": subtask.display_code, "title": subtask.title,
+            "url": tracker_url(subtask.display_code),
         },
         "scenario": {
             "code": testcase.display_code, "title": testcase.title,
@@ -398,12 +436,14 @@ def build_docx(testcase, output_path: str) -> str:
         "test_type": testcase.test_type_ref.name if testcase.test_type_ref else None,
         "channel": testcase.channel,
         "iteration": testcase.iteration,
-        "balance_before": testcase.balance_before,
-        "balance_after": testcase.balance_after,
-        "usage": testcase.usage,
+        "balance_before": _format_rupiah(testcase.balance_before),
+        "balance_after": _format_rupiah(testcase.balance_after),
+        "usage": _format_rupiah(testcase.usage),
         "final_status": testcase.status.label,
         "remark": testcase.remark,
-        "data_test": testcase.data_test,
+        # Data Test lists the MSISDN Configuration lines first, then the
+        # Data Test field's own lines — each becomes its own bullet.
+        "data_test": "\n".join(v for v in (testcase.msisdn, testcase.data_test) if v and v.strip()),
     }
     _fill_header(doc, fields)
 

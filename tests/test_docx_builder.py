@@ -51,8 +51,9 @@ class _Phase:
 
 
 class _Subtask:
-    def __init__(self, story, title, phase_type):
+    def __init__(self, story, title, phase_type, display_code="EX-150"):
         self.title = title
+        self.display_code = display_code
         self.phase = _Phase(story, phase_type)
 
 
@@ -82,6 +83,7 @@ class _TestCase:
         self.usage = "Rp. -"
         self.remark = ""
         self.data_test = "msisdn: 62812"
+        self.msisdn = None
         self.status = _Enum("PASS")
 
     # The builder reads `sections`; tests still assign a flat `steps` list.
@@ -115,8 +117,8 @@ def test_build_docx_header_and_single_step(tmp_path):
     doc = Document(output_path)
     # Use ground-truth row-scoped access (immune to flat-index bugs) for key header fields
     header_table = doc.tables[0]
-    # Project identifies the task (story), Scenario the test case itself.
-    assert header_table.rows[0].cells[3].text == "EX-142 - Payments"  # project (row 0)
+    # Project identifies the subtask, Scenario the test case itself.
+    assert header_table.rows[0].cells[3].text == "EX-150 - SIT Login Flow"  # project (row 0)
     assert header_table.rows[1].cells[3].text == "TC-1 - Verify top-up RO balance"  # scenario (row 1)
     # tester_user is None (FK cleared) while the stub's stale free-text
     # tester ("Andri Firman Nurvianto") is still populated — export must
@@ -129,7 +131,7 @@ def test_build_docx_header_and_single_step(tmp_path):
     assert header_table.rows[6].cells[3].text == ""  # test_type (row 6)
     assert header_table.rows[8].cells[3].text == "1"  # iteration (row 8, affected by flat-index bug)
     assert header_table.rows[13].cells[3].text == ""  # remark (row 13, affected by flat-index bug)
-    assert header_table.rows[14].cells[-1].text == "msisdn: 62812"  # data_test (row 14, uses fallback to last cell)
+    assert header_table.rows[14].cells[-1].text.strip() == "msisdn: 62812"  # data_test (row 14, uses fallback to last cell)
 
     # Step blocks
     assert doc.tables[1].cell(0, 5).text == "pre text"
@@ -283,14 +285,13 @@ def test_build_docx_handles_unembeddable_screenshot_without_crashing(tmp_path):
     assert len(step_table._tbl.xpath(".//*[local-name()='drawing']")) == 0
 
 
-def _png_bytes():
+def _png_bytes(w=8, h=8):
     import struct
     import zlib
 
     def chunk(tag, data):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
 
-    w = h = 8
     raw = (b"\x00" + bytes((90, 120, 200)) * w) * h
     return (
         b"\x89PNG\r\n\x1a\n"
@@ -345,6 +346,8 @@ def test_build_docx_renders_data_test_as_bullet_list(tmp_path):
     cell = Document(output_path).tables[0].rows[14].cells[3]
     paragraphs = [p for p in cell.paragraphs if p.text.strip()]
     assert [p.text for p in paragraphs] == ["msisdn: 62812", "SID: 8117369", "amount: 50000"]
+    # One empty line above and below the bullet list.
+    assert [p.text for p in cell.paragraphs] == ["", "msisdn: 62812", "SID: 8117369", "amount: 50000", ""]
     for paragraph in paragraphs:
         p_pr = paragraph._p.find(ns + "pPr")
         assert p_pr is not None and p_pr.find(ns + "numPr") is not None, (
@@ -357,7 +360,7 @@ def test_build_docx_screenshots_are_18cm_wide_and_centered(tmp_path):
     from docx.shared import Emu
 
     png_path = tmp_path / "shot.png"
-    png_path.write_bytes(_png_bytes())
+    png_path.write_bytes(_png_bytes(w=16, h=8))
 
     tc, StepSection = _make_testcase([])
     tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a", screenshots=[_Screenshot(str(png_path))])]
@@ -395,11 +398,75 @@ def test_project_and_scenario_codes_are_tracker_hyperlinks(tmp_path):
         for link in root.findall(".//" + ns + "hyperlink")
     }
     assert links == {
-        "EX-142": "https://collabs.xlsmart.co.id/browse/EX-142",
+        "EX-150": "https://collabs.xlsmart.co.id/browse/EX-150",
         "TC-1": "https://collabs.xlsmart.co.id/browse/TC-1",
     }
 
     # The visible text is still "<code> - <title>".
     header = Document(output_path).tables[0]
-    assert header.rows[0].cells[3].text == "EX-142 - Payments"
+    assert header.rows[0].cells[3].text == "EX-150 - SIT Login Flow"
     assert header.rows[1].cells[3].text == "TC-1 - Verify top-up RO balance"
+
+
+def test_balance_and_usage_are_formatted_as_rupiah(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.balance_before = "Rp 100.000"
+    tc.balance_after = "95000"
+    tc.usage = "Rp. 5000"
+    output_path = str(tmp_path / "out_money.docx")
+    build_docx(tc, output_path)
+
+    header_table = Document(output_path).tables[0]
+    assert header_table.rows[9].cells[3].text == "Rp 100.000"
+    assert header_table.rows[10].cells[3].text == "Rp 95.000"
+    assert header_table.rows[11].cells[3].text == "Rp 5.000"
+
+
+def test_not_applicable_money_placeholder_is_left_as_is(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    output_path = str(tmp_path / "out_money_na.docx")
+    build_docx(tc, output_path)
+
+    assert Document(output_path).tables[0].rows[11].cells[3].text == "Rp. -"
+
+
+def test_tall_screenshot_keeps_full_width_and_is_cropped_to_one_page(tmp_path):
+    from docx.shared import Cm
+
+    tall = tmp_path / "tall.png"
+    tall.write_bytes(_png_bytes(w=100, h=400))  # 18cm wide -> 72cm tall uncropped
+    wide = tmp_path / "wide.png"
+    wide.write_bytes(_png_bytes(w=1000, h=500))
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a", screenshots=[_Screenshot(str(tall)), _Screenshot(str(wide))])]
+    output_path = str(tmp_path / "out_sizes.docx")
+    build_docx(tc, output_path)
+
+    tall_shape, wide_shape = Document(output_path).inline_shapes
+    assert abs(tall_shape.width - Cm(18)) < Cm(0.01)
+    assert abs(tall_shape.height - Cm(24)) < Cm(0.01)
+    ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+    src_rect = tall_shape._inline.graphic.graphicData.pic.blipFill.find(ns + "srcRect")
+    assert src_rect is not None and src_rect.get("b") == "66667"  # bottom 2/3 cropped
+
+    assert abs(wide_shape.width - Cm(18)) < Cm(0.01)
+    assert abs(wide_shape.height - Cm(9)) < Cm(0.01)
+    assert wide_shape._inline.graphic.graphicData.pic.blipFill.find(ns + "srcRect") is None
+
+
+def test_data_test_row_lists_msisdn_configuration_then_data_test(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.msisdn = "MSISDN: 6285943569772\nSERVICE_ID: 8115579 XTRA Kuota Utama 2GB, 24jam"
+    tc.data_test = "amount: 50000"
+    output_path = str(tmp_path / "out_msisdn.docx")
+    build_docx(tc, output_path)
+
+    cell = Document(output_path).tables[0].rows[14].cells[3]
+    assert [p.text for p in cell.paragraphs if p.text.strip()] == [
+        "MSISDN: 6285943569772",
+        "SERVICE_ID: 8115579 XTRA Kuota Utama 2GB, 24jam",
+        "amount: 50000",
+    ]
