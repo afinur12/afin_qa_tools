@@ -20,6 +20,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.image_compress import compress_in_background
 from app.master_data import get_or_create
 from app.models import (
     Bug,
@@ -209,6 +210,7 @@ def _write_screenshot(testcase_id: int, step_id: int, shot: dict) -> Screenshot:
     disk_path = UPLOADS_DIR / relative_path
     disk_path.parent.mkdir(parents=True, exist_ok=True)
     disk_path.write_bytes(raw)
+    compress_in_background(disk_path)
     return Screenshot(step_id=step_id, file_path=relative_path)
 
 

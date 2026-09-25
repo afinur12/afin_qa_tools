@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.image_compress import compress_in_background
 from app.templating import templates
 from app.models import Screenshot, TestCaseStep
 
@@ -33,6 +34,7 @@ async def upload_screenshot(
     disk_path = UPLOADS_DIR / relative_path
     disk_path.parent.mkdir(parents=True, exist_ok=True)
     disk_path.write_bytes(await file.read())
+    compress_in_background(disk_path)
 
     screenshot = Screenshot(step_id=step_id, file_path=relative_path)
     db.add(screenshot)
