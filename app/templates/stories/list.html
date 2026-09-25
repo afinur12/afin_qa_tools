@@ -100,13 +100,13 @@
         <td><a href="/stories/{{ s.id }}" style="color:var(--ink); font-weight:500;">{{ s.title }}</a></td>
         <td><span class="badge badge--{{ s.status.value | lower }}">{{ s.status.label }}</span></td>
         <td style="white-space:nowrap;">
-          {% if s.subtask_total %}
-          <div style="display:flex; align-items:center; gap:8px;">
+          {% if s.testcase_total %}
+          <div style="display:flex; align-items:center; gap:8px;" title="{{ s.testcase_passed }}/{{ s.testcase_total }} test cases passed">
             <div class="progress-track"><div class="progress-fill" style="width:{{ s.progress_pct }}%;"></div></div>
             <span class="mono" style="font-size:12px; font-weight:650; color:var(--ink-2);">{{ s.progress_pct }}%</span>
           </div>
           {% else %}
-          <span class="muted" style="font-size:12.5px;">No subtasks</span>
+          <span class="muted" style="font-size:12.5px;">No test cases</span>
           {% endif %}
         </td>
         <td class="muted">{{ s.phases | length }}</td>

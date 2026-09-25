@@ -5,11 +5,13 @@
 
 <div class="crumbs"><a href="/stories">Tasks</a><span class="sep">/</span>{{ story.display_code }}</div>
 
-{% set ns = namespace(has_testcases=false, has_images=false) %}
+{% set ns = namespace(has_testcases=false, has_images=false, tc_total=0, tc_passed=0) %}
 {% for phase in story.phases %}
   {% for subtask in phase.subtasks %}
     {% if subtask.testcases %}{% set ns.has_testcases = true %}{% endif %}
     {% for tc in subtask.testcases %}
+      {% set ns.tc_total = ns.tc_total + 1 %}
+      {% if tc.status.value == 'PASS' %}{% set ns.tc_passed = ns.tc_passed + 1 %}{% endif %}
       {% if tc.all_steps | map(attribute='screenshots') | select | first is defined %}{% set ns.has_images = true %}{% endif %}
     {% endfor %}
   {% endfor %}
@@ -26,6 +28,14 @@
       {% for l in story_labels %}<span class="badge">{{ l.name }}</span>{% endfor %}
     </div>
     <h1 class="page-title">{{ story.title }}</h1>
+    {% if ns.tc_total %}
+    {% set progress_pct = (ns.tc_passed / ns.tc_total * 100) | round | int %}
+    <div class="story-progress" title="{{ ns.tc_passed }}/{{ ns.tc_total }} test cases passed">
+      <div class="progress-track"><div class="progress-fill" style="width:{{ progress_pct }}%;"></div></div>
+      <span class="mono story-progress-pct">{{ progress_pct }}%</span>
+      <span class="muted">{{ ns.tc_passed }}/{{ ns.tc_total }} test cases passed</span>
+    </div>
+    {% endif %}
   </div>
   <div class="spacer"></div>
   <a class="btn act edit" href="/stories/{{ story.id }}/edit" data-modal-open="edit-story" title="Edit task" aria-label="Edit task">{{ icon_pencil() }}</a>

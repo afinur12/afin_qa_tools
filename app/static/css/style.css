@@ -457,6 +457,12 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 }
 .progress-fill { height: 100%; background: var(--lime-deep); border-radius: 999px; }
 
+/* The same meter under a task's title on its detail page — wider, since
+   it's the page's headline number rather than one cell in a table. */
+.story-progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; }
+.story-progress .progress-track { width: 180px; height: 8px; }
+.story-progress-pct { font-weight: 700; color: var(--ink); }
+
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
 .btn[hidden] { display: none; }

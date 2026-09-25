@@ -204,3 +204,28 @@ def test_story_tester_dropdown_excludes_developers(client):
     assert 'name="tester_id"' in page.text
     tester_select = page.text.split('name="tester_id"')[1].split("</select>")[0]
     assert "Only Dev" not in tester_select
+
+
+def test_story_progress_is_share_of_passed_testcases(client):
+    import re
+
+    create = client.post("/stories", data={"display_code": "PRG-1", "title": "Progress"}, follow_redirects=False)
+    story_id = create.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/stories/{story_id}/phases", data={"type": "SIT"})
+    phase_id = client.get(f"/stories/{story_id}").text.split("/subtasks/new")[0].split("/phases/")[-1]
+    sub = client.post(
+        f"/phases/{phase_id}/subtasks",
+        data={"display_code": "PRG-2", "title": "Exec", "subtask_type": "EXECUTION"},
+        follow_redirects=False,
+    )
+    subtask_id = sub.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Passes"})
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-2", "title": "Not yet"})
+    testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
+    client.post(f"/testcases/{testcase_id}/section1", data={"status": "PASS"})
+
+    detail = client.get(f"/stories/{story_id}").text
+    assert "1/2 test cases passed" in detail
+    assert "width:50%;" in detail
+    listing = client.get("/stories").text
+    assert 'title="1/2 test cases passed"' in listing
