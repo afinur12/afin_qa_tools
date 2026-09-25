@@ -1574,6 +1574,23 @@
     }
   });
 
+  // Export-as-Image modal's own "Copy cURL": same /resolve call as View as
+  // cURL, copied straight to the clipboard without opening that modal.
+  document.querySelector("[data-ac-export-copy-curl]")?.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api-client/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentPayload()),
+      });
+      const data = await response.json();
+      await copyText(data.curl);
+      toast("curl copied");
+    } catch {
+      toast("Couldn't build the curl command", "danger");
+    }
+  });
+
   document.querySelector("[data-ac-curl-copy]")?.addEventListener("click", async () => {
     const codeEl = document.querySelector("#view-curl [data-ac-curl-code]");
     await copyText(codeEl?.dataset.rawCurl || codeEl?.textContent || "");
@@ -1687,6 +1704,10 @@
   // gets split into that many side-by-side columns instead, so the export
   // grows wide-and-bounded rather than tall-and-unbounded.
   const EXPORT_MAX_COLUMN_HEIGHT = 1200;
+  // Columns sit side by side up to this many per row — enough to turn a
+  // long response into a landscape image — then continue on a new row, so a
+  // huge response still can't grow the image sideways forever.
+  const EXPORT_MAX_COLUMNS_PER_ROW = 4;
   // At this font size/family a monospace char is roughly 7.5px, so 70 chars
   // (~525px) plus the gutter and padding comfortably fits within one card's
   // 700px cap (see the export click handler) — 100 chars ran noticeably
@@ -1702,31 +1723,106 @@
   // common case (already-pretty-printed JSON, short lines) never triggers
   // it. Continuation rows get gutterLabel "" so the source line number
   // appears exactly once, the same convention editors use for soft-wrap.
-  function reflowLine(text, lineNumber) {
-    if (text.length <= EXPORT_MAX_LINE_CHARS) return [{ text, gutterLabel: String(lineNumber) }];
+  //
+  // Each row also records `srcStart`, its offset in the whole original
+  // text, so search highlights (located by offset) can be re-applied to
+  // the rebuilt columns — see markSearchHits.
+  function reflowLine(text, lineNumber, lineStart) {
+    if (text.length <= EXPORT_MAX_LINE_CHARS) return [{ text, gutterLabel: String(lineNumber), srcStart: lineStart }];
     const rows = [];
     let rest = text;
+    let offset = lineStart;
     let first = true;
     while (rest.length > EXPORT_MAX_LINE_CHARS) {
       let cut = rest.lastIndexOf(" ", EXPORT_MAX_LINE_CHARS);
       if (cut <= 0) cut = EXPORT_MAX_LINE_CHARS; // no whitespace to break on
-      rows.push({ text: rest.slice(0, cut), gutterLabel: first ? String(lineNumber) : "" });
-      rest = rest.slice(cut).replace(/^ /, "");
+      rows.push({ text: rest.slice(0, cut), gutterLabel: first ? String(lineNumber) : "", srcStart: offset });
+      const skipSpace = rest[cut] === " " ? 1 : 0;
+      rest = rest.slice(cut + skipSpace);
+      offset += cut + skipSpace;
       first = false;
     }
-    rows.push({ text: rest, gutterLabel: first ? String(lineNumber) : "" });
+    rows.push({ text: rest, gutterLabel: first ? String(lineNumber) : "", srcStart: offset });
     return rows;
   }
 
   function reflowText(text) {
     const rows = [];
-    text.split("\n").forEach((line, i) => rows.push(...reflowLine(line, i + 1)));
+    let lineStart = 0;
+    text.split("\n").forEach((line, i) => {
+      rows.push(...reflowLine(line, i + 1, lineStart));
+      lineStart += line.length + 1;
+    });
     return rows;
+  }
+
+  // Where the live response's search matches sit, as [start, end) offsets
+  // into its text, plus which one is the current match. Read from the
+  // <mark class="ac-search-hit"> elements runSearch left in the live DOM,
+  // so the export shows exactly what's highlighted on screen.
+  function collectSearchHits(codeEl) {
+    const hits = [];
+    if (!codeEl) return hits;
+    const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
+    let offset = 0;
+    let node;
+    while ((node = walker.nextNode())) {
+      const mark = node.parentElement?.closest("mark.ac-search-hit");
+      if (mark) {
+        hits.push({ start: offset, end: offset + node.nodeValue.length, current: mark.classList.contains("is-current") });
+      }
+      offset += node.nodeValue.length;
+    }
+    return hits;
+  }
+
+  // Wraps the characters of a rebuilt column that fall inside a search hit
+  // in the same <mark> the live page uses. The column's text is its rows
+  // joined by "\n", so each character maps back to srcStart + its index
+  // within its row (the joining newlines map to nothing).
+  function markSearchHits(codeEl, rowsInColumn, hits) {
+    if (!hits.length) return;
+    const srcOf = [];
+    rowsInColumn.forEach((row, r) => {
+      if (r > 0) srcOf.push(-1);
+      for (let k = 0; k < row.text.length; k += 1) srcOf.push(row.srcStart + k);
+    });
+    const hitAt = (src) => (src === undefined || src < 0 ? null : hits.find((h) => src >= h.start && src < h.end) || null);
+
+    const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    let index = 0;
+    textNodes.forEach((textNode) => {
+      const text = textNode.nodeValue;
+      const frag = document.createDocumentFragment();
+      let changed = false;
+      let runStart = 0;
+      let runHit = hitAt(srcOf[index]);
+      for (let k = 1; k <= text.length; k += 1) {
+        const hit = k < text.length ? hitAt(srcOf[index + k]) : null;
+        if (k < text.length && hit === runHit) continue;
+        const piece = text.slice(runStart, k);
+        if (runHit) {
+          const mark = document.createElement("mark");
+          mark.className = runHit.current ? "ac-search-hit is-current" : "ac-search-hit";
+          mark.textContent = piece;
+          frag.appendChild(mark);
+          changed = true;
+        } else {
+          frag.appendChild(document.createTextNode(piece));
+        }
+        runStart = k;
+        runHit = hit;
+      }
+      index += text.length;
+      if (changed) textNode.replaceWith(frag);
+    });
   }
 
   // Rebuilds `rows` (from reflowText) as a static gutter+pre block, capped
   // at EXPORT_MAX_COLUMN_HEIGHT — one such block per column.
-  function buildColumnBlock(rowsInColumn, language) {
+  function buildColumnBlock(rowsInColumn, language, hits = []) {
     const gutter = document.createElement("div");
     gutter.className = "snippet-gutter";
     gutter.innerHTML = rowsInColumn.map((r) => `<span>${r.gutterLabel}</span>`).join("");
@@ -1741,6 +1837,7 @@
     // to the browser's default text color, invisible on the dark background.
     code.className = "hljs";
     code.innerHTML = renderCodeHighlight(rowsInColumn.map((r) => r.text).join("\n"), language, wrapVarTokens);
+    markSearchHits(code, rowsInColumn, hits);
     pre.appendChild(code);
 
     const block = document.createElement("div");
@@ -1756,25 +1853,25 @@
   // textarea+overlay) with N side-by-side capped columns, but only when
   // its full content would actually exceed EXPORT_MAX_COLUMN_HEIGHT —
   // otherwise it's left exactly as expandScrollCaps already set it up.
-  function paginateOneBlock(scrollEl, text, language, referenceLineHeightEl) {
-    if (!scrollEl) return;
+  // Returns whether it paginated, so the caller can lift the card's 700px
+  // width cap (one column alone is nearly that wide).
+  function paginateOneBlock(scrollEl, text, language, referenceLineHeightEl, hits = []) {
+    if (!scrollEl) return false;
     const rows = reflowText(text || "");
     const lineHeight = parseFloat(getComputedStyle(referenceLineHeightEl).lineHeight) || 21;
     const perColumn = Math.max(1, Math.floor(EXPORT_MAX_COLUMN_HEIGHT / lineHeight));
-    if (rows.length <= perColumn) return;
+    if (rows.length <= perColumn) return false;
 
+    const columnCount = Math.ceil(rows.length / perColumn);
     const wrap = document.createElement("div");
-    // flex-wrap bounds the export in BOTH directions: once a row fills up
-    // (a handful of columns), further columns drop to a new row below
-    // instead of extending the image sideways forever — a very large
-    // response used to make the whole image many thousands of pixels wide
-    // (all columns in one endless row) and barely any taller than one
-    // column. max-width matches the 700px cap on the request/response card
-    // itself (see the export click handler), so columns wrap within the
-    // card's own boundary rather than overflowing past it.
-    wrap.style.cssText = "display:flex; align-items:flex-start; flex-wrap:wrap; gap:14px; max-width:700px;";
+    // A grid bounds the export in BOTH directions: up to
+    // EXPORT_MAX_COLUMNS_PER_ROW columns side by side (so a tall response
+    // becomes a wide image instead), then further columns start a new row
+    // below rather than extending the image sideways forever.
+    const perRow = Math.min(columnCount, EXPORT_MAX_COLUMNS_PER_ROW);
+    wrap.style.cssText = `display:grid; grid-template-columns:repeat(${perRow}, max-content); align-items:start; gap:14px;`;
     for (let i = 0; i < rows.length; i += perColumn) {
-      wrap.appendChild(buildColumnBlock(rows.slice(i, i + perColumn), language));
+      wrap.appendChild(buildColumnBlock(rows.slice(i, i + perColumn), language, hits));
     }
     const codeBlock = scrollEl.closest(".code-block");
     if (codeBlock) {
@@ -1782,6 +1879,7 @@
       codeBlock.style.overflow = "hidden";
     }
     scrollEl.replaceWith(wrap);
+    return true;
   }
 
   // paginateOneBlock only replaces a block once it's TALL enough to need
@@ -1815,26 +1913,32 @@
   // response panel — getComputedStyle on a not-yet-attached clone returns
   // meaningless defaults, so line-height is measured from the live element
   // instead (identical CSS applies to both, only one is actually rendered).
+  // Returns whether any block was split into columns.
   function paginateCodeBlocks(cloneRoot, liveSource) {
     forceCodeWrap(cloneRoot);
     const referenceLineHeightEl = liveSource.querySelector(".snippet-pre") || liveSource;
+    let paginated = false;
 
     const responsePre = cloneRoot.querySelector("[data-ac-response-pre]");
     if (responsePre) {
       const code = responsePre.querySelector("code");
-      paginateOneBlock(
+      // An unpaginated clone keeps the live search <mark>s as-is; a
+      // paginated one is rebuilt from plain text, so they're re-applied.
+      paginated = paginateOneBlock(
         responsePre.closest(".ac-code-scroll"), code?.textContent || "",
         code?.dataset.snippetCode || "plaintext", referenceLineHeightEl,
+        collectSearchHits(liveSource.querySelector("[data-ac-response-pre] code")),
       );
     }
 
     const bodyTextarea = cloneRoot.querySelector("[data-ac-body]");
     if (bodyTextarea) {
-      paginateOneBlock(
+      paginated = paginateOneBlock(
         bodyTextarea.closest(".ac-code-scroll"), bodyTextarea.value,
         detectBodyLanguage(currentHeaders(), bodyTextarea.value), referenceLineHeightEl,
-      );
+      ) || paginated;
     }
+    return paginated;
   }
 
   let lastExportUrl = null;
@@ -1872,8 +1976,8 @@
     });
     maskSensitiveValues(requestClone, maskValues);
     maskSensitiveValues(responseClone, maskValues);
-    paginateCodeBlocks(requestClone, requestCard);
-    paginateCodeBlocks(responseClone, responsePanel);
+    const requestPaginated = paginateCodeBlocks(requestClone, requestCard);
+    const responsePaginated = paginateCodeBlocks(responseClone, responsePanel);
 
     const columns = document.createElement("div");
     columns.style.cssText = "display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;";
@@ -1881,8 +1985,11 @@
     // to wrap against — flex:0 0 auto alone just sizes each card to fit its
     // widest (unwrapped) line, which is exactly the unbounded-width problem
     // this is meant to prevent.
-    requestClone.style.cssText += "flex:0 0 auto;max-width:700px;";
-    responseClone.style.cssText += "flex:0 0 auto;max-width:700px;";
+    // A card whose code was split into columns drops the cap — its columns
+    // (each already reflowed to EXPORT_MAX_LINE_CHARS) are what bound its
+    // width, and the cap would stack them back into one tall column.
+    requestClone.style.cssText += `flex:0 0 auto;max-width:${requestPaginated ? "none" : "700px"};`;
+    responseClone.style.cssText += `flex:0 0 auto;max-width:${responsePaginated ? "none" : "700px"};`;
     columns.appendChild(requestClone);
     columns.appendChild(responseClone);
 
@@ -1917,7 +2024,7 @@
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         statusEl.textContent = "Copied to clipboard — paste it anywhere.";
       } catch {
-        statusEl.textContent = "Couldn't copy automatically — use Copy Again below.";
+        statusEl.textContent = "Couldn't copy automatically — use Copy Image above.";
       }
 
       modal.querySelector("[data-ac-export-download]").onclick = () => {

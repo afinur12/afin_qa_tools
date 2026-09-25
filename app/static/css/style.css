@@ -2542,8 +2542,10 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
    outer scroll to reach. */
 #export-image-preview .modal { display: flex; flex-direction: column; max-height: 85vh; overflow: hidden; }
 #export-image-preview .modal-head,
-#export-image-preview .hint,
-#export-image-preview .form-actions { flex-shrink: 0; }
+#export-image-preview .hint { flex-shrink: 0; }
+/* Export actions sit in the header row, just left of the close button. */
+.ac-export-actions { display: flex; align-items: center; gap: 8px; margin-right: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.ac-export-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
 
 .ac-export-preview-frame {
   flex: 1 1 auto; min-height: 120px; max-height: 60vh; overflow: auto;
