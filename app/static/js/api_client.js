@@ -1785,6 +1785,21 @@
     });
   }
 
+  // html2canvas draws a <textarea>'s value as one unbroken line, so a
+  // Bulk Edit view (Params/Headers/Body form) came out as a single long
+  // horizontal strip. Swap each one in the clone for a plain block with
+  // the same look that keeps its line breaks and wraps long values.
+  function flattenBulkTextareas(cloneRoot) {
+    cloneRoot.querySelectorAll("textarea.ac-kv-bulk").forEach((textarea) => {
+      if (textarea.hidden) return;
+      const block = document.createElement("div");
+      block.className = "ac-kv-bulk";
+      block.textContent = textarea.value;
+      block.style.cssText = "white-space:pre-wrap;word-break:break-all;min-height:0;resize:none;";
+      textarea.replaceWith(block);
+    });
+  }
+
   // An unfilled-in Query Parameters/Headers table or an empty Request Body
   // is noise in an exported image — drop those whole sections (subhead +
   // table/editor + its "Add ..." button, grouped via display:contents
@@ -2135,6 +2150,7 @@
     copyLiveFormValues(topbar, topbarClone);
     copyLiveFormValues(requestCard, requestClone);
     copyLiveFormValues(responsePanel, responseClone);
+    flattenBulkTextareas(requestClone);
     removeEmptyRequestSections(requestClone);
     expandScrollCaps(requestClone);
     expandScrollCaps(responseClone);

@@ -370,3 +370,30 @@ def test_tab_bar_row_holds_the_toolbar_and_close_all_button(client):
 def test_api_client_js_defines_close_all_tabs(client):
     resp = client.get("/static/js/api_client.js")
     assert "data-ac-close-all-tabs" in resp.text
+
+
+def test_beautify_response_pretty_prints_xml_by_content_type():
+    from app.routers.api_client import _beautify_response
+
+    out = _beautify_response("<a><b x=\"1\">hi</b><c/></a>", "application/xml; charset=utf-8")
+    assert out == '<a>\n  <b x="1">hi</b>\n  <c/>\n</a>'
+
+
+def test_beautify_response_keeps_xml_declaration_and_drops_old_whitespace():
+    from app.routers.api_client import _beautify_response
+
+    raw = '<?xml version="1.0" encoding="UTF-8"?>\n<a>\n    <b>1</b>\n</a>'
+    assert _beautify_response(raw, "") == '<?xml version="1.0" encoding="UTF-8"?>\n<a>\n  <b>1</b>\n</a>'
+
+
+def test_beautify_response_leaves_invalid_xml_and_html_untouched():
+    from app.routers.api_client import _beautify_response
+
+    assert _beautify_response("<a><b></a>", "text/xml") == "<a><b></a>"
+    assert _beautify_response("<html><body>x</body></html>", "text/html") == "<html><body>x</body></html>"
+
+
+def test_beautify_response_still_pretty_prints_json():
+    from app.routers.api_client import _beautify_response
+
+    assert _beautify_response('{"a":1}', "application/json") == '{\n  "a": 1\n}'

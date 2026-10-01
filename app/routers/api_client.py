@@ -10,6 +10,8 @@ import re
 import time as time_module
 import uuid
 from collections import defaultdict
+from xml.dom import minidom
+from xml.parsers.expat import ExpatError
 from urllib.parse import quote
 
 import httpx
@@ -128,6 +130,43 @@ def _beautify(text: str) -> str:
         return json.dumps(json.loads(stripped), indent=2)
     except (json.JSONDecodeError, TypeError, ValueError):
         return text
+
+
+def _strip_xml_whitespace(node) -> None:
+    """Drop whitespace-only text nodes, so the source's own indentation
+    doesn't come back as blank lines once toprettyxml re-indents."""
+    for child in list(node.childNodes):
+        if child.nodeType == child.TEXT_NODE and not child.data.strip():
+            node.removeChild(child)
+        else:
+            _strip_xml_whitespace(child)
+
+
+def _beautify_xml(text: str) -> str | None:
+    stripped = text.strip()
+    try:
+        doc = minidom.parseString(stripped.encode("utf-8"))
+    except (ExpatError, ValueError):
+        return None
+    _strip_xml_whitespace(doc)
+    lines = doc.toprettyxml(indent="  ").splitlines()[1:]  # minidom's own <?xml ?> line
+    if stripped.startswith("<?xml"):
+        lines.insert(0, stripped[: stripped.index("?>") + 2])  # keep the original declaration
+    return "\n".join(lines)
+
+
+def _beautify_response(text: str, content_type: str) -> str:
+    """_beautify, plus XML (by Content-Type, or an <?xml declaration).
+    HTML is never reformatted — whitespace there can change rendering.
+    Display/storage only; the size reported is still the real byte count."""
+    pretty = _beautify(text)
+    if pretty is not text:
+        return pretty
+    ct = (content_type or "").lower()
+    looks_xml = ("xml" in ct and "html" not in ct) or (not ct and (text or "").lstrip().startswith("<?xml"))
+    if looks_xml:
+        return _beautify_xml(text) or text
+    return text
 
 
 def _store_body(body_mode: str, body: str) -> str:
@@ -409,7 +448,7 @@ async def send_request(request: Request, db: Session = Depends(get_db)):
         duration_ms = int((time_module.perf_counter() - started) * 1000)
         # Beautified for storage/display only — response_size_bytes below
         # still reflects the real wire size, not this reformatted text.
-        body_text = _beautify(resp.text)
+        body_text = _beautify_response(resp.text, resp.headers.get("content-type", ""))
         history.response_status = resp.status_code
         history.response_headers_json = _headers_to_json(list(resp.headers.items()))
         history.response_body = body_text
