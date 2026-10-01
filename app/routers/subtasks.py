@@ -162,7 +162,10 @@ async def import_subtask(request: Request, phase_id: int, file: UploadFile = Fil
 def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_db)):
     subtask = db.get(
         Subtask, subtask_id,
-        options=[selectinload(Subtask.testcases).selectinload(TestCase.test_priority_ref)],
+        options=[
+            selectinload(Subtask.testcases).selectinload(TestCase.test_priority_ref),
+            selectinload(Subtask.testcases).selectinload(TestCase.test_type_ref),
+        ],
     )
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
@@ -170,20 +173,16 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
         Note.attach_type == NoteAttachType.SUBTASK, Note.attach_id == subtask_id
     ).all()
     prebuilts = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all()
-    # A test case is flagged "in Prebuilt" only when BOTH match: the current
-    # title still equals the prebuilt's name, and the prebuilt's description
-    # is still exactly the "Saved from <code>" string save_testcase_as_
-    # prebuilt (app/routers/prebuilt.py) wrote for THIS test case's own
-    # display_code — description alone already pins it to one specific
-    # source test case (display codes are unique), and the title check on
-    # top means the badge disappears if either side has since drifted from
-    # what was actually saved, rather than resurfacing a stale/renamed match.
-    prebuilt_by_description = {p.description: p for p in prebuilts if p.description}
+    # A test case is flagged "in Prebuilt" when some prebuilt's name is
+    # exactly its title (case-sensitive; surrounding spaces ignored). With
+    # several same-named prebuilts the badge links to the oldest one.
+    prebuilt_id_by_name: dict[str, int] = {}
+    for p in sorted(prebuilts, key=lambda p: p.id):
+        prebuilt_id_by_name.setdefault((p.name or "").strip(), p.id)
     prebuilt_id_by_testcase_id = {
-        tc.id: match.id
+        tc.id: prebuilt_id_by_name[title]
         for tc in subtask.testcases
-        if (match := prebuilt_by_description.get(f"Saved from {tc.display_code}")) is not None
-        and match.name == tc.title
+        if (title := (tc.title or "").strip()) in prebuilt_id_by_name
     }
     return templates.TemplateResponse(
         request,

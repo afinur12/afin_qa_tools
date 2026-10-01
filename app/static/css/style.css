@@ -595,6 +595,11 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .badge.role-developer { background: var(--indigo-soft);  color: var(--indigo-ink); }
 .badge.prebuilt-yes { background: var(--progress-bg); color: var(--progress); }
 .badge.prebuilt-yes:hover { opacity: 0.85; }
+/* Test type master data — class is the lowercased, hyphenated name; a
+   type without a rule here keeps the plain badge. */
+.badge.test-type-positive   { background: var(--pass-bg);     color: var(--pass); }
+.badge.test-type-negative   { background: var(--fail-bg);     color: var(--fail); }
+.badge.test-type-regression { background: var(--indigo-soft); color: var(--indigo-ink); }
 
 /* status variants — class is built from the enum value, lowercased */
 .badge--pass, .badge--resolved, .badge--closed, .badge--done { background: var(--pass-bg); color: var(--pass); }

@@ -12,7 +12,7 @@
     {% if prebuilt.service or prebuilt.test_type_ref or prebuilt.simulate_ref or prebuilt.remark %}
     <div class="page-sub" style="margin-top:6px;">
       {% if prebuilt.service %}<span class="badge">{{ prebuilt.service.name }}</span>{% endif %}
-      {% if prebuilt.test_type_ref %}<span class="badge">{{ prebuilt.test_type_ref.name }}</span>{% endif %}
+      {% if prebuilt.test_type_ref %}<span class="badge test-type-{{ prebuilt.test_type_ref.name | lower | replace(' ', '-') }}">{{ prebuilt.test_type_ref.name }}</span>{% endif %}
       {% if prebuilt.simulate_ref %}<span class="badge">{{ prebuilt.simulate_ref.name }}</span>{% endif %}
       {% if prebuilt.remark %}<span class="muted">{{ prebuilt.remark }}</span>{% endif %}
     </div>

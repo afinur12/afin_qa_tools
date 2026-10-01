@@ -108,7 +108,7 @@
         <td><a href="/prebuilt/{{ prebuilt.id }}" style="color:var(--ink); font-weight:500;">{{ prebuilt.name }}</a></td>
         <td class="muted">{{ prebuilt.description or '' }}</td>
         <td>{% if prebuilt.service %}<span class="badge">{{ prebuilt.service.name }}</span>{% endif %}</td>
-        <td>{% if prebuilt.test_type_ref %}<span class="badge">{{ prebuilt.test_type_ref.name }}</span>{% endif %}</td>
+        <td>{% if prebuilt.test_type_ref %}<span class="badge test-type-{{ prebuilt.test_type_ref.name | lower | replace(' ', '-') }}">{{ prebuilt.test_type_ref.name }}</span>{% endif %}</td>
         <td>{% if prebuilt.simulate_ref %}<span class="badge">{{ prebuilt.simulate_ref.name }}</span>{% endif %}</td>
         <td class="muted">{{ prebuilt.sections | length }}</td>
         <td class="muted">{{ prebuilt.step_count }}</td>

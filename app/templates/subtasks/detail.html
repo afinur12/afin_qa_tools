@@ -218,11 +218,12 @@
   <table data-sortable-table>
     <thead><tr>
       <th style="width:1%;">{% if subtask.testcases %}<input type="checkbox" data-select-all="[data-selection-name='testcase_ids']" title="Select all">{% endif %}</th>
-      <th data-sort-key="code">Code</th><th data-sort-key="priority">Test Priority</th><th data-sort-key="title">Title</th><th style="text-align:center;">Prebuilt</th><th data-sort-key="status">Status</th><th></th>
+      <th data-sort-key="code">Code</th><th data-sort-key="priority">Test Priority</th><th data-sort-key="test-type">Test Type</th><th data-sort-key="title">Title</th><th style="text-align:center;">Prebuilt</th><th data-sort-key="status">Status</th><th></th>
     </tr></thead>
     <tbody>
       {% for tc in subtask.testcases %}
       <tr data-sort-code="{{ tc.display_code }}" data-sort-priority="{{ tc.test_priority_id or 999999 }}"
+          data-sort-test-type="{{ (tc.test_type_ref.name if tc.test_type_ref else '') | lower }}"
           data-sort-title="{{ tc.title }}" data-sort-status="{{ tc.status.label }}">
         <td><input type="checkbox" data-selection-name="testcase_ids" value="{{ tc.id }}" aria-label="Select {{ tc.display_code }}"></td>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
@@ -233,6 +234,7 @@
           <span class="muted">&mdash;</span>
           {% endif %}
         </td>
+        <td>{% if tc.test_type_ref %}<span class="badge test-type-{{ tc.test_type_ref.name | lower | replace(' ', '-') }}">{{ tc.test_type_ref.name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
         <td><a href="/testcases/{{ tc.id }}/execute" style="color:var(--ink); font-weight:500;">{{ tc.title }}</a></td>
         <td style="text-align:center;">
           {% if tc.id in prebuilt_id_by_testcase_id %}

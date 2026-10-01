@@ -365,21 +365,54 @@ def test_testcase_no_prebuilt_badge_without_a_saved_prebuilt(client):
     assert "badge prebuilt-yes" not in page
 
 
-def test_testcase_no_prebuilt_badge_for_an_unrelated_prebuilt_with_the_same_name(client):
-    # A prebuilt can share a title by coincidence (or be authored from scratch,
-    # never through save-as-prebuilt) — its description won't be the exact
-    # "Saved from <code>" string tied to this specific test case, so it must
-    # not be treated as a match.
+def test_testcase_prebuilt_badge_matches_any_prebuilt_with_the_exact_same_title(client):
+    # Title alone decides it: a prebuilt authored from scratch (never through
+    # save-as-prebuilt, so no "Saved from <code>" description) still counts.
     import re
 
     subtask_id = _make_subtask_for_testcases(client, "EX-303")
-    client.post("/prebuilt", data={"name": "Reusable flow", "description": "Hand-written template"})
+    resp = client.post("/prebuilt", data={"name": "Reusable flow", "description": "Hand-written template"}, follow_redirects=False)
+    prebuilt_id = resp.headers["location"].rstrip("/").split("/")[-1]
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Reusable flow"})
     testcase_id = re.search(r"/testcases/(\d+)/execute", client.get(f"/subtasks/{subtask_id}").text).group(1)
 
     page = client.get(f"/subtasks/{subtask_id}").text
     assert f"/testcases/{testcase_id}/execute" in page
-    assert "badge prebuilt-yes" not in page
+    assert "badge prebuilt-yes" in page
+    assert f'href="/prebuilt/{prebuilt_id}"' in page
+
+
+def test_testcase_prebuilt_badge_is_case_sensitive_but_ignores_surrounding_spaces(client, db_session):
+    from app.models import TestCase
+
+    subtask_id = _make_subtask_for_testcases(client, "EX-305")
+    client.post("/prebuilt", data={"name": "Reusable flow"})
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "reusable FLOW"})
+    assert "badge prebuilt-yes" not in client.get(f"/subtasks/{subtask_id}").text
+
+    tc = db_session.query(TestCase).filter_by(subtask_id=int(subtask_id)).one()
+    tc.title = "  Reusable flow  "
+    db_session.commit()
+    assert "badge prebuilt-yes" in client.get(f"/subtasks/{subtask_id}").text
+
+
+def test_subtask_testcase_table_shows_test_type_column(client, db_session):
+    from app.models import TestCase, TestType
+
+    subtask_id = _make_subtask_for_testcases(client, "EX-306")
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "Typed"})
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-2", "title": "Untyped"})
+    test_type = TestType(name="Negative Case")
+    db_session.add(test_type)
+    db_session.flush()
+    tc = db_session.query(TestCase).filter_by(subtask_id=int(subtask_id), title="Typed").one()
+    tc.test_type_id = test_type.id
+    db_session.commit()
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert 'data-sort-key="test-type">Test Type</th>' in page
+    assert '<span class="badge test-type-negative-case">Negative Case</span>' in page
+    assert 'data-sort-test-type="negative case"' in page
 
 
 def test_testcase_prebuilt_badge_disappears_once_title_no_longer_matches(client):
