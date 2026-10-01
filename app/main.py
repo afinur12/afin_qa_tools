@@ -13,6 +13,8 @@ ensure_columns("prebuilt_testcases", {
     "service_name": "VARCHAR(64)", "test_type": "VARCHAR(64)", "simulate": "VARCHAR(32)", "remark": "TEXT",
 })
 ensure_columns("api_requests", {"position": "INTEGER NOT NULL DEFAULT 0"})
+ensure_columns("api_requests", {"body_mode": "VARCHAR(16) NOT NULL DEFAULT ''"})
+ensure_columns("api_history", {"request_body_mode": "VARCHAR(16) NOT NULL DEFAULT ''"})
 ensure_columns("stories", {"status": "VARCHAR(32) NOT NULL DEFAULT 'TO_DO'"})
 ensure_columns("subtasks", {"status": "VARCHAR(32) NOT NULL DEFAULT 'TO_DO'"})
 ensure_columns("prebuilt_testcases", {

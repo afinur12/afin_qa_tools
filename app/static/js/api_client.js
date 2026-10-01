@@ -86,7 +86,7 @@
   const root = document.querySelector("[data-ac-tree]");
   if (!root) return; // not on the API Client builder page
 
-  const CURRENT = window.__AC_CURRENT__ || { id: null, method: "GET", url: "", headers: [], body: "", collection_id: null };
+  const CURRENT = window.__AC_CURRENT__ || { id: null, method: "GET", url: "", headers: [], body: "", body_mode: "json", collection_id: null };
   // Set while a tab switch is replaying its stored fields into the DOM, so
   // the synthetic "input" events that replay fires (needed so highlight
   // overlays / param sync stay correct) aren't mistaken for a real user
@@ -517,7 +517,7 @@
   // [data-ac-body] is deliberately excluded here — it gets its own fuller
   // treatment (hljs JSON coloring + a line-number gutter, not just
   // {{var}} tokens) via attachBodyCodeEditor below.
-  const AC_SIMPLE_HIGHLIGHT_SELECTOR = "[data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-param-key], [data-ac-param-value]";
+  const AC_SIMPLE_HIGHLIGHT_SELECTOR = "[data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-param-key], [data-ac-param-value], [data-ac-form-key], [data-ac-form-value]";
 
   function initVariableHighlighting(scope) {
     (scope || document).querySelectorAll(AC_SIMPLE_HIGHLIGHT_SELECTOR).forEach(attachVariableHighlight);
@@ -577,8 +577,161 @@
   // is passed in as attachCodeEditor's optional postProcess hook, since
   // re-wrapping {{var}} tokens on top of hljs's own spans is specific to
   // this page (Test Data has no variable-token concept).
+  // ── Body type: none / raw (JSON, Text, XML, HTML) / urlencoded / form-data
+  // The dropdown's value is the request's body_mode (see app/api_body.py).
+  // Raw modes keep using the code editor; both form modes share one
+  // key/value table, sent as JSON rows and encoded server-side after
+  // {{variable}} substitution. Declared before attachCodeEditor below: its
+  // language resolver runs synchronously and reads bodyModeSelect.
+  const bodyModeSelect = document.querySelector("[data-ac-body-mode]");
+  const formRowsContainer = document.querySelector("[data-ac-form-rows]");
+  const RAW_BODY_LANGUAGE = { json: "json", text: "plaintext", xml: "xml", html: "xml" };
+  const FORM_BODY_MODES = new Set(["urlencoded", "formdata"]);
+
+  function currentBodyMode() {
+    return bodyModeSelect?.value || "json";
+  }
+
+  function bodyKind(mode) {
+    if (mode === "none") return "none";
+    return FORM_BODY_MODES.has(mode) ? "form" : "raw";
+  }
+
   const bodyField = document.querySelector("[data-ac-body]");
-  attachCodeEditor(bodyField, () => detectBodyLanguage(currentHeaders(), bodyField ? bodyField.value : ""), { postProcess: wrapVarTokens });
+  attachCodeEditor(
+    bodyField,
+    () => RAW_BODY_LANGUAGE[currentBodyMode()] || detectBodyLanguage(currentHeaders(), bodyField ? bodyField.value : ""),
+    { postProcess: wrapVarTokens },
+  );
+
+  function formRows() {
+    return formRowsContainer ? Array.from(formRowsContainer.querySelectorAll("[data-ac-form-row]")) : [];
+  }
+
+  function addFormRow(key, value, { description = "", enabled = true } = {}) {
+    if (!formRowsContainer) return null;
+    const row = document.createElement("tr");
+    row.setAttribute("data-ac-form-row", "");
+    row.classList.toggle("is-disabled", !enabled);
+    row.innerHTML = `
+      <td class="ac-form-check"><input type="checkbox" data-ac-form-enabled ${enabled ? "checked" : ""} title="Send this field" aria-label="Send this field"></td>
+      <td><input class="ac-kv-key" data-ac-form-key placeholder="Key" value="${escapeAttr(key || "")}"></td>
+      <td><input data-ac-form-value placeholder="Value" value="${escapeAttr(value || "")}"></td>
+      <td><input data-ac-form-desc placeholder="Description" value="${escapeAttr(description)}"></td>
+      <td class="ac-kv-actions">
+        <button type="button" class="btn act remove" data-ac-remove-form-row title="Remove field" aria-label="Remove field">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
+      </td>`;
+    formRowsContainer.appendChild(row);
+    initVariableHighlighting(row);
+    return row;
+  }
+
+  function currentFormRows() {
+    return formRows()
+      .map((row) => ({
+        key: row.querySelector("[data-ac-form-key]").value,
+        value: row.querySelector("[data-ac-form-value]").value,
+        description: row.querySelector("[data-ac-form-desc]").value,
+        enabled: row.querySelector("[data-ac-form-enabled]").checked,
+      }))
+      .filter((r) => r.key || r.value || r.description);
+  }
+
+  function parseFormRows(body) {
+    try {
+      const data = JSON.parse(body || "[]");
+      return Array.isArray(data) ? data.filter((r) => r && typeof r === "object") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function decodeFormComponent(s) {
+    try {
+      return decodeURIComponent(s.replace(/\+/g, " "));
+    } catch {
+      return s;
+    }
+  }
+
+  function urlencodedTextToRows(text) {
+    return text.split("&").filter(Boolean).map((pair) => {
+      const eq = pair.indexOf("=");
+      const key = eq === -1 ? pair : pair.slice(0, eq);
+      const value = eq === -1 ? "" : pair.slice(eq + 1);
+      return { key: decodeFormComponent(key), value: decodeFormComponent(value), description: "", enabled: true };
+    });
+  }
+
+  // A request saved before body modes existed has body_mode "" — pick the
+  // mode its Content-Type/body already implied, the same signals the old
+  // editor used for highlighting. The next autosave stores the result.
+  function inferBodyMode(headers, body) {
+    const found = (headers || []).find(([k]) => (k || "").toLowerCase() === "content-type");
+    const ct = (found ? found[1] : "").toLowerCase();
+    const text = body || "";
+    if (ct.includes("x-www-form-urlencoded") && text.trim()) {
+      return { mode: "urlencoded", body: JSON.stringify(urlencodedTextToRows(text.trim())) };
+    }
+    const lang = detectBodyLanguage(headers, text);
+    if (lang === "json") return { mode: "json", body: text };
+    if (lang === "xml") return { mode: ct.includes("html") ? "html" : "xml", body: text };
+    return { mode: "text", body: text };
+  }
+
+  function showBodyMode() {
+    const kind = bodyKind(currentBodyMode());
+    document.querySelectorAll("[data-ac-body-view]").forEach((el) => {
+      el.hidden = el.dataset.acBodyView !== kind;
+    });
+    if (kind === "form" && !formRows().length) addFormRow("", "");
+    // Re-highlights with the new mode's language (and repaints the overlay
+    // the code editor couldn't size while it was hidden).
+    bodyField?.dispatchEvent(new Event("input"));
+  }
+
+  // Replaces the whole body (mode + content) — tab switch, curl paste,
+  // page load. `mode` "" means "work it out" (see inferBodyMode).
+  function setBody(mode, body, headers) {
+    const next = mode ? { mode, body: body || "" } : inferBodyMode(headers, body);
+    if (bodyModeSelect) bodyModeSelect.value = next.mode;
+    if (formRowsContainer) formRowsContainer.innerHTML = "";
+    if (FORM_BODY_MODES.has(next.mode)) {
+      parseFormRows(next.body).forEach((r) => addFormRow(r.key, r.value, { description: r.description || "", enabled: r.enabled !== false }));
+      if (bodyField) bodyField.value = "";
+    } else if (bodyField) {
+      bodyField.value = next.body;
+    }
+    showBodyMode();
+    // Bubbling, unlike showBodyMode's own resync, so autosave/tab-sync see
+    // it (both skip it themselves while a tab is being replayed).
+    bodyField?.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function currentBody() {
+    if (FORM_BODY_MODES.has(currentBodyMode())) return JSON.stringify(currentFormRows());
+    return bodyField ? bodyField.value : "";
+  }
+
+  bodyModeSelect?.addEventListener("change", showBodyMode);
+
+  document.querySelector("[data-ac-add-form-row]")?.addEventListener("click", () => {
+    addFormRow("", "")?.querySelector("[data-ac-form-key]").focus();
+  });
+
+  formRowsContainer?.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest("[data-ac-remove-form-row]");
+    if (!removeBtn) return;
+    removeBtn.closest("[data-ac-form-row]").remove();
+    if (!formRows().length) addFormRow("", "");
+  });
+
+  formRowsContainer?.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-ac-form-enabled]")) return;
+    event.target.closest("[data-ac-form-row]").classList.toggle("is-disabled", !event.target.checked);
+  });
 
   // Content-Type drives the request body's highlighting language (see
   // detectBodyLanguage above) — since it's the "language" argument that
@@ -654,11 +807,19 @@
       method: document.querySelector("[data-ac-method]").value,
       url: document.querySelector("[data-ac-url]").value,
       headers: currentHeaders().map(([k, v]) => [k, v]),
-      body: document.querySelector("[data-ac-body]").value,
+      body: currentBody(),
+      body_mode: currentBodyMode(),
       collection_id: CURRENT.collection_id,
       request_id: CURRENT.id,
     };
   }
+
+  // Every edit that changes the request — autosave and the tab snapshot
+  // both watch these. Bulk Edit textareas are included: they rebuild their
+  // rows programmatically, which fires no input event of its own.
+  const AC_REQUEST_INPUT_SELECTOR = "[data-ac-method], [data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-body], [data-ac-kv-bulk], [data-ac-form-key], [data-ac-form-value], [data-ac-form-desc]";
+  const AC_REQUEST_CHANGE_SELECTOR = "[data-ac-method], [data-ac-body-mode], [data-ac-form-enabled]";
+  const AC_REQUEST_CLICK_SELECTOR = "[data-ac-add-header], [data-ac-remove-header], [data-ac-sensitive-toggle], [data-ac-add-form-row], [data-ac-remove-form-row]";
 
   // ── {{variable}} autocomplete ─────────────────────────────────────────────
   // Triggers in the URL bar, header key/value inputs, and the body textarea:
@@ -666,7 +827,7 @@
   // (collection-scoped listed first, matching real resolution precedence —
   // see the server-side `all_variables` ordering in the api_client router).
   const AC_SCOPE_LABEL = { collection: "collection", global: "global", builtin: "built-in" };
-  const AC_FIELD_SELECTOR = "[data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-param-key], [data-ac-param-value], [data-ac-body]";
+  const AC_FIELD_SELECTOR = "[data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-param-key], [data-ac-param-value], [data-ac-form-key], [data-ac-form-value], [data-ac-body]";
 
   let suggestBox = null;
   let suggestField = null;
@@ -807,6 +968,7 @@
     form.querySelector("[data-ac-hidden-url]").value = payload.url;
     form.querySelector("[data-ac-hidden-headers]").value = JSON.stringify(payload.headers);
     form.querySelector("[data-ac-hidden-body]").value = payload.body;
+    form.querySelector("[data-ac-hidden-body-mode]").value = payload.body_mode;
   });
 
   // ── Autosave (already-saved requests only) ───────────────────────────────
@@ -844,6 +1006,7 @@
       body.append("url", payload.url);
       body.append("headers_json", JSON.stringify(payload.headers));
       body.append("body", payload.body);
+      body.append("body_mode", payload.body_mode);
       try {
         const response = await fetch(editForm.action, { method: "POST", body, headers: { "X-Requested-With": "fetch" } });
         setState(response.ok ? "saved" : "error");
@@ -861,17 +1024,13 @@
     }
 
     document.addEventListener("input", (event) => {
-      if (event.target.matches("[data-ac-method], [data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-body]")) {
-        scheduleSave();
-      }
+      if (event.target.matches(AC_REQUEST_INPUT_SELECTOR)) scheduleSave();
     });
     document.addEventListener("change", (event) => {
-      if (event.target.matches("[data-ac-method]")) scheduleSave();
+      if (event.target.matches(AC_REQUEST_CHANGE_SELECTOR)) scheduleSave();
     });
     document.addEventListener("click", (event) => {
-      if (event.target.closest("[data-ac-add-header], [data-ac-remove-header], [data-ac-sensitive-toggle]")) {
-        scheduleSave();
-      }
+      if (event.target.closest(AC_REQUEST_CLICK_SELECTOR)) scheduleSave();
     });
     // Don't lose the last keystroke if the tab closes mid-debounce.
     document.addEventListener("visibilitychange", () => {
@@ -893,17 +1052,13 @@
     urlField.value = data.url;
     headersContainer.innerHTML = "";
     (data.headers || []).forEach(([k, v]) => addHeaderRow(k, v));
-    const bodyField = document.querySelector("[data-ac-body]");
-    bodyField.value = data.body || "";
-    // Params/Headers/Body are always shown at once now (no tabs to switch
-    // to) — just make sure the URL bar's {{var}} highlight overlay and the
-    // body's syntax-highlight overlay + gutter resync, since setting .value
-    // directly doesn't fire "input" on its own (both real fields render
-    // transparent text over an overlay div that only repaints on "input" —
-    // skipping this leaves the address bar looking blank even though its
-    // value is set correctly underneath).
+    // Setting .value directly doesn't fire "input" on its own, and the URL
+    // bar renders transparent text over a {{var}} overlay that only
+    // repaints on "input" — skipping this leaves the address bar looking
+    // blank even though its value is set correctly underneath. (setBody
+    // does the same for the body editor.)
     urlField.dispatchEvent(new Event("input", { bubbles: true }));
-    bodyField.dispatchEvent(new Event("input", { bubbles: true }));
+    setBody(data.body_mode || "", data.body || "", data.headers || []);
   }
 
   const urlInput = document.querySelector("[data-ac-url]");
@@ -958,6 +1113,7 @@
         editForm.querySelector("[data-ac-hidden-url]").value = payload.url;
         editForm.querySelector("[data-ac-hidden-headers]").value = JSON.stringify(payload.headers);
         editForm.querySelector("[data-ac-hidden-body]").value = payload.body;
+        editForm.querySelector("[data-ac-hidden-body-mode]").value = payload.body_mode;
         await fetch(editForm.action, { method: "POST", body: new FormData(editForm) });
       }
     } catch {
@@ -982,25 +1138,17 @@
     return qIndex === -1 ? { base: url, query: "" } : { base: url.slice(0, qIndex), query: url.slice(qIndex + 1) };
   }
 
+  // Rows show the query text exactly as it sits in the URL bar — no
+  // decoding here and (see encodeQueryPart) almost no encoding on the way
+  // back, so the two views round-trip losslessly and {{variables}}, spaces
+  // etc. stay as typed. Encoding for the wire happens once, server-side,
+  // after variable substitution (_sanitize_url_for_wire in the router).
   function parseQueryString(query) {
     if (!query) return [];
     return query.split("&").filter(Boolean).map((pair) => {
       const eq = pair.indexOf("=");
-      if (eq === -1) return [safeDecodeURIComponent(pair), ""];
-      return [safeDecodeURIComponent(pair.slice(0, eq)), safeDecodeURIComponent(pair.slice(eq + 1))];
+      return eq === -1 ? [pair, ""] : [pair.slice(0, eq), pair.slice(eq + 1)];
     });
-  }
-
-  // A param's value is often itself a {{variable}}, and decodeURIComponent
-  // throws on a lone "%" (e.g. a stray "%" typed mid-edit, before it's a
-  // full percent-escape) — fall back to the raw text rather than losing
-  // the row entirely over an incomplete edit.
-  function safeDecodeURIComponent(s) {
-    try {
-      return decodeURIComponent(s);
-    } catch {
-      return s;
-    }
   }
 
   function paramRows() {
@@ -1014,24 +1162,18 @@
     ]);
   }
 
-  // encodeURIComponent is tuned for embedding a value ANYWHERE in a URI, so
-  // it escapes characters (: / @ , ; + $ ! * ' ( )) that are actually safe
-  // and unambiguous inside a query-string VALUE specifically — over-encoding
-  // them just makes the address bar harder to read, and some servers build
-  // their own URIs by pasting a raw param value in without decoding it
-  // first, so a value like "https%3A%2F%2Fhost%2Fpath" can fail there even
-  // though it's perfectly valid. Only characters that would actually break
-  // the query string's own key=value&key=value syntax if left bare (& = # %,
-  // whitespace, unicode, control chars) stay escaped.
-  const QUERY_VALUE_SAFE_ESCAPES = /%(3A|2F|40|2C|3B|2B|24|21|2A|27|28|29)/gi;
-  function encodeQueryValue(v) {
-    return encodeURIComponent(v).replace(QUERY_VALUE_SAFE_ESCAPES, (m) => decodeURIComponent(m));
+  // Only what would break the query string's own key=value&key=value
+  // syntax gets escaped when a row is written back into the URL bar: "&"
+  // and "#" anywhere, "=" in a key. Everything else ({{var}}, spaces, $,
+  // unicode) is left exactly as typed.
+  function encodeQueryPart(text, isKey) {
+    return text.replace(isKey ? /[&#=]/g : /[&#]/g, (c) => encodeURIComponent(c));
   }
 
   function buildQueryString(params) {
     return params
       .filter(([k]) => k)
-      .map(([k, v]) => `${encodeQueryValue(k)}=${encodeQueryValue(v)}`)
+      .map(([k, v]) => `${encodeQueryPart(k, true)}=${encodeQueryPart(v, false)}`)
       .join("&");
   }
 
@@ -1113,7 +1255,10 @@
   // (Send, Save, counts, sensitive-header auto-detect, params<->URL sync)
   // keeps reading the same live DOM rows it always has, with no separate
   // "bulk mode" state for any of that code to know about.
-  function initKvBulkMode(sectionKey, { rowsContainer, keySelector, valueSelector, addRow, afterRebuild }) {
+  // The body form table also passes enabledSelector (a disabled row is
+  // written as "//key:value") and descSelector (descriptions aren't part of
+  // the bulk text, so they're carried over by key across a rebuild).
+  function initKvBulkMode(sectionKey, { rowsContainer, keySelector, valueSelector, addRow, afterRebuild, enabledSelector, descSelector }) {
     const toggle = document.querySelector(`[data-ac-kv-mode="${sectionKey}"]`);
     const bulkArea = document.querySelector(`[data-ac-kv-bulk="${sectionKey}"]`);
     if (!toggle || !bulkArea || !rowsContainer) return;
@@ -1124,22 +1269,29 @@
         .map((row) => {
           const key = row.querySelector(keySelector)?.value || "";
           const value = row.querySelector(valueSelector)?.value || "";
-          return key ? `${key}:${value}` : "";
+          const disabled = enabledSelector && !row.querySelector(enabledSelector)?.checked;
+          return key ? `${disabled ? "//" : ""}${key}:${value}` : "";
         })
         .filter(Boolean)
         .join("\n");
     }
 
     function bulkTextToRows() {
+      const descriptions = new Map(descSelector
+        ? Array.from(rowsContainer.children).map((row) => [row.querySelector(keySelector)?.value, row.querySelector(descSelector)?.value || ""])
+        : []);
       rowsContainer.innerHTML = "";
       let any = false;
-      bulkArea.value.split("\n").forEach((line) => {
-        if (!line.trim()) return;
+      bulkArea.value.split("\n").forEach((rawLine) => {
+        let line = rawLine.trim();
+        if (!line) return;
+        const disabled = Boolean(enabledSelector) && line.startsWith("//");
+        if (disabled) line = line.slice(2);
         const sep = line.indexOf(":");
         const key = (sep === -1 ? line : line.slice(0, sep)).trim();
         const value = (sep === -1 ? "" : line.slice(sep + 1)).trim();
         if (!key) return;
-        addRow(key, value);
+        addRow(key, value, { enabled: !disabled, description: descriptions.get(key) || "" });
         any = true;
       });
       if (!any) addRow("", "");
@@ -1173,6 +1325,16 @@
       updateParamCount();
       syncUrlFromParams();
     },
+  });
+
+  initKvBulkMode("form", {
+    rowsContainer: formRowsContainer,
+    keySelector: "[data-ac-form-key]",
+    valueSelector: "[data-ac-form-value]",
+    enabledSelector: "[data-ac-form-enabled]",
+    descSelector: "[data-ac-form-desc]",
+    addRow: addFormRow,
+    afterRebuild: () => {},
   });
 
   initKvBulkMode("headers", {
@@ -1216,6 +1378,8 @@
       if (headersField) headersField.value = JSON.stringify(data.headers || []);
       const bodyField = form.querySelector("[data-ac-quickcreate-body]");
       if (bodyField) bodyField.value = data.body || "";
+      const bodyModeField = form.querySelector("[data-ac-quickcreate-body-mode]");
+      if (bodyModeField) bodyModeField.value = data.body_mode || "";
       toast("Parsed from curl");
     } catch {
       target.value = text;
@@ -1539,7 +1703,7 @@
   // string (kept on the element) is still what gets copied to the
   // clipboard, since that's the form already proven to paste cleanly.
   function formatCurlForDisplay(curl) {
-    return curl.replace(/ (-H|-d) /g, " \\\n  $1 ");
+    return curl.replace(/ (-H|-d|--data-urlencode|--form-string) /g, " \\\n  $1 ");
   }
 
   document.querySelector("[data-ac-copy-curl]")?.addEventListener("click", async (event) => {
@@ -1615,7 +1779,9 @@
     const srcFields = sourceRoot.querySelectorAll("input, textarea, select");
     const dstFields = cloneRoot.querySelectorAll("input, textarea, select");
     srcFields.forEach((src, i) => {
-      if (dstFields[i]) dstFields[i].value = src.value;
+      if (!dstFields[i]) return;
+      dstFields[i].value = src.value;
+      if (src.type === "checkbox") dstFields[i].checked = src.checked;
     });
   }
 
@@ -1632,7 +1798,12 @@
     const hasHeaders = Array.from(cloneRoot.querySelectorAll("[data-ac-header-row]")).some(
       (row) => !isBlank(row.querySelector("[data-ac-header-key]")) || !isBlank(row.querySelector("[data-ac-header-value]"))
     );
-    const hasBody = !isBlank(cloneRoot.querySelector("[data-ac-body]"));
+    const bodyMode = currentBodyMode();
+    const hasBody = bodyKind(bodyMode) === "form"
+      ? Array.from(cloneRoot.querySelectorAll("[data-ac-form-row]")).some(
+        (row) => !isBlank(row.querySelector("[data-ac-form-key]")) || !isBlank(row.querySelector("[data-ac-form-value]"))
+      )
+      : bodyKind(bodyMode) === "raw" && !isBlank(cloneRoot.querySelector("[data-ac-body]"));
 
     if (!hasParams) cloneRoot.querySelector('[data-ac-section="params"]')?.remove();
     if (!hasHeaders) cloneRoot.querySelector('[data-ac-section="headers"]')?.remove();
@@ -1932,10 +2103,10 @@
     }
 
     const bodyTextarea = cloneRoot.querySelector("[data-ac-body]");
-    if (bodyTextarea) {
+    if (bodyTextarea && bodyKind(currentBodyMode()) === "raw") {
       paginated = paginateOneBlock(
         bodyTextarea.closest(".ac-code-scroll"), bodyTextarea.value,
-        detectBodyLanguage(currentHeaders(), bodyTextarea.value), referenceLineHeightEl,
+        RAW_BODY_LANGUAGE[currentBodyMode()] || "plaintext", referenceLineHeightEl,
       ) || paginated;
     }
     return paginated;
@@ -2122,13 +2293,14 @@
         url: current.url || "",
         headers: current.headers || [],
         body: current.body || "",
+        bodyMode: current.body_mode || "",
         collectionId: current.collection_id ?? null,
         lastResponse: lastResponse || null,
       };
     }
 
     function blankTab() {
-      return tabFromCurrent({ id: null, name: "New Request", method: "GET", url: "", headers: [], body: "", collection_id: null });
+      return tabFromCurrent({ id: null, name: "New Request", method: "GET", url: "", headers: [], body: "", body_mode: "json", collection_id: null });
     }
 
     function findByClientId(id) {
@@ -2150,6 +2322,7 @@
       tab.url = payload.url;
       tab.headers = payload.headers;
       tab.body = payload.body;
+      tab.bodyMode = payload.body_mode;
     }
 
     function applyTabToDom(tab) {
@@ -2160,15 +2333,18 @@
 
       document.querySelector("[data-ac-method]").value = tab.method;
       const urlField = document.querySelector("[data-ac-url]");
-      urlField.value = tab.url;
+      // Param edits used to percent-encode the whole URL bar, turning
+      // {{guid}} into %7B%7Bguid%7D%7D (which then never resolved). Undo
+      // that on open; the next edit's autosave stores the repaired URL.
+      urlField.value = tab.url.replace(/%7B%7B([a-zA-Z_][a-zA-Z0-9_-]*)%7D%7D/gi, "{{$1}}");
       urlField.dispatchEvent(new Event("input", { bubbles: true }));
 
       headersContainer.innerHTML = "";
       tab.headers.forEach(([k, v]) => addHeaderRow(k, v));
 
-      const bodyField = document.querySelector("[data-ac-body]");
-      bodyField.value = tab.body;
-      bodyField.dispatchEvent(new Event("input", { bubbles: true }));
+      // bodyMode is missing on tabs persisted before body modes existed —
+      // setBody infers one, same as for an old saved request.
+      setBody(tab.bodyMode || "", tab.body, tab.headers);
       applyingTab = false;
 
       const nameEl = document.querySelector("[data-ac-current-name]");
@@ -2302,17 +2478,13 @@
       }, 400);
     }
     document.addEventListener("input", (event) => {
-      if (event.target.matches("[data-ac-method], [data-ac-url], [data-ac-header-key], [data-ac-header-value], [data-ac-body]")) {
-        scheduleTabSync();
-      }
+      if (event.target.matches(AC_REQUEST_INPUT_SELECTOR)) scheduleTabSync();
     });
     document.addEventListener("change", (event) => {
-      if (event.target.matches("[data-ac-method]")) scheduleTabSync();
+      if (event.target.matches(AC_REQUEST_CHANGE_SELECTOR)) scheduleTabSync();
     });
     document.addEventListener("click", (event) => {
-      if (event.target.closest("[data-ac-add-header], [data-ac-remove-header], [data-ac-sensitive-toggle]")) {
-        scheduleTabSync();
-      }
+      if (event.target.closest(AC_REQUEST_CLICK_SELECTOR)) scheduleTabSync();
     });
 
     stripEl.addEventListener("click", (event) => {

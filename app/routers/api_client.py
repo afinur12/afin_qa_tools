@@ -17,6 +17,10 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
+from app.api_body import (
+    FORM_MODES, RAW_CONTENT_TYPES, dump_form_rows, enabled_pairs, encode_multipart, encode_urlencoded,
+    normalize_mode, parse_form_rows, urlencoded_text_to_rows, with_content_type, without_content_type,
+)
 from app.curl_tools import build_curl, looks_like_curl, parse_curl
 from app.database import get_db
 from app.flash import redirect_with_flash
@@ -126,6 +130,12 @@ def _beautify(text: str) -> str:
         return text
 
 
+def _store_body(body_mode: str, body: str) -> str:
+    """JSON (or not-yet-classified) bodies are pretty-printed for storage;
+    text/XML/HTML and form rows are kept exactly as given."""
+    return _beautify(body) if body_mode in ("json", "") else (body or "")
+
+
 def _history_to_response_dict(hist: ApiHistory) -> dict:
     """Same shape /send returns, so the builder page can hand a past hit
     straight to the same renderResponse() JS used for a live Send."""
@@ -169,14 +179,17 @@ def builder(
         for folder in collection.folders:
             folder.item_count = len(folder.children) + len(folder.requests)
 
-    current = {"id": None, "name": "New Request", "method": "GET", "url": "", "headers": [], "body": "", "collection_id": collection_id}
+    current = {
+        "id": None, "name": "New Request", "method": "GET", "url": "", "headers": [], "body": "", "body_mode": "json",
+        "collection_id": collection_id,
+    }
     last_response = None
     if request_id is not None:
         saved = db.get(ApiRequest, request_id)
         if saved is not None:
             current = {
                 "id": saved.id, "name": saved.name, "method": saved.method, "url": saved.url,
-                "headers": _headers_from_json(saved.headers_json), "body": saved.body,
+                "headers": _headers_from_json(saved.headers_json), "body": saved.body, "body_mode": saved.body_mode,
                 "collection_id": saved.collection_id, "folder_id": saved.folder_id,
             }
             last_hit = (
@@ -193,7 +206,7 @@ def builder(
             current = {
                 "id": None, "name": "Restored from History", "method": hist.method, "url": hist.url,
                 "headers": _headers_from_json(hist.request_headers_json), "body": hist.request_body,
-                "collection_id": None,
+                "body_mode": hist.request_body_mode, "collection_id": None,
             }
 
     builtin_vars = db.query(ApiVariable).filter(ApiVariable.scope == ApiVariableScope.BUILTIN).order_by(ApiVariable.key).all()
@@ -261,7 +274,23 @@ def _resolve_request(db: Session, payload: dict) -> dict:
 
     url, url_errors = resolve_text(payload.get("url", ""), variables, sensitive_values)
     url = _sanitize_url_for_wire(url)
-    body, body_errors = resolve_text(payload.get("body", ""), variables, sensitive_values)
+
+    body_mode = normalize_mode(payload.get("body_mode"))
+    raw_body = "" if body_mode == "none" else payload.get("body", "")
+    body_errors: list[str] = []
+    if body_mode in FORM_MODES:
+        # Resolved per field, before encoding, so a substituted value with
+        # "&", "=" or a space in it is encoded as part of that one value.
+        rows = parse_form_rows(raw_body)
+        for row in rows:
+            if not row["enabled"]:
+                continue
+            row["key"], k_err = resolve_text(row["key"], variables, sensitive_values)
+            row["value"], v_err = resolve_text(row["value"], variables, sensitive_values)
+            body_errors += k_err + v_err
+        body = dump_form_rows(rows)
+    else:
+        body, body_errors = resolve_text(raw_body, variables, sensitive_values)
 
     headers: list[list[str]] = []
     header_errors: list[str] = []
@@ -277,8 +306,41 @@ def _resolve_request(db: Session, payload: dict) -> dict:
     errors = sorted(set(url_errors + body_errors + header_errors))
     return {
         "method": (payload.get("method") or "GET").upper(),
-        "url": url, "headers": headers, "body": body,
+        "url": url, "headers": headers, "body": body, "body_mode": body_mode,
         "errors": errors, "sensitive_values": sorted(sensitive_values),
+    }
+
+
+def _prepare_wire(resolved: dict) -> dict:
+    """Turn a resolved request's body (per its body_mode) into what really
+    goes out: the final headers (with any automatic Content-Type), the
+    bytes, the text history stores, and the matching curl command."""
+    method, url, headers, mode = resolved["method"], resolved["url"], resolved["headers"], resolved["body_mode"]
+
+    if mode in FORM_MODES:
+        pairs = enabled_pairs(parse_form_rows(resolved["body"]))
+        wire = {"headers": headers, "content": None, "history_body": resolved["body"], "curl": build_curl(method, url, headers)}
+        if pairs and mode == "urlencoded":
+            wire["headers"] = with_content_type(headers, "application/x-www-form-urlencoded")
+            wire["content"] = encode_urlencoded(pairs).encode("utf-8")
+            wire["curl"] = build_curl(method, url, wire["headers"], urlencoded=pairs)
+        elif pairs:
+            wire["content"], content_type = encode_multipart(pairs)
+            wire["headers"] = with_content_type(headers, content_type, replace=True)
+            # curl generates its own boundary, so a fixed one here would clash.
+            wire["curl"] = build_curl(method, url, without_content_type(headers), multipart=pairs)
+        return wire
+
+    # //-comment stripping is a JSON-only convenience ("" = a request saved
+    # before body modes existed, which was always treated that way).
+    wire_body = _body_for_wire(resolved["body"]) if mode in ("json", "") else resolved["body"]
+    if wire_body and mode in RAW_CONTENT_TYPES:
+        headers = with_content_type(headers, RAW_CONTENT_TYPES[mode])
+    return {
+        "headers": headers,
+        "content": wire_body.encode("utf-8") if wire_body else None,
+        "history_body": _beautify(wire_body),
+        "curl": build_curl(method, url, headers, wire_body),
     }
 
 
@@ -286,7 +348,7 @@ def _resolve_request(db: Session, payload: dict) -> dict:
 async def resolve_request(request: Request, db: Session = Depends(get_db)):
     payload = await request.json()
     resolved = _resolve_request(db, payload)
-    resolved["curl"] = build_curl(resolved["method"], resolved["url"], resolved["headers"], _body_for_wire(resolved["body"]))
+    resolved["curl"] = _prepare_wire(resolved)["curl"]
     return JSONResponse(resolved)
 
 
@@ -297,6 +359,10 @@ async def parse_curl_route(request: Request):
     if not looks_like_curl(text):
         return JSONResponse({"matched": False})
     parsed = parse_curl(text)
+    content_type = next((v.lower() for k, v in parsed["headers"] if k.lower() == "content-type"), "")
+    if not parsed["body_mode"] and parsed["body"] and "x-www-form-urlencoded" in content_type:
+        parsed["body_mode"] = "urlencoded"
+        parsed["body"] = dump_form_rows(urlencoded_text_to_rows(parsed["body"]))
     return JSONResponse({"matched": True, **parsed})
 
 
@@ -304,12 +370,13 @@ async def parse_curl_route(request: Request):
 async def send_request(request: Request, db: Session = Depends(get_db)):
     payload = await request.json()
     resolved = _resolve_request(db, payload)
-    wire_body = _body_for_wire(resolved["body"])
+    wire = _prepare_wire(resolved)
 
     history = ApiHistory(
         request_id=payload.get("request_id"),
         method=resolved["method"], url=resolved["url"],
-        request_headers_json=_headers_to_json(resolved["headers"]), request_body=_beautify(wire_body),
+        request_headers_json=_headers_to_json(wire["headers"]), request_body=wire["history_body"],
+        request_body_mode=resolved["body_mode"],
     )
 
     if resolved["errors"] and not resolved["url"]:
@@ -336,8 +403,8 @@ async def send_request(request: Request, db: Session = Depends(get_db)):
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=False, verify=False) as client:
             resp = await client.request(
                 resolved["method"], resolved["url"],
-                headers={k: v for k, v in resolved["headers"]},
-                content=wire_body.encode("utf-8") if wire_body else None,
+                headers={k: v for k, v in wire["headers"]},
+                content=wire["content"],
             )
         duration_ms = int((time_module.perf_counter() - started) * 1000)
         # Beautified for storage/display only — response_size_bytes below
@@ -420,8 +487,19 @@ def _request_to_postman_item(r: ApiRequest) -> dict:
         },
         "response": [],
     }
-    if r.body:
-        item["request"]["body"] = {"mode": "raw", "raw": r.body, "options": {"raw": {"language": "json"}}}
+    mode = r.body_mode
+    if mode in FORM_MODES:
+        rows = parse_form_rows(r.body)
+        if rows:
+            key = "urlencoded" if mode == "urlencoded" else "formdata"
+            item["request"]["body"] = {"mode": key, key: [
+                {"key": row["key"], "value": row["value"], "description": row["description"], "type": "text",
+                 **({} if row["enabled"] else {"disabled": True})}
+                for row in rows
+            ]}
+    elif r.body and mode != "none":
+        language = mode if mode in RAW_CONTENT_TYPES else "json"
+        item["request"]["body"] = {"mode": "raw", "raw": r.body, "options": {"raw": {"language": language}}}
     return item
 
 
@@ -474,16 +552,24 @@ def _postman_url(url_field) -> str:
     return url_field or ""
 
 
-def _postman_body(body_field: dict) -> str:
+def _postman_body(body_field: dict) -> tuple[str, str]:
+    """(body_mode, body) for a Postman request body."""
     mode = body_field.get("mode")
     if mode == "raw":
-        return body_field.get("raw", "")
-    if mode == "urlencoded":
-        pairs = body_field.get("urlencoded", []) or []
-        return "&".join(f"{p.get('key', '')}={p.get('value', '')}" for p in pairs if not p.get("disabled"))
+        language = ((body_field.get("options") or {}).get("raw") or {}).get("language", "")
+        # No language given (older exports) -> "" so the builder infers one.
+        return (language if language in RAW_CONTENT_TYPES else ""), body_field.get("raw", "")
+    if mode in ("urlencoded", "formdata"):
+        rows = [
+            {"key": p.get("key", "") or "", "value": p.get("value", "") or "",
+             "description": p.get("description", "") or "", "enabled": not p.get("disabled")}
+            for p in body_field.get(mode, []) or []
+            if p.get("type", "text") == "text"  # file fields can't be replayed
+        ]
+        return mode, dump_form_rows(rows)
     if mode == "graphql":
-        return (body_field.get("graphql") or {}).get("query", "")
-    return ""
+        return "text", (body_field.get("graphql") or {}).get("query", "")
+    return "", ""
 
 
 def _import_postman_items(db: Session, collection_id: int, items: list, folder_id: int | None) -> None:
@@ -499,16 +585,16 @@ def _import_postman_items(db: Session, collection_id: int, items: list, folder_i
         elif "request" in item:
             req = item["request"]
             if isinstance(req, str):
-                method, url, headers, body = "GET", req, [], ""
+                method, url, headers, body_mode, body = "GET", req, [], "", ""
             else:
                 method = (req.get("method") or "GET").upper()
                 url = _postman_url(req.get("url", ""))
                 headers = [[h.get("key", ""), h.get("value", "")] for h in req.get("header", []) or [] if not h.get("disabled")]
-                body = _postman_body(req.get("body") or {})
+                body_mode, body = _postman_body(req.get("body") or {})
             db.add(ApiRequest(
                 collection_id=collection_id, folder_id=folder_id,
                 name=item.get("name", "Request"), method=method, url=url,
-                headers_json=_headers_to_json(headers), body=_beautify(body),
+                headers_json=_headers_to_json(headers), body=_store_body(body_mode, body), body_mode=body_mode,
             ))
 
 
@@ -550,7 +636,8 @@ async def import_collection(request: Request, file: UploadFile = File(...), db: 
         db.add(ApiRequest(
             collection_id=collection.id, folder_id=ref_to_folder_id.get(folder_ref) if folder_ref is not None else None,
             name=r.get("name", "Request"), method=r.get("method", "GET"), url=r.get("url", ""),
-            headers_json=_headers_to_json(r.get("headers", [])), body=_beautify(r.get("body", "")),
+            headers_json=_headers_to_json(r.get("headers", [])),
+            body=_store_body(normalize_mode(r.get("body_mode")), r.get("body", "")), body_mode=normalize_mode(r.get("body_mode")),
         ))
     db.commit()
     return redirect_with_flash(f"/api-client?collection_id={collection.id}", f'Imported "{collection.name}".')
@@ -610,7 +697,7 @@ def delete_folder(request: Request, folder_id: int, db: Session = Depends(get_db
 def create_request(
     request: Request, collection_id: int = Form(...), name: str = Form(...),
     method: str = Form("GET"), url: str = Form(""), headers_json: str = Form("[]"),
-    body: str = Form(""), folder_id: str = Form(""), db: Session = Depends(get_db),
+    body: str = Form(""), body_mode: str = Form(""), folder_id: str = Form(""), db: Session = Depends(get_db),
 ):
     collection = db.get(ApiCollection, collection_id)
     if collection is None:
@@ -618,7 +705,8 @@ def create_request(
     saved = ApiRequest(
         collection_id=collection_id, folder_id=int(folder_id) if folder_id else None,
         name=name.strip() or "Untitled Request", method=method.upper(), url=url,
-        headers_json=_headers_to_json(_headers_from_json(headers_json)), body=_beautify(body),
+        headers_json=_headers_to_json(_headers_from_json(headers_json)),
+        body=_store_body(normalize_mode(body_mode), body), body_mode=normalize_mode(body_mode),
     )
     db.add(saved)
     db.commit()
@@ -630,7 +718,7 @@ def create_request(
 def update_request(
     request: Request, request_id: int, name: str = Form(...), method: str = Form("GET"),
     url: str = Form(""), headers_json: str = Form("[]"), body: str = Form(""),
-    db: Session = Depends(get_db),
+    body_mode: str | None = Form(None), db: Session = Depends(get_db),
 ):
     saved = db.get(ApiRequest, request_id)
     if saved is None:
@@ -639,7 +727,9 @@ def update_request(
     saved.method = method.upper()
     saved.url = url
     saved.headers_json = _headers_to_json(_headers_from_json(headers_json))
-    saved.body = _beautify(body)
+    if body_mode is not None:  # older clients don't send it, so keep what's stored
+        saved.body_mode = normalize_mode(body_mode)
+    saved.body = _store_body(saved.body_mode, body)
     db.commit()
     return redirect_with_flash(f"/api-client?request_id={saved.id}", f'"{saved.name}" saved.')
 
@@ -881,7 +971,11 @@ def history_detail(request: Request, history_id: int, db: Session = Depends(get_
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     return templates.TemplateResponse(
         request, "api_client/history_detail.html",
-        {"row": row, "headers": _headers_from_json(row.request_headers_json), "response_headers": _headers_from_json(row.response_headers_json)},
+        {
+            "row": row, "headers": _headers_from_json(row.request_headers_json),
+            "response_headers": _headers_from_json(row.response_headers_json),
+            "form_rows": parse_form_rows(row.request_body) if row.request_body_mode in FORM_MODES else None,
+        },
     )
 
 

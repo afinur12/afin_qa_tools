@@ -6,6 +6,7 @@ what a browser's "Copy as cURL" or a person's own typing produces, not the
 full curl CLI grammar.
 """
 
+import json
 import re
 import shlex
 from urllib.parse import quote_plus
@@ -16,7 +17,11 @@ def looks_like_curl(text: str) -> bool:
 
 
 def parse_curl(text: str) -> dict:
-    """Return {"method": str, "url": str, "headers": [[k, v], ...], "body": str}.
+    """Return {"method", "url", "headers": [[k, v], ...], "body", "body_mode"}.
+
+    ``body_mode`` is "formdata" for -F/--form fields (``body`` then holds
+    the form rows as JSON, see app/api_body.py) and "" otherwise — a raw
+    or urlencoded ``body`` string the caller can still classify.
 
     Best-effort: unrecognized flags are silently skipped rather than raising,
     since a pasted command is likely to carry curl options (-k, --compressed,
@@ -36,6 +41,7 @@ def parse_curl(text: str) -> dict:
     data_parts: list[str] = []
     has_data = False
     used_urlencode = False
+    form_rows: list[dict] = []
 
     i = 0
     while i < len(tokens):
@@ -77,6 +83,14 @@ def parse_curl(text: str) -> dict:
                 data_parts.append(f"{name}={quote_plus(value)}")
             else:
                 data_parts.append(quote_plus(raw))
+        elif tok in ("-F", "--form", "--form-string"):
+            # name=value text fields only; name=@file / name=<file (read
+            # from disk) can't be replayed from a pasted command — skipped.
+            raw = _next()
+            name, _, value = raw.partition("=")
+            if tok == "--form-string" or not value.startswith(("@", "<")):
+                form_rows.append({"key": name, "value": value, "description": "", "enabled": True})
+            has_data = True
         elif tok == "-u" or tok == "--user":
             import base64
 
@@ -111,16 +125,31 @@ def parse_curl(text: str) -> dict:
     if used_urlencode and not any(k.strip().lower() == "content-type" for k, _v in headers):
         headers.append(["Content-Type", "application/x-www-form-urlencoded"])
 
-    return {"method": method, "url": url, "headers": headers, "body": body}
+    if form_rows and not data_parts:
+        return {"method": method, "url": url, "headers": headers, "body": json.dumps(form_rows), "body_mode": "formdata"}
+    return {"method": method, "url": url, "headers": headers, "body": body, "body_mode": ""}
 
 
-def build_curl(method: str, url: str, headers: list[list[str]], body: str) -> str:
+def build_curl(
+    method: str, url: str, headers: list[list[str]], body: str = "", *,
+    urlencoded: list[tuple[str, str]] | None = None,
+    multipart: list[tuple[str, str]] | None = None,
+) -> str:
+    """``urlencoded``/``multipart`` pairs replace ``body`` with one
+    --data-urlencode / --form-string per field — curl does the encoding
+    (and the multipart boundary) itself."""
     parts = ["curl", "-X", method, shlex.quote(url or "")]
     for k, v in headers or []:
         if not k:
             continue
         parts.append("-H")
         parts.append(shlex.quote(f"{k}: {v}"))
+    for k, v in urlencoded or []:
+        parts.append("--data-urlencode")
+        parts.append(shlex.quote(f"{k}={v}"))
+    for k, v in multipart or []:
+        parts.append("--form-string")
+        parts.append(shlex.quote(f"{k}={v}"))
     if body:
         parts.append("-d")
         parts.append(shlex.quote(body))

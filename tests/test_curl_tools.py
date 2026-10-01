@@ -5,7 +5,7 @@ from app.curl_tools import parse_curl
 
 def test_parse_curl_basic_get():
     result = parse_curl("curl https://example.com/api")
-    assert result == {"method": "GET", "url": "https://example.com/api", "headers": [], "body": ""}
+    assert result == {"method": "GET", "url": "https://example.com/api", "headers": [], "body": "", "body_mode": ""}
 
 
 def test_parse_curl_reads_method_headers_and_plain_data():

@@ -29,7 +29,14 @@
   {% else %}
   <p class="muted">No headers.</p>
   {% endfor %}
-  {% if row.request_body %}
+  {% if form_rows is not none %}
+  <div class="card-title" style="margin: 16px 0 10px;">Request Body <span class="badge code">{{ 'x-www-form-urlencoded' if row.request_body_mode == 'urlencoded' else 'form-data' }}</span></div>
+  {% for r in form_rows if r.enabled %}
+  <div class="ac-kv-row"><span class="ac-kv-key muted" style="font-family: var(--font-mono); font-size: 12px;">{{ r.key }}</span><span style="font-family: var(--font-mono); font-size: 12px;">{{ r.value }}</span></div>
+  {% else %}
+  <p class="muted">No fields.</p>
+  {% endfor %}
+  {% elif row.request_body %}
   <div class="card-title" style="margin: 16px 0 10px;">Request Body</div>
   <div class="code-block">
     <div class="snippet-code">

@@ -582,6 +582,8 @@ class ApiRequest(Base):
     url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # See app/api_body.py — "" means saved before body modes existed.
+    body_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
@@ -641,6 +643,7 @@ class ApiHistory(Base):
     url: Mapped[str] = mapped_column(Text, nullable=False)
     request_headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     request_body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    request_body_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="")
     response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_headers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     response_body: Mapped[str] = mapped_column(Text, nullable=False, default="")
