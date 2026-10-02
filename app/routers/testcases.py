@@ -1,4 +1,7 @@
 import json
+import re
+import time
+import uuid
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
@@ -12,6 +15,7 @@ from app.models import (
     DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
     generate_internal_key,
 )
+from app import testcase_io
 from app.testcase_io import dict_to_testcase, extract_testcase_candidates
 
 router = APIRouter()
@@ -107,6 +111,46 @@ async def import_testcase(request: Request, subtask_id: int, file: UploadFile = 
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {testcase.display_code} imported.")
 
 
+# The preview step parks the parsed candidates on disk and gives the page a
+# token, instead of round-tripping each candidate's JSON through a hidden
+# form field: with base64 screenshots inside, one candidate easily passes
+# Starlette's 1MB-per-field form limit ("Field exceeded maximum size of
+# 1024KB"). Resolved under testcase_io.UPLOADS_DIR at call time so tests
+# that redirect uploads redirect this too.
+IMPORT_STASH_MAX_AGE_SECONDS = 24 * 60 * 60
+_STASH_TOKEN = re.compile(r"[0-9a-f]{32}")
+
+
+def _import_stash_dir():
+    return testcase_io.UPLOADS_DIR / "import_tmp"
+
+
+def _stash_candidates(candidates: list[dict]) -> str:
+    stash = _import_stash_dir()
+    stash.mkdir(parents=True, exist_ok=True)
+    # Previews that were never confirmed (tab closed, Cancel) would otherwise
+    # pile up — drop any older than a day.
+    cutoff = time.time() - IMPORT_STASH_MAX_AGE_SECONDS
+    for old in stash.glob("*.json"):
+        try:
+            if old.stat().st_mtime < cutoff:
+                old.unlink()
+        except OSError:
+            pass
+    token = uuid.uuid4().hex
+    (stash / f"{token}.json").write_text(json.dumps(candidates), encoding="utf-8")
+    return token
+
+
+def _load_stashed_candidates(token: str) -> list[dict] | None:
+    if not _STASH_TOKEN.fullmatch(token or ""):
+        return None  # never let the token become a path outside the stash
+    try:
+        return json.loads((_import_stash_dir() / f"{token}.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 @router.post("/subtasks/{subtask_id}/testcases/import-preview")
 async def import_testcases_preview(request: Request, subtask_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
     subtask = db.get(Subtask, subtask_id)
@@ -133,11 +177,10 @@ async def import_testcases_preview(request: Request, subtask_id: int, file: Uplo
         return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
     if not candidates:
         return redirect_with_flash(f"/subtasks/{subtask_id}", "That file has no test cases to import.", category="danger")
-    rows = [{"fields": fields, "json": json.dumps(fields)} for fields in candidates]
     return templates.TemplateResponse(
         request,
         "testcases/import_preview.html",
-        {"subtask": subtask, "rows": rows},
+        {"subtask": subtask, "rows": candidates, "token": _stash_candidates(candidates)},
     )
 
 
@@ -145,7 +188,7 @@ async def import_testcases_preview(request: Request, subtask_id: int, file: Uplo
 def import_testcases_confirm(
     request: Request,
     subtask_id: int,
-    candidates: list[str] = Form(...),
+    token: str = Form(""),
     selected: list[int] = Form([]),
     db: Session = Depends(get_db),
 ):
@@ -154,9 +197,14 @@ def import_testcases_confirm(
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     if not selected:
         return redirect_with_flash(f"/subtasks/{subtask_id}", "No test cases selected to import.", category="danger")
+    candidates = _load_stashed_candidates(token)
+    if candidates is None:
+        return redirect_with_flash(
+            f"/subtasks/{subtask_id}", "This import preview has expired — upload the file again.", category="danger",
+        )
     try:
-        fields_list = [json.loads(candidates[i]) for i in selected]
-    except (IndexError, json.JSONDecodeError):
+        fields_list = [candidates[i] for i in selected]
+    except IndexError:
         return redirect_with_flash(f"/subtasks/{subtask_id}", "That selection doesn't match the uploaded file.", category="danger")
     created = []
     try:
@@ -166,6 +214,7 @@ def import_testcases_confirm(
         db.rollback()
         return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
     db.commit()
+    (_import_stash_dir() / f"{token}.json").unlink(missing_ok=True)
     plural = "" if len(created) == 1 else "s"
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"{len(created)} test case{plural} imported.")
 

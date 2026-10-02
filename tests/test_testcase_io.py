@@ -28,6 +28,16 @@ from app.testcase_io import testcase_to_dict as dump_testcase
 from app.testcase_io import testcases_to_dict as dump_testcases
 
 
+@pytest.fixture(autouse=True)
+def import_stash(monkeypatch, tmp_path):
+    """Keep import-preview stash files out of the real app/uploads."""
+    import app.routers.testcases as testcases_router
+
+    stash = tmp_path / "import_tmp"
+    monkeypatch.setattr(testcases_router, "_import_stash_dir", lambda: stash)
+    return stash
+
+
 def _make_story(db, code="PROJ-1", phase_type=PhaseType.SIT):
     story = Story(display_code=code, title="A task", internal_key=generate_internal_key())
     db.add(story)
@@ -447,6 +457,17 @@ def test_import_preview_endpoint_lists_every_candidate(client, db_session):
     assert "TC-2" in response.text
 
 
+def _preview_token(client, subtask_id, payload: dict) -> str:
+    import re
+
+    preview = client.post(
+        f"/subtasks/{subtask_id}/testcases/import-preview",
+        files={"file": ("selected.json", json.dumps(payload).encode("utf-8"), "application/json")},
+    )
+    assert preview.status_code == 200
+    return re.search(r'name="token" value="([0-9a-f]{32})"', preview.text).group(1)
+
+
 def test_import_confirm_endpoint_only_creates_selected_rows(client, db_session):
     story, phase = _make_story(db_session, code="SELHTTP-4")
     source_subtask = _make_subtask(db_session, phase, "ST-SRC")
@@ -455,13 +476,10 @@ def test_import_confirm_endpoint_only_creates_selected_rows(client, db_session):
     tc2 = _make_testcase(db_session, source_subtask, "TC-2")
     db_session.commit()
 
-    candidates = [dump_testcase(tc1)["testcase"], dump_testcase(tc2)["testcase"]]
+    token = _preview_token(client, target_subtask.id, dump_testcases([tc1, tc2]))
     response = client.post(
         f"/subtasks/{target_subtask.id}/testcases/import-confirm",
-        data={
-            "candidates": [json.dumps(c) for c in candidates],
-            "selected": ["0"],  # only TC-1
-        },
+        data={"token": token, "selected": ["0"]},  # only TC-1
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -479,9 +497,10 @@ def test_import_confirm_endpoint_flashes_when_nothing_selected(client, db_sessio
     tc = _make_testcase(db_session, source_subtask, "TC-1")
     db_session.commit()
 
+    token = _preview_token(client, target_subtask.id, dump_testcase(tc))
     response = client.post(
         f"/subtasks/{target_subtask.id}/testcases/import-confirm",
-        data={"candidates": [json.dumps(dump_testcase(tc)["testcase"])]},
+        data={"token": token},
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -489,3 +508,99 @@ def test_import_confirm_endpoint_flashes_when_nothing_selected(client, db_sessio
 
     db_session.expire_all()
     assert len(target_subtask.testcases) == 0
+
+
+def _preview_form_fields(html: str) -> dict[str, list[str]]:
+    """Every field the preview page's form submits as-is: hidden inputs and
+    checked checkboxes (all candidates are checked by default)."""
+    import html as html_lib
+    import re
+
+    form = html.split('/testcases/import-confirm"', 1)[1].split("</form>", 1)[0]
+    fields: dict[str, list[str]] = {}
+    for tag in re.findall(r"<input[^>]*>", form):
+        name = re.search(r'name="([^"]+)"', tag)
+        value = re.search(r'value="([^"]*)"', tag)
+        if not name:
+            continue
+        if 'type="hidden"' in tag or ('type="checkbox"' in tag and "checked" in tag):
+            fields.setdefault(name.group(1), []).append(html_lib.unescape(value.group(1) if value else ""))
+    return fields
+
+
+def test_import_preview_then_confirm_works_with_large_screenshots(client, db_session, monkeypatch, tmp_path):
+    # Regression: the preview page used to carry each candidate's full JSON
+    # (base64 screenshots included) in a hidden field, and Starlette rejects
+    # any single form field over 1MB ("Field exceeded maximum size of
+    # 1024KB") — so "Import selected" failed for any test case with images.
+    import base64
+    import os
+
+    import app.testcase_io as testcase_io_module
+
+    monkeypatch.setattr(testcase_io_module, "UPLOADS_DIR", tmp_path)
+    story, phase = _make_story(db_session, code="BIGIMG-1")
+    target_subtask = _make_subtask(db_session, phase, "ST-DST")
+    db_session.commit()
+
+    big = os.urandom(1_500_000)
+    payload = {
+        "kind": "testcases",
+        "testcases": [{
+            "display_code": "TC-BIG", "title": "With a big screenshot", "status": "PASS",
+            "sections": [{"kind": "MAIN", "position": 0, "steps": [{
+                "step_no": 1, "step_text": "Do it", "expected_result": "", "actual_result": "",
+                "screenshots": [{"filename": "big.bin", "content_type": "application/octet-stream",
+                                 "data_base64": base64.b64encode(big).decode("ascii")}],
+            }]}],
+        }],
+    }
+    preview = client.post(
+        f"/subtasks/{target_subtask.id}/testcases/import-preview",
+        files={"file": ("big.json", json.dumps(payload).encode("utf-8"), "application/json")},
+    )
+    assert preview.status_code == 200
+
+    fields = _preview_form_fields(preview.text)
+    confirm = client.post(
+        f"/subtasks/{target_subtask.id}/testcases/import-confirm",
+        data=fields,
+        follow_redirects=False,
+    )
+    assert confirm.status_code == 303, confirm.text
+
+    db_session.expire_all()
+    imported = [t for t in target_subtask.testcases if t.display_code == "TC-BIG"]
+    assert len(imported) == 1
+    shot = imported[0].sections[0].steps[0].screenshots[0]
+    assert (tmp_path / shot.file_path).read_bytes() == big
+
+
+@pytest.mark.parametrize("token", ["0" * 32, "../../../qa_toolbox", "not-a-token"])
+def test_import_confirm_with_unknown_or_forged_token_flashes_and_imports_nothing(client, db_session, token):
+    story, phase = _make_story(db_session, code="SELHTTP-7")
+    target_subtask = _make_subtask(db_session, phase, "ST-DST")
+    db_session.commit()
+
+    response = client.post(
+        f"/subtasks/{target_subtask.id}/testcases/import-confirm",
+        data={"token": token, "selected": ["0"]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/subtasks/{target_subtask.id}"
+    db_session.expire_all()
+    assert len(target_subtask.testcases) == 0
+
+
+def test_import_confirm_removes_the_stashed_file(client, db_session, import_stash):
+    story, phase = _make_story(db_session, code="SELHTTP-8")
+    source_subtask = _make_subtask(db_session, phase, "ST-SRC")
+    target_subtask = _make_subtask(db_session, phase, "ST-DST")
+    tc = _make_testcase(db_session, source_subtask, "TC-1")
+    db_session.commit()
+
+    token = _preview_token(client, target_subtask.id, dump_testcase(tc))
+    assert (import_stash / f"{token}.json").exists()
+    client.post(f"/subtasks/{target_subtask.id}/testcases/import-confirm", data={"token": token, "selected": ["0"]})
+    assert not (import_stash / f"{token}.json").exists()
