@@ -157,26 +157,30 @@
     </div>
     <div class="spacer"></div>
     {% if subtask.testcases %}
-    <form id="export-selected-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/export-selected"
-          style="display:inline-flex; align-items:center; gap:8px; margin-right:4px;">
-      <label class="choice" style="margin:0;">
-        <input type="checkbox" name="include_screenshots" value="1">
-        <span style="font-size:12px;">Screenshots</span>
-      </label>
-      <button class="btn act export" type="button" data-submit-selected="export-selected-form" data-selection-name="testcase_ids"
-              title="Export selected test cases as JSON" aria-label="Export selected test cases as JSON">{{ icon_braces() }}</button>
-    </form>
+    {# Shown by app.js only while at least one row checkbox is ticked. #}
+    <div class="selection-actions" data-selection-actions="testcase_ids" hidden>
+      <span class="selection-count" data-selection-count>0 selected</span>
+      <form id="export-selected-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/export-selected"
+            style="display:inline-flex; align-items:center; gap:8px;">
+        <label class="choice" style="margin:0;">
+          <input type="checkbox" name="include_screenshots" value="1">
+          <span style="font-size:12px;">Screenshots</span>
+        </label>
+        <button class="btn act export" type="button" data-submit-selected="export-selected-form" data-selection-name="testcase_ids"
+                title="Export selected test cases as JSON" aria-label="Export selected test cases as JSON">{{ icon_braces() }}</button>
+      </form>
+      <form id="delete-selected-form" class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/delete-selected"
+            data-confirm="Delete the selected test cases, along with their steps and screenshots? This can't be undone."
+            data-confirm-template="Delete {count} selected test case{s}, along with their steps and screenshots? This can't be undone.">
+        <button class="btn act remove" type="button" data-submit-selected="delete-selected-form" data-selection-name="testcase_ids"
+                title="Delete selected test cases" aria-label="Delete selected test cases">{{ icon_trash() }}</button>
+      </form>
+    </div>
     {% endif %}
     <a class="btn act add" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase"
        title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
     <a class="btn act edit" href="#" data-modal-open="import-testcase"
        title="Import test cases from JSON" aria-label="Import test cases from JSON">{{ icon_upload() }}</a>
-    {% if subtask.testcases %}
-    <form class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/clear-all"
-          data-confirm="Delete all {{ subtask.testcases | length }} test case{{ '' if subtask.testcases | length == 1 else 's' }} in {{ subtask.display_code }}, along with their steps and screenshots? This can't be undone.">
-      <button class="btn act remove" type="submit" title="Clear all test cases" aria-label="Clear all test cases">{{ icon_trash() }}</button>
-    </form>
-    {% endif %}
   </div>
 
   {% call modal('import-testcase', 'Import Test Cases', '/subtasks/' ~ subtask.id ~ '/testcases/import-preview', hint='Accepts a single test case, a selected-testcases, or a whole-subtask JSON export — you\'ll pick which ones to keep on the next page.', enctype='multipart/form-data') %}

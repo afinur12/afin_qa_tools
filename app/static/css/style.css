@@ -595,6 +595,11 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .badge.role-developer { background: var(--indigo-soft);  color: var(--indigo-ink); }
 .badge.prebuilt-yes { background: var(--progress-bg); color: var(--progress); }
 .badge.prebuilt-yes:hover { opacity: 0.85; }
+/* Bulk actions for ticked rows (subtask test cases) — toggled with the
+   hidden attribute by app.js, so the display rule must yield to it. */
+.selection-actions { display: inline-flex; align-items: center; gap: 8px; margin-right: 4px; }
+.selection-actions[hidden] { display: none; }
+.selection-count { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 /* Test type master data — class is the lowercased, hyphenated name; a
    type without a rule here keeps the plain badge. */
 .badge.test-type-positive   { background: var(--pass-bg);     color: var(--pass); }

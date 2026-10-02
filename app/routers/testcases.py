@@ -286,14 +286,20 @@ def delete_testcase(request: Request, testcase_id: int, db: Session = Depends(ge
     return redirect_with_flash(f"/subtasks/{subtask_id}", f"Test case {code} deleted.", category="danger")
 
 
-@router.post("/subtasks/{subtask_id}/testcases/clear-all")
-def clear_all_testcases(request: Request, subtask_id: int, db: Session = Depends(get_db)):
+@router.post("/subtasks/{subtask_id}/testcases/delete-selected")
+def delete_selected_testcases(
+    request: Request, subtask_id: int, testcase_ids: list[int] = Form([]), db: Session = Depends(get_db),
+):
     subtask = db.get(Subtask, subtask_id)
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
-    count = len(subtask.testcases)
-    for testcase in list(subtask.testcases):
+    # Only this subtask's own cases — an id from elsewhere is ignored, never deleted.
+    wanted = set(testcase_ids)
+    doomed = [tc for tc in subtask.testcases if tc.id in wanted]
+    if not doomed:
+        return redirect_with_flash(f"/subtasks/{subtask_id}", "No test cases selected to delete.", category="danger")
+    for testcase in doomed:
         deletion.delete_testcase(db, testcase)
     db.commit()
-    message = f"Deleted all {count} test case{'' if count == 1 else 's'}."
+    message = f"Deleted {len(doomed)} test case{'' if len(doomed) == 1 else 's'}."
     return redirect_with_flash(f"/subtasks/{subtask_id}", message, category="danger")

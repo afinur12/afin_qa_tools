@@ -18,9 +18,10 @@ import mimetypes
 import uuid
 from pathlib import Path
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.image_compress import compress_in_background
+from app.labels import get_labels, set_labels
 from app.master_data import get_or_create
 from app.models import (
     Bug,
@@ -42,6 +43,9 @@ from app.models import (
     TestType,
     User,
     UserType,
+    Label,
+    LabelAttachType,
+    TestCaseCategory,
     generate_internal_key,
 )
 
@@ -83,7 +87,13 @@ def testcase_to_dict(tc: TestCase, include_screenshots: bool = False) -> dict:
     }
 
 
+def _user_name(db: Session | None, user_id: int | None) -> str | None:
+    user = db.get(User, user_id) if db is not None and user_id else None
+    return user.name if user else None
+
+
 def _testcase_fields(tc: TestCase, include_screenshots: bool) -> dict:
+    db = object_session(tc)
     return {
         "display_code": tc.display_code,
         "title": tc.title,
@@ -99,6 +109,14 @@ def _testcase_fields(tc: TestCase, include_screenshots: bool) -> dict:
         "usage": tc.usage,
         "remark": tc.remark,
         "data_test": tc.data_test,
+        "assignee": _user_name(db, tc.assignee_id),
+        "developer": _user_name(db, tc.developer_id),
+        "msisdn": tc.msisdn,
+        "planned_cost": tc.planned_cost,
+        "actual_cost": tc.actual_cost,
+        "number_of_iteration": tc.number_of_iteration,
+        "category": tc.category.value if tc.category else None,
+        "labels": [label.name for label in get_labels(db, LabelAttachType.TESTCASE, tc.id)] if db is not None else [],
         "sections": [
             {
                 "kind": section.kind.value,
@@ -253,6 +271,10 @@ def dict_to_testcase(db: Session, subtask_id: int, data: dict) -> TestCase:
     test_type_row = get_or_create(db, TestType, fields.get("test_type"))
     test_priority_row = get_or_create(db, TestPriority, fields.get("test_priority"))
     tester_row = get_or_create(db, User, fields.get("tester"), type=UserType.TESTER)
+    assignee_row = get_or_create(db, User, fields.get("assignee"), type=UserType.TESTER)
+    developer_row = get_or_create(db, User, fields.get("developer"), type=UserType.DEVELOPER)
+    category = _parse_enum(TestCaseCategory, fields["category"], "test case category") if fields.get("category") else None
+    number_of_iteration = fields.get("number_of_iteration")
 
     testcase = TestCase(
         subtask_id=subtask_id, display_code=display_code, title=title, internal_key=generate_internal_key(),
@@ -267,9 +289,17 @@ def dict_to_testcase(db: Session, subtask_id: int, data: dict) -> TestCase:
         balance_after=fields.get("balance_after") or "Rp. -",
         usage=fields.get("usage") or "Rp. -",
         remark=fields.get("remark"), data_test=fields.get("data_test"),
+        assignee_id=assignee_row.id if assignee_row else None,
+        developer_id=developer_row.id if developer_row else None,
+        msisdn=fields.get("msisdn"),
+        planned_cost=fields.get("planned_cost"), actual_cost=fields.get("actual_cost"),
+        number_of_iteration=int(number_of_iteration) if number_of_iteration not in (None, "") else None,
+        category=category,
     )
     db.add(testcase)
     db.flush()
+    label_rows = [get_or_create(db, Label, name) for name in fields.get("labels") or []]
+    set_labels(db, LabelAttachType.TESTCASE, testcase.id, [row.id for row in label_rows if row])
 
     for section_data in fields.get("sections") or []:
         section_kind = _parse_enum(StepSection, _require(section_data, "kind", "section"), "section kind")

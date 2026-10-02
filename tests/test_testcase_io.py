@@ -604,3 +604,68 @@ def test_import_confirm_removes_the_stashed_file(client, db_session, import_stas
     assert (import_stash / f"{token}.json").exists()
     client.post(f"/subtasks/{target_subtask.id}/testcases/import-confirm", data={"token": token, "selected": ["0"]})
     assert not (import_stash / f"{token}.json").exists()
+
+
+def test_roundtrip_keeps_every_description_field(db_session):
+    # Regression: fields added to the Description tab after the export
+    # format was written (assignee, developer, msisdn, costs, number of
+    # iteration, category, labels) were silently dropped on import.
+    from app.labels import get_labels, set_labels
+    from app.models import Label, LabelAttachType, TestCaseCategory, User, UserType
+
+    story, phase = _make_story(db_session, code="DESC-1")
+    source = _make_subtask(db_session, phase, "ST-SRC")
+    target = _make_subtask(db_session, phase, "ST-DST")
+    tc = _make_testcase(db_session, source, "TC-1")
+    assignee = User(name="Asha Assignee", type=UserType.TESTER)
+    developer = User(name="Dewi Developer", type=UserType.DEVELOPER)
+    label = Label(name="SanityStaging")
+    db_session.add_all([assignee, developer, label])
+    db_session.flush()
+    tc.assignee_id, tc.developer_id = assignee.id, developer.id
+    tc.msisdn = "MSISDN: 6283176982817\nCLIENT_ID: client123"
+    tc.planned_cost, tc.actual_cost = "Rp 1.000", "Rp 900"
+    tc.number_of_iteration = 3
+    tc.category = list(TestCaseCategory)[0]
+    set_labels(db_session, LabelAttachType.TESTCASE, tc.id, [label.id])
+    db_session.commit()
+
+    data = dump_testcase(tc)
+    imported = dict_to_testcase(db_session, target.id, data)
+    db_session.commit()
+
+    for field in ("assignee_id", "developer_id", "msisdn", "planned_cost", "actual_cost", "number_of_iteration", "category"):
+        assert getattr(imported, field) == getattr(tc, field), field
+    assert [l.name for l in get_labels(db_session, LabelAttachType.TESTCASE, imported.id)] == ["SanityStaging"]
+
+
+def test_import_creates_missing_users_and_labels_by_name(db_session):
+    from app.labels import get_labels
+    from app.models import LabelAttachType, User, UserType
+
+    story, phase = _make_story(db_session, code="DESC-2")
+    target = _make_subtask(db_session, phase, "ST-DST")
+    db_session.commit()
+
+    imported = dict_to_testcase(db_session, target.id, {"kind": "testcase", "testcase": {
+        "display_code": "TC-9", "title": "From another machine",
+        "assignee": "New Assignee", "developer": "New Dev", "labels": ["Regression", "Smoke"],
+    }})
+    db_session.commit()
+
+    dev = db_session.get(User, imported.developer_id)
+    assert (dev.name, dev.type) == ("New Dev", UserType.DEVELOPER)
+    assert db_session.get(User, imported.assignee_id).name == "New Assignee"
+    assert [l.name for l in get_labels(db_session, LabelAttachType.TESTCASE, imported.id)] == ["Regression", "Smoke"]
+
+
+def test_import_of_older_file_without_new_fields_still_works(db_session):
+    story, phase = _make_story(db_session, code="DESC-3")
+    target = _make_subtask(db_session, phase, "ST-DST")
+    db_session.commit()
+
+    imported = dict_to_testcase(db_session, target.id, {"kind": "testcase", "testcase": {
+        "display_code": "TC-1", "title": "Old export", "status": "PASS", "remark": "kept",
+    }})
+    db_session.commit()
+    assert (imported.remark, imported.assignee_id, imported.msisdn, imported.number_of_iteration) == ("kept", None, None, None)

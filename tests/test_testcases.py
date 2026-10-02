@@ -81,49 +81,85 @@ def test_delete_testcase_cascades_to_its_steps(client):
     gen.close()
 
 
-def test_clear_all_button_shown_only_when_testcases_exist(client):
+def test_selection_toolbar_rendered_hidden_and_only_when_testcases_exist(client):
     subtask_id = _create_execution_subtask(client, "EX-304")
     empty_page = client.get(f"/subtasks/{subtask_id}").text
+    assert "/testcases/delete-selected" not in empty_page
     assert "/testcases/clear-all" not in empty_page
 
     client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
     populated_page = client.get(f"/subtasks/{subtask_id}").text
-    assert f'action="/subtasks/{subtask_id}/testcases/clear-all"' in populated_page
+    assert f'action="/subtasks/{subtask_id}/testcases/delete-selected"' in populated_page
+    assert '<div class="selection-actions" data-selection-actions="testcase_ids" hidden>' in populated_page
+    assert "/testcases/clear-all" not in populated_page  # replaced by delete-selected
+    # New and Import stay outside the selection-only group
+    toolbar_start = populated_page.index('data-selection-actions="testcase_ids"')
+    assert populated_page.index('data-modal-open="import-testcase"') > populated_page.index("</div>", toolbar_start)
 
 
-def test_clear_all_testcases_deletes_every_case_and_cascades_to_steps(client, db_session):
+def _add_testcase(client, db_session, subtask_id, code):
+    import app.models as m
+
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": code, "title": code})
+    db_session.expire_all()
+    return db_session.query(m.TestCase).filter_by(subtask_id=int(subtask_id), display_code=code).one().id
+
+
+def test_delete_selected_removes_only_ticked_cases_and_cascades_to_steps(client, db_session):
     import app.models as m
 
     subtask_id = _create_execution_subtask(client, "EX-305")
-    tc1 = client.post(
-        f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"}, follow_redirects=False
-    )
-    testcase1_id = int(tc1.headers["location"].rstrip("/").split("/")[-1])
-    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-2", "title": "B"})
-
-    section = m.TestCaseSection(testcase_id=testcase1_id, kind=m.StepSection.MAIN, position=0)
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    tc2 = _add_testcase(client, db_session, subtask_id, "TC-2")
+    tc3 = _add_testcase(client, db_session, subtask_id, "TC-3")
+    section = m.TestCaseSection(testcase_id=tc1, kind=m.StepSection.MAIN, position=0)
     db_session.add(section)
     db_session.commit()
     db_session.add(m.TestCaseStep(section_id=section.id, step_no=1, step_text="x"))
     db_session.commit()
 
-    response = client.post(f"/subtasks/{subtask_id}/testcases/clear-all", follow_redirects=False)
+    response = client.post(
+        f"/subtasks/{subtask_id}/testcases/delete-selected",
+        data={"testcase_ids": [str(tc1), str(tc3)]}, follow_redirects=False,
+    )
     assert response.status_code == 303
     assert response.headers["location"].rstrip("/") == f"/subtasks/{subtask_id}"
-
-    detail = client.get(f"/subtasks/{subtask_id}").text
-    # Substring "TC-1" alone would also match the New Test Case modal's
-    # placeholder text ("e.g. TC-1") — check the actual row markup instead.
-    assert ">TC-1<" not in detail
-    assert ">TC-2<" not in detail
+    assert "Deleted%202%20test%20cases" in response.cookies.get("flash", "")
 
     db_session.expire_all()
-    assert db_session.query(m.TestCase).filter_by(subtask_id=int(subtask_id)).count() == 0
-    assert db_session.query(m.TestCaseSection).filter_by(testcase_id=testcase1_id).count() == 0
+    remaining = {t.id for t in db_session.query(m.TestCase).filter_by(subtask_id=int(subtask_id))}
+    assert remaining == {tc2}
+    assert db_session.query(m.TestCaseSection).filter_by(testcase_id=tc1).count() == 0
 
 
-def test_clear_all_testcases_route_404s_for_unknown_subtask(client):
-    response = client.post("/subtasks/999999/testcases/clear-all")
+def test_delete_selected_ignores_ids_from_another_subtask(client, db_session):
+    import app.models as m
+
+    subtask_a = _create_execution_subtask(client, "EX-306")
+    subtask_b = _create_execution_subtask(client, "EX-307")
+    own = _add_testcase(client, db_session, subtask_a, "TC-1")
+    other = _add_testcase(client, db_session, subtask_b, "TC-1")
+
+    client.post(f"/subtasks/{subtask_a}/testcases/delete-selected", data={"testcase_ids": [str(own), str(other)]})
+
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, own) is None
+    assert db_session.get(m.TestCase, other) is not None
+
+
+def test_delete_selected_with_nothing_ticked_deletes_nothing(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-308")
+    tc = _add_testcase(client, db_session, subtask_id, "TC-1")
+    response = client.post(f"/subtasks/{subtask_id}/testcases/delete-selected", follow_redirects=False)
+    assert response.status_code == 303
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, tc) is not None
+
+
+def test_delete_selected_route_404s_for_unknown_subtask(client):
+    response = client.post("/subtasks/999999/testcases/delete-selected")
     assert response.status_code == 404
 
 

@@ -1069,16 +1069,38 @@ document.addEventListener("change", (event) => {
   }
 });
 
+// A [data-selection-actions="<name>"] group (bulk export/delete) is only
+// shown while at least one data-selection-name="<name>" checkbox is ticked,
+// with a live "N selected" count; a form in it carrying
+// data-confirm-template gets its confirm message rewritten to match.
+// Registered after the select-all handler above, so a header-checkbox
+// toggle (which sets .checked without firing events) is already applied.
+function syncSelectionActions() {
+  document.querySelectorAll("[data-selection-actions]").forEach((group) => {
+    const count = document.querySelectorAll(`input[data-selection-name="${group.dataset.selectionActions}"]:checked`).length;
+    group.hidden = count === 0;
+    const countEl = group.querySelector("[data-selection-count]");
+    if (countEl) countEl.textContent = `${count} selected`;
+    group.querySelectorAll("form[data-confirm-template]").forEach((form) => {
+      form.dataset.confirm = form.dataset.confirmTemplate.replace("{count}", count).replace("{s}", count === 1 ? "" : "s");
+    });
+  });
+}
+document.addEventListener("change", syncSelectionActions);
+window.addEventListener("pageshow", syncSelectionActions); // back/forward cache can restore ticked boxes
+syncSelectionActions();
+
 // A button with data-submit-selected="<hidden form id>" copies every checked
 // checkbox in data-selection-name="<name>" into that form as hidden inputs,
 // then submits it. Keeps the bulk-export form separate from the per-row
-// delete <form>s in the same table (forms can't nest).
+// delete <form>s in the same table (forms can't nest). requestSubmit (not
+// submit) so a [data-confirm] form still goes through the confirm dialog.
 document.addEventListener("click", (event) => {
   const trigger = event.target.closest("[data-submit-selected]");
   if (!trigger) return;
   const form = document.getElementById(trigger.dataset.submitSelected);
   if (!form) return;
-  const checked = document.querySelectorAll(`[data-selection-name="${trigger.dataset.selectionName}"]:checked`);
+  const checked = document.querySelectorAll(`input[data-selection-name="${trigger.dataset.selectionName}"]:checked`);
   if (checked.length === 0) return;
   form.querySelectorAll('input[data-generated="1"]').forEach((el) => el.remove());
   checked.forEach((cb) => {
@@ -1089,7 +1111,8 @@ document.addEventListener("click", (event) => {
     input.dataset.generated = "1";
     form.appendChild(input);
   });
-  form.submit();
+  if (form.requestSubmit) form.requestSubmit();
+  else form.submit();
 });
 
 document.querySelectorAll("[data-snippet-code]").forEach((block) => {
