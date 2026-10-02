@@ -669,3 +669,51 @@ def test_import_of_older_file_without_new_fields_still_works(db_session):
     }})
     db_session.commit()
     assert (imported.remark, imported.assignee_id, imported.msisdn, imported.number_of_iteration) == ("kept", None, None, None)
+
+
+def test_roundtrip_keeps_step_test_data_items(db_session):
+    # Regression: each step's Test Data items (title/value/language) were
+    # never exported, so an imported test case lost them — and its Jira
+    # Sync export then showed {{placeholder_..._data}} for every section.
+    from app.jira_io import testcase_to_jira_dict
+    from app.models import StepSection, TestCaseStepData
+
+    story, phase = _make_story(db_session, code="DATA-1")
+    source = _make_subtask(db_session, phase, "ST-SRC")
+    target = _make_subtask(db_session, phase, "ST-DST")
+    tc = _make_testcase(db_session, source, "TC-1")
+    section = TestCaseSection(testcase_id=tc.id, kind=StepSection.MAIN, position=0)
+    db_session.add(section)
+    db_session.flush()
+    step = TestCaseStep(section_id=section.id, step_no=1, step_text="Call token endpoint", expected_result="200")
+    db_session.add(step)
+    db_session.flush()
+    db_session.add_all([
+        TestCaseStepData(step_id=step.id, order_no=1, title="curl", value="curl -X POST https://x/token", language="CURL"),
+        TestCaseStepData(step_id=step.id, order_no=2, title="response", value='{"ok": true}', language="JSON"),
+    ])
+    db_session.commit()
+
+    data = json.loads(json.dumps(dump_testcase(tc)))
+    imported = dict_to_testcase(db_session, target.id, data)
+    db_session.commit()
+    db_session.refresh(imported)
+
+    items = [(d.order_no, d.title, d.value, d.language)
+             for se in imported.sections for st in se.steps for d in st.data_items]
+    assert items == [(1, "curl", "curl -X POST https://x/token", "CURL"), (2, "response", '{"ok": true}', "JSON")]
+    main = next(e for e in testcase_to_jira_dict(imported, db_session)["zephyr_steps"] if e["step_type"] == "MAIN TEST")
+    assert "placeholder" not in main["data"] and "curl -X POST https://x/token" in main["data"]
+
+
+def test_import_of_older_file_without_step_data_still_works(db_session):
+    story, phase = _make_story(db_session, code="DATA-2")
+    target = _make_subtask(db_session, phase, "ST-DST")
+    db_session.commit()
+    imported = dict_to_testcase(db_session, target.id, {"kind": "testcase", "testcase": {
+        "display_code": "TC-1", "title": "Old",
+        "sections": [{"kind": "MAIN", "position": 0, "steps": [{"step_no": 1, "step_text": "x"}]}],
+    }})
+    db_session.commit()
+    db_session.refresh(imported)
+    assert [len(st.data_items) for se in imported.sections for st in se.steps] == [0]

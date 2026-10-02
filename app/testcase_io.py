@@ -39,6 +39,7 @@ from app.models import (
     TestCaseSection,
     TestCaseStatus,
     TestCaseStep,
+    TestCaseStepData,
     TestPriority,
     TestType,
     User,
@@ -127,6 +128,10 @@ def _testcase_fields(tc: TestCase, include_screenshots: bool) -> dict:
                         "step_text": step.step_text,
                         "expected_result": step.expected_result,
                         "actual_result": step.actual_result,
+                        "data": [
+                            {"order_no": item.order_no, "title": item.title, "value": item.value, "language": item.language}
+                            for item in step.data_items
+                        ],
                         **(
                             {"screenshots": [s for s in (_screenshot_to_dict(shot) for shot in step.screenshots) if s]}
                             if include_screenshots
@@ -316,6 +321,12 @@ def dict_to_testcase(db: Session, subtask_id: int, data: dict) -> TestCase:
             )
             db.add(step)
             db.flush()
+            for order_no, item in enumerate(step_data.get("data") or [], start=1):
+                db.add(TestCaseStepData(
+                    step_id=step.id, order_no=int(item.get("order_no") or order_no),
+                    title=item.get("title") or "", value=item.get("value") or "",
+                    language=item.get("language") or "TEXT",
+                ))
             for shot_data in step_data.get("screenshots") or []:
                 db.add(_write_screenshot(testcase.id, step.id, shot_data))
 
