@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% from "macros.html" import modal, icon_plus, icon_pencil, icon_trash with context %}
+{% block title %}{% if page %}{{ page.title }} - {% endif %}Knowledge Management - QA Toolbox{% endblock %}
+{% block content %}
+{% set chevron_left = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' | safe %}
+{% set chevron_right = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>' | safe %}
+{% set link_icon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>' | safe %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Workspace</div>
+    <h1 class="page-title">Knowledge Management</h1>
+    <div class="page-sub">Sections and pages of free-form boards &mdash; text, code, images, files and tables &mdash; linked to your tasks</div>
+  </div>
+</div>
+
+<div class="km" data-km>
+  <nav class="km-col" data-km-col="sections" aria-label="Sections">
+    <button type="button" class="km-col-rail" data-km-col-expand title="Show sections">{{ chevron_right }}<span>Sections</span></button>
+    <div class="km-col-title">Sections
+      <button type="button" class="km-col-toggle" data-km-col-collapse title="Collapse sections" aria-label="Collapse sections">{{ chevron_left }}</button>
+    </div>
+    <a class="km-add" href="#" data-modal-open="km-new-section">{{ icon_plus(12) }} Add section</a>
+    <div class="km-list" data-km-sections data-reorder-action="/knowledge/sections/reorder">
+      {% for s in sections %}
+      <div class="km-item km-section{% if active_section and s.id == active_section.id %} is-active{% endif %}" data-section-id="{{ s.id }}" style="--km-tab: {{ s.color }};">
+        <span class="km-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">&#8942;&#8942;</span>
+        <a class="km-item-link" href="/knowledge/sections/{{ s.id }}">{{ s.name }}</a>
+        <span class="km-count">{{ s.pages | length }}</span>
+        <span class="km-row-actions">
+          {# km:section-export #}
+          <a class="km-row-btn" href="#" data-modal-open="km-edit-section-{{ s.id }}" title="Rename or recolour" aria-label="Edit section {{ s.name }}">{{ icon_pencil(13) }}</a>
+          <form class="inline-form" method="post" action="/knowledge/sections/{{ s.id }}/delete"
+                data-confirm="Delete section {{ s.name }} and its {{ s.pages | length }} page(s), with all their boards and files? This can't be undone.">
+            <button class="km-row-btn danger" type="submit" title="Delete section" aria-label="Delete section {{ s.name }}">{{ icon_trash(13) }}</button>
+          </form>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </nav>
+
+  <nav class="km-col" data-km-col="pages" aria-label="Pages">
+    <button type="button" class="km-col-rail" data-km-col-expand title="Show pages">{{ chevron_right }}<span>Pages</span></button>
+    <div class="km-col-title">Pages
+      <button type="button" class="km-col-toggle" data-km-col-collapse title="Collapse pages" aria-label="Collapse pages">{{ chevron_left }}</button>
+    </div>
+    {% if active_section %}
+    <a class="km-add" href="#" data-modal-open="km-new-page">{{ icon_plus(12) }} Add page</a>
+    <div class="km-list" data-km-pages data-reorder-action="/knowledge/sections/{{ active_section.id }}/pages/reorder">
+      {% for p in active_section.pages %}
+      <div class="km-item km-page-item{% if page and p.id == page.id %} is-active{% endif %}" data-page-id="{{ p.id }}">
+        <span class="km-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">&#8942;&#8942;</span>
+        <a class="km-item-link" href="/knowledge/pages/{{ p.id }}">{{ p.title }}</a>
+        {% if p.links %}<span class="km-linked-icon" title="Linked to {{ p.links | length }} task(s) / subtask(s)">{{ link_icon }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </nav>
+
+  <section class="km-page card" data-km-page="{{ page.id if page else '' }}"{% if page %} data-km-section-id="{{ page.section_id }}" data-km-section-name="{{ page.section.name }}"{% endif %}>
+    {% if page %}
+    <div class="km-page-head" data-km-paper-head>
+      <form class="km-title-form" method="post" action="/knowledge/pages/{{ page.id }}/edit" data-autosave data-km-title-form>
+        <input class="km-title" name="title" value="{{ page.title }}" aria-label="Page title" autocomplete="off" maxlength="300">
+        <button class="btn sm" type="submit" data-manual-save>Save</button>
+      </form>
+      <div class="km-meta">
+        <span>{{ page.created_at.strftime("%A, %B %d, %Y · %H:%M") }}</span>
+        <span>&middot;</span>
+        <span>Edited {{ page.updated_at.strftime("%b %d, %Y %H:%M") }}</span>
+        <span class="save-state" data-save-state></span>
+        <span class="spacer"></span>
+        <form class="inline-form" method="post" action="/knowledge/pages/{{ page.id }}/delete"
+              data-confirm="Delete page {{ page.title }} with all its boards and files? This can't be undone.">
+          <button class="km-row-btn danger" type="submit" title="Delete page" aria-label="Delete page">{{ icon_trash(13) }}</button>
+        </form>
+      </div>
+      {# km:links #}
+      <div class="km-toolbar" data-km-toolbar>
+        {# km:toolbar #}
+      </div>
+    </div>
+    <div class="km-canvas-wrap" data-km-canvas-wrap>
+      <div class="km-canvas" data-km-canvas>
+        {# km:boards #}
+      </div>
+    </div>
+    {% elif active_section %}
+    <div class="km-empty">
+      <p>This section has no pages yet.</p>
+      <a class="btn" href="#" data-modal-open="km-new-page">{{ icon_plus(12) }} Add page</a>
+    </div>
+    {% else %}
+    <div class="km-empty">
+      <p>Create your first section to start writing pages.</p>
+      <a class="btn" href="#" data-modal-open="km-new-section">{{ icon_plus(12) }} Add section</a>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+{# km:overlays #}
+
+{% call modal('km-new-section', 'New Section', '/knowledge/sections') %}
+  <div class="field"><label>Name</label><input name="name" placeholder="e.g. Camara icm" required maxlength="200"></div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Create</button>
+  </div>
+{% endcall %}
+
+{% for s in sections %}
+{% call modal('km-edit-section-' ~ s.id, 'Edit Section', '/knowledge/sections/' ~ s.id ~ '/edit') %}
+  <div class="field"><label>Name</label><input name="name" value="{{ s.name }}" required maxlength="200"></div>
+  <div class="field">
+    <label>Colour</label>
+    <div class="km-swatches">
+      {% for c in section_colors %}
+      <label class="km-swatch" style="--km-tab: {{ c }};" title="{{ c }}"><input type="radio" name="color" value="{{ c }}"{% if c == s.color %} checked{% endif %}><span></span></label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Save</button>
+  </div>
+{% endcall %}
+{% endfor %}
+
+{% if active_section %}
+{% call modal('km-new-page', 'New Page in ' ~ active_section.name, '/knowledge/sections/' ~ active_section.id ~ '/pages') %}
+  <div class="field"><label>Title</label><input name="title" placeholder="e.g. Camara-icm consent page" required maxlength="300"></div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit">Create</button>
+  </div>
+{% endcall %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static_url('js/knowledge_page.js') }}"></script>
+{% endblock %}
