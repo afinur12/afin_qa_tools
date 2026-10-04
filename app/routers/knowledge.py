@@ -165,10 +165,13 @@ def open_section(request: Request, section_id: int, db: Session = Depends(get_db
 
 
 @router.get("/knowledge/pages/{page_id}")
-def open_page(request: Request, page_id: int, db: Session = Depends(get_db)):
+def open_page(request: Request, page_id: int, paper: int = 0, db: Session = Depends(get_db)):
     page = db.get(KnowledgePage, page_id)
     if page is None:
         return _not_found(request)
+    if paper:
+        # Light, chrome-free view rendered in a hidden iframe for section PDF export.
+        return templates.TemplateResponse(request, "knowledge/paper.html", {"page": page, "link_views": _link_views(db, page)})
     return _render(request, db, page=page)
 
 
@@ -559,3 +562,13 @@ def delete_link(request: Request, link_id: int, next: str = Form(""), db: Sessio
     if _is_fetch(request):
         return JSONResponse({"ok": True})
     return RedirectResponse(_safe_next(next) or f"/knowledge/pages/{page.id}", status_code=303)
+
+
+# ── PDF export support ──────────────────────────────────────────────────
+
+@router.get("/knowledge/sections/{section_id}/pages.json")
+def section_pages_json(section_id: int, db: Session = Depends(get_db)):
+    section = db.get(KnowledgeSection, section_id)
+    if section is None:
+        return JSONResponse([], status_code=404)
+    return JSONResponse([{"id": p.id, "title": p.title} for p in section.pages])

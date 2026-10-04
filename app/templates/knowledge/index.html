@@ -29,7 +29,9 @@
         <a class="km-item-link" href="/knowledge/sections/{{ s.id }}">{{ s.name }}</a>
         <span class="km-count">{{ s.pages | length }}</span>
         <span class="km-row-actions">
-          {# km:section-export #}
+          <button type="button" class="km-row-btn" data-km-export-section="{{ s.id }}" data-section-name="{{ s.name }}" title="Export section to PDF" aria-label="Export section {{ s.name }} to PDF">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          </button>
           <a class="km-row-btn" href="#" data-modal-open="km-edit-section-{{ s.id }}" title="Rename or recolour" aria-label="Edit section {{ s.name }}">{{ icon_pencil(13) }}</a>
           <form class="inline-form" method="post" action="/knowledge/sections/{{ s.id }}/delete"
                 data-confirm="Delete section {{ s.name }} and its {{ s.pages | length }} page(s), with all their boards and files? This can't be undone.">
@@ -90,7 +92,10 @@
       </div>
       <div class="km-toolbar" data-km-toolbar>
         <button class="btn sm" type="button" data-km-add-board>{{ icon_plus(12) }} Board</button>
-        {# km:export-button #}
+        <button class="btn secondary sm" type="button" data-km-export-page>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          Export PDF
+        </button>
         <button class="btn secondary sm" type="button" data-km-fullscreen>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
           Full screen
@@ -141,7 +146,7 @@
   <button type="button" data-cmd="removeFormat" title="Clear formatting">Clear</button>
 </div>
 {% endif %}
-{# km:overlays #}
+{% include "knowledge/_export_dialog.html" %}
 
 {% call modal('km-new-section', 'New Section', '/knowledge/sections') %}
   <div class="field"><label>Name</label><input name="name" placeholder="e.g. Camara icm" required maxlength="200"></div>
@@ -185,4 +190,7 @@
 <script src="{{ static_url('js/knowledge_page.js') }}"></script>
 <script src="{{ static_url('js/knowledge_canvas.js') }}"></script>
 <script src="{{ static_url('js/knowledge_blocks.js') }}"></script>
+<script src="{{ static_url('js/vendor/html2canvas/html2canvas.min.js') }}"></script>
+<script src="{{ static_url('js/vendor/pdf-lib/pdf-lib.min.js') }}"></script>
+<script src="{{ static_url('js/knowledge_export.js') }}"></script>
 {% endblock %}

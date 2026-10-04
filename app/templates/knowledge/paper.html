@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <title>{{ page.title }} - Knowledge Management</title>
+  <link rel="stylesheet" href="{{ static_url('css/vendor/highlightjs/atom-one-dark.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+</head>
+<body class="km-paper">
+{% from "knowledge/_macros.html" import board %}
+<section class="km-page card" data-km-page="{{ page.id }}">
+  <div class="km-page-head" data-km-paper-head>
+    <input class="km-title" value="{{ page.title }}" aria-label="Page title" readonly>
+    <div class="km-meta">
+      <span>{{ page.created_at.strftime("%A, %B %d, %Y · %H:%M") }}</span>
+      <span>&middot;</span>
+      <span>Edited {{ page.updated_at.strftime("%b %d, %Y %H:%M") }}</span>
+    </div>
+    {% if link_views %}
+    <div class="km-links">
+      {% for l in link_views %}<span class="km-chip"><span class="kind">{{ l.kind }}</span><span class="txt">{{ l.code }} &middot; {{ l.title }}</span></span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div class="km-canvas-wrap" data-km-canvas-wrap>
+    <div class="km-canvas" data-km-canvas>{% for b in page.boards %}{{ board(b, True) }}{% endfor %}</div>
+  </div>
+</section>
+<script src="{{ static_url('js/vendor/highlightjs/highlight.bundle.js') }}"></script>
+<script src="{{ static_url('js/knowledge_layout.js') }}"></script>
+<script>
+  // Static view: highlight code, then size the canvas to its boards.
+  document.querySelectorAll("code[data-km-hljs]").forEach((el) => window.hljs && window.hljs.highlightElement(el));
+  const kmBoxes = [...document.querySelectorAll(".km-board")].map((b) => ({ id: 0, x: b.offsetLeft, y: b.offsetTop, w: b.offsetWidth, h: b.offsetHeight }));
+  const kmExtent = KnowledgeLayout.canvasExtent(kmBoxes);
+  const kmCanvas = document.querySelector("[data-km-canvas]");
+  kmCanvas.style.width = `${kmExtent.width}px`;
+  kmCanvas.style.minHeight = `${kmExtent.height}px`;
+</script>
+</body>
+</html>

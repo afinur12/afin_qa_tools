@@ -1,0 +1,26 @@
+<div class="modal-backdrop" id="km-export" data-modal data-km-export hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="km-export-title">
+    <div class="modal-head">
+      <div class="modal-title" id="km-export-title">Export to PDF</div>
+      <div class="spacer"></div>
+      <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="field">
+      <label>What to export</label>
+      <label class="choice km-choice" data-km-export-option="page"><input type="radio" name="km_export_scope" value="page" checked> This page</label>
+      <label class="choice km-choice"><input type="radio" name="km_export_scope" value="section"> Whole section &mdash; <b data-km-export-section-name></b>, cover page first, then every page in order</label>
+    </div>
+    <div class="field">
+      <label>Paper (A4)</label>
+      <label class="choice km-choice"><input type="radio" name="km_export_orientation" value="portrait" checked> Portrait</label>
+      <label class="choice km-choice"><input type="radio" name="km_export_orientation" value="landscape"> Landscape</label>
+    </div>
+    <p class="km-hint" data-km-export-status></p>
+    <div class="form-actions" style="justify-content:flex-end;">
+      <button class="btn secondary" type="button" data-modal-close data-km-export-cancel>Cancel</button>
+      <button class="btn" type="button" data-km-export-run>Export PDF</button>
+    </div>
+  </div>
+</div>

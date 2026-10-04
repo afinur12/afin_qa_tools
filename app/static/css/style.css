@@ -2772,3 +2772,7 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-page-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; background: var(--indigo-soft); color: var(--indigo-ink); }
 .km-linked-title { color: var(--ink); font-weight: 600; text-decoration: none; }
 .km-linked-sub { color: var(--ink-3); font-size: 12px; }
+.km-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-weight: 400; }
+.km-choice[hidden] { display: none; }
+.km-paper { margin: 0; background: #ffffff; }
+.km-paper .km-page.card { min-height: 100vh; }
