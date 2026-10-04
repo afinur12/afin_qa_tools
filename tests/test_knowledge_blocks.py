@@ -100,7 +100,7 @@ def test_page_renders_text_code_and_table_markup(client, db_session):
     _block(db_session, board, KnowledgeBlockKind.CODE, "SELECT 1", 1, title="check", language="SQL")
     html = client.get(f"/knowledge/pages/{board.page_id}").text
     assert "data-km-text" in html and "<p>note</p>" in html
-    assert "data-km-code" in html and ">SELECT 1</textarea>" in html and 'value="check"' in html
+    assert "data-km-code" in html and "SELECT 1</textarea>" in html and 'value="check"' in html
     assert "data-km-add-menu-pop" in html and "data-km-format" in html
 
 
@@ -109,3 +109,33 @@ def test_block_routes_404(client):
     assert client.post("/knowledge/blocks/999/edit", data={"content": "x"}).status_code == 404
     assert client.post("/knowledge/boards/999/blocks/reorder", data={"order": ""}).status_code == 404
     assert client.post("/knowledge/blocks/999/delete").status_code == 404
+
+
+def test_created_block_fragment_is_one_block_with_its_editor(client, db_session):
+    board = _board(db_session)
+    code = client.post(f"/knowledge/boards/{board.id}/blocks", data={"kind": "code"}, headers=FETCH).text.strip()
+    assert code.startswith('<div class="km-block km-block--code"') and "data-km-code" in code
+    text = client.post(f"/knowledge/boards/{board.id}/blocks", data={"kind": "text"}, headers=FETCH).text.strip()
+    assert text.startswith('<div class="km-block km-block--text"') and "data-km-text" in text
+
+
+def test_code_textarea_keeps_a_leading_blank_line(client, db_session):
+    board = _board(db_session)
+    _block(db_session, board, KnowledgeBlockKind.CODE, "\nfirst")
+    html = client.get(f"/knowledge/pages/{board.page_id}").text
+    assert 'autocomplete="off">\n\nfirst</textarea>' in html
+
+
+def test_reorder_ignores_blocks_of_other_boards(client, db_session):
+    board = _board(db_session)
+    other = KnowledgeBoard(page_id=board.page_id)
+    db_session.add(other)
+    db_session.commit()
+    a = _block(db_session, board, KnowledgeBlockKind.TEXT, "a", 0)
+    b = _block(db_session, board, KnowledgeBlockKind.TEXT, "b", 1)
+    foreign = _block(db_session, other, KnowledgeBlockKind.TEXT, "f", 5)
+    client.post(f"/knowledge/boards/{board.id}/blocks/reorder", data={"order": f"{foreign.id},{b.id},{a.id}"}, headers=FETCH)
+    db_session.refresh(board)
+    db_session.refresh(foreign)
+    assert [blk.content for blk in board.blocks] == ["b", "a"]
+    assert foreign.position == 5

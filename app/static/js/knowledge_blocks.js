@@ -87,18 +87,30 @@
 
   // ── format toolbar for text blocks ────────────────────────────────────
   const toolbar = document.querySelector("[data-km-format]");
+  let toolbarFor = null;
+  // Sits just above the text block being edited (kept on screen), and follows
+  // it when the window, the canvas or a board body scrolls.
+  function placeToolbar() {
+    if (!toolbarFor) return;
+    const rect = toolbarFor.getBoundingClientRect();
+    toolbar.style.left = `${rect.left + window.scrollX}px`;
+    toolbar.style.top = `${Math.max(4, rect.top - toolbar.offsetHeight - 6) + window.scrollY}px`;
+  }
   document.addEventListener("focusin", (event) => {
     const editor = event.target.closest("[data-km-text]");
     if (!editor) return;
-    const rect = (editor.closest(".km-board") || editor).getBoundingClientRect();
+    toolbarFor = editor;
     toolbar.hidden = false;
-    toolbar.style.left = `${rect.left + window.scrollX}px`;
-    toolbar.style.top = `${Math.max(0, rect.top + window.scrollY - toolbar.offsetHeight - 6)}px`;
+    placeToolbar();
   });
+  document.addEventListener("scroll", placeToolbar, true);
+  window.addEventListener("resize", placeToolbar);
   document.addEventListener("focusout", (event) => {
     if (!event.target.closest("[data-km-text]")) return;
     setTimeout(() => {
-      if (!document.activeElement?.closest?.("[data-km-text]")) toolbar.hidden = true;
+      if (document.activeElement?.closest?.("[data-km-text]")) return;
+      toolbar.hidden = true;
+      toolbarFor = null;
     }, 150);
   });
   toolbar.addEventListener("mousedown", (event) => event.preventDefault()); // keep the text selection
@@ -107,8 +119,11 @@
     if (!button) return;
     let argument = button.dataset.arg || null;
     if (button.dataset.cmd === "createLink") {
-      argument = window.prompt("Link URL (https://…)", "https://");
-      if (!argument) return;
+      argument = (window.prompt("Link URL (https://…)", "https://") || "").trim();
+      if (!argument || argument === "https://") return;
+      // Without a scheme "example.com" would be a link relative to this page;
+      // only http(s) and mailto survive the server's sanitiser anyway.
+      if (!/^(https?:|mailto:)/i.test(argument)) argument = `https://${argument.replace(/^\/+/, "")}`;
     }
     document.execCommand(button.dataset.cmd, false, argument);
   });
@@ -125,6 +140,15 @@
     else return;
     const order = [...list.children].map((el) => el.dataset.blockId).join(",");
     post(`/knowledge/boards/${block.closest(".km-board").dataset.boardId}/blocks/reorder`, form({ order }));
+  });
+
+  // Enter in a snippet title would submit its form natively (a full page
+  // reload); leave the field instead, which flushes the autosave.
+  canvas.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target.matches(".km-code input[name='title']")) {
+      event.preventDefault();
+      event.target.blur();
+    }
   });
 
   wireBlocks(canvas);

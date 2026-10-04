@@ -2706,6 +2706,7 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-code.ac-code-editor .ac-code-editor-inner .ac-code-textarea { min-height: 40px; white-space: pre-wrap; word-break: break-word; }
 .km-code .snippet-code { overflow-x: hidden; }
 .km-code .snippet-header { padding-right: 60px; }
+.km-code.code-block { margin-bottom: 0; }
 .km-code-paper pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .km-code-paper-title { font-weight: 600; }
 .km-add-menu { position: absolute; z-index: 3000; display: flex; flex-direction: column; min-width: 160px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); }
