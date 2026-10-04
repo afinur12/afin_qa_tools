@@ -47,6 +47,9 @@ KM_HLJS = {
 }
 CODE_LANGUAGES = set(KM_HLJS)
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# Block fields (code, rich text, table JSON) can be large: Starlette's default
+# multipart part limit of 1 MB would refuse a big log or pasted table forever.
+MAX_FIELD_BYTES = 20 * 1024 * 1024
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 templates.env.globals["km_hljs"] = KM_HLJS
 
@@ -403,7 +406,7 @@ async def edit_block(request: Request, block_id: int, db: Session = Depends(get_
     block = db.get(KnowledgeBlock, block_id)
     if block is None:
         return _not_found(request)
-    data = await request.form()
+    data = await request.form(max_part_size=MAX_FIELD_BYTES)
     kind = block.kind
     if "content" in data:
         content = str(data["content"])

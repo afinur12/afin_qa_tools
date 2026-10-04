@@ -89,8 +89,8 @@ def _retry(action, attempts=10, delay=0.3):
 
 
 def _clear_uploads():
-    """Empty screenshots/exports in place, keeping each folder's .gitkeep."""
-    for sub in ("screenshots", "exports"):
+    """Empty screenshots/exports/knowledge in place, keeping each folder's .gitkeep."""
+    for sub in ("screenshots", "exports", "knowledge"):
         d = os.path.join(UPLOADS_DIR, sub)
         if not os.path.isdir(d):
             continue

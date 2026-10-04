@@ -9,6 +9,9 @@
   if (!page || !canvas || !page.dataset.kmPage) return;
   const L = window.KnowledgeLayout;
   const pageId = page.dataset.kmPage;
+  // Vertical movement a corner drag needs before it pins the board's height
+  // (a diagonal drag always wobbles a few pixels).
+  const PIN_THRESHOLD = 12;
   // The page title form owns the page's save indicator (app.js resolves it
   // through the surrounding .card).
   const indicatorForm = document.querySelector("[data-km-title-form]");
@@ -19,18 +22,26 @@
     return body;
   }
 
+  // A text, table or title edit waiting for its autosave owns the shared page
+  // indicator: its "editing" state is what makes leaving the field flush that
+  // save (app.js), so board saves never paint over it.
+  function indicate(state) {
+    if (indicatorFor(indicatorForm)?.dataset.state === "editing" && state !== "error") return;
+    setSaveState(indicatorForm, state);
+  }
+
   async function post(url, body, asJson = false) {
-    setSaveState(indicatorForm, "saving");
+    indicate("saving");
     try {
       const response = await fetch(url, {
         method: "POST",
         headers: asJson ? { "Content-Type": "application/json", "X-Requested-With": "fetch" } : { "X-Requested-With": "fetch" },
         body: asJson ? JSON.stringify(body) : body,
       });
-      setSaveState(indicatorForm, response.ok ? "saved" : "error");
+      indicate(response.ok ? "saved" : "error");
       return response;
     } catch {
-      setSaveState(indicatorForm, "error");
+      indicate("error");
       return null;
     }
   }
@@ -91,8 +102,9 @@
       const startX = event.clientX, startY = event.clientY, width = board.offsetWidth, height = board.offsetHeight;
       track(handle, event.pointerId, (move) => {
         board.style.width = `${Math.max(L.MIN_W, width + move.clientX - startX)}px`;
-        // Height is only pinned once the user actually drags vertically.
-        if (Math.abs(move.clientY - startY) > 2) board.style.height = `${Math.max(L.MIN_H, height + move.clientY - startY)}px`;
+        // Height is only pinned by a clearly vertical drag; double-click the
+        // corner to let it follow the content again.
+        if (Math.abs(move.clientY - startY) > PIN_THRESHOLD) board.style.height = `${Math.max(L.MIN_H, height + move.clientY - startY)}px`;
       }, () => { growCanvas(); saveGeometry(board); });
       return;
     }
@@ -106,6 +118,15 @@
       return;
     }
     if (raised) saveGeometry(board);
+  });
+
+  // Double-click the corner: the height follows the content again.
+  canvas.addEventListener("dblclick", (event) => {
+    const board = event.target.closest("[data-km-resize]")?.closest(".km-board");
+    if (!board || !board.style.height) return;
+    board.style.height = "";
+    growCanvas();
+    saveGeometry(board);
   });
 
   // A board that grows (typing, rows, images loading) pushes the boards
@@ -126,12 +147,15 @@
     }, 250);
   }
   const lastHeight = new WeakMap();
+  // Boards whose images were still loading at page load: they settle without
+  // pushing (page load never pushes).
+  const settling = new WeakSet();
   const observer = new ResizeObserver((entries) => {
     for (const { target } of entries) {
       const before = lastHeight.get(target);
       const now = target.offsetHeight;
       lastHeight.set(target, now);
-      if (before === undefined || now <= before || target.classList.contains("is-maximized")) continue;
+      if (before === undefined || now <= before || target.classList.contains("is-maximized") || settling.has(target)) continue;
       const moves = L.pushDown(boards().map(boxOf), Number(target.dataset.boardId));
       moves.forEach(({ id, y }) => {
         const moved = boardById(id);
@@ -146,7 +170,19 @@
     observer.observe(board);
   }
   // After knowledge_blocks.js has laid out code editors on this tick.
-  setTimeout(() => canvas.querySelectorAll(".km-board").forEach(watch), 0);
+  setTimeout(() => canvas.querySelectorAll(".km-board").forEach((board) => {
+    watch(board);
+    const loading = [...board.querySelectorAll("img")].filter((img) => !img.complete);
+    if (!loading.length) return;
+    settling.add(board);
+    Promise.all(loading.map((img) => new Promise((done) => {
+      img.addEventListener("load", done, { once: true });
+      img.addEventListener("error", done, { once: true });
+    }))).then(() => {
+      lastHeight.set(board, board.offsetHeight);
+      settling.delete(board);
+    });
+  }), 0);
 
   const addBoardButton = document.querySelector("[data-km-add-board]");
   addBoardButton?.addEventListener("click", async () => {
@@ -184,18 +220,25 @@
   backdrop.className = "km-max-backdrop";
   backdrop.hidden = true;
   // Inside the canvas so it shares the boards' stacking context (the canvas is
-  // isolated, see style.css): the maximized board (1600) always beats it (1500),
-  // in full screen too.
+  // isolated, see style.css). The backdrop and the maximized board sit above any
+  // z a board can reach by being raised, in full screen too.
   canvas.appendChild(backdrop);
 
+  const heightBeforeMax = new WeakMap();
   function setMaximized(board, on) {
+    if (on) heightBeforeMax.set(board, board.offsetHeight);
     board.classList.toggle("is-maximized", on);
     backdrop.hidden = !on;
     canvas.classList.toggle("has-maximized", on);
     document.body.classList.toggle("km-has-maximized", on);
     const button = board.querySelector("[data-km-max]");
     if (button) button.title = on ? "Restore (Esc)" : "Maximize this board (Esc to restore)";
-    if (!on) growCanvas();
+    if (!on) {
+      // Compare with the height it had before maximizing, so a board that grew
+      // while maximized still pushes the boards below it once restored.
+      lastHeight.set(board, heightBeforeMax.get(board) ?? board.offsetHeight);
+      growCanvas();
+    }
   }
   canvas.addEventListener("click", (event) => {
     const button = event.target.closest("[data-km-max]");
@@ -223,7 +266,7 @@
     const maximized = canvas.querySelector(".km-board.is-maximized");
     if (maximized) setMaximized(maximized, false);
     else if (page.classList.contains("is-fullscreen")) setFullscreen(false);
-  });
+  }, true);
 
   function leaveOverlays() {
     const maximized = canvas.querySelector(".km-board.is-maximized");

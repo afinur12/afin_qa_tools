@@ -67,8 +67,13 @@
     // Ellipsis isn't honoured on paper — show chips in full.
     doc.querySelectorAll(".km-chip").forEach((chip) => { chip.style.maxWidth = "none"; });
     doc.querySelectorAll(".km-chip .txt").forEach((t) => { t.style.whiteSpace = "normal"; t.style.overflow = "visible"; });
-    // Nothing may hide inside a scroll area (a scrollbar would eat the last row).
+    // Nothing may hide inside a scroll area (a scrollbar would eat the last row) —
+    // except in a board whose height was pinned: like on screen it shows what
+    // fits instead of spilling over the boards below it.
     doc.querySelectorAll(".km-board-body, .km-code .snippet-code").forEach((el) => { el.style.overflow = "visible"; });
+    doc.querySelectorAll(".km-board").forEach((board) => {
+      if (board.style.height) board.querySelector(".km-board-body").style.overflow = "hidden";
+    });
     const wrap = doc.querySelector("[data-km-canvas-wrap]");
     if (wrap) {
       wrap.style.backgroundImage = "none";

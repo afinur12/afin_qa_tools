@@ -106,4 +106,38 @@
       if (!event.target.closest("[data-km-links]")) pop.hidden = true;
     });
   }
+
+  // ── leaving the page flushes pending edits ────────────────────────────
+  // app.js saves 700 ms after typing stops or when the field loses focus;
+  // closing the tab, reloading or following a link inside that window would
+  // drop the edit. Forms touched in the last moments are sent once more with
+  // keepalive (saving is idempotent).
+  const kmPage = document.querySelector("[data-km-page]");
+  if (kmPage && kmPage.dataset.kmPage) {
+    const recent = new Map(); // form -> timer that forgets it
+    kmPage.addEventListener("input", (event) => {
+      const form = event.target.closest("form[data-autosave]");
+      if (!form) return;
+      clearTimeout(recent.get(form));
+      recent.set(form, setTimeout(() => recent.delete(form), 2000));
+    });
+    const flush = () => {
+      recent.forEach((timer, form) => {
+        clearTimeout(timer);
+        fetch(form.action, { method: "POST", body: new FormData(form), keepalive: true, headers: { "X-Requested-With": "fetch" } }).catch(() => {});
+      });
+      recent.clear();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+    // Enter in the page title leaves the field (which saves) instead of
+    // submitting the form and reloading the page.
+    kmPage.querySelector("input.km-title")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      event.target.blur();
+    });
+  }
 })();

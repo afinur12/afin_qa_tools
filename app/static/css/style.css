@@ -2679,9 +2679,9 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
 body.km-has-fullscreen { overflow: hidden; }
 body.km-has-fullscreen .modal-backdrop, body.km-has-maximized .modal-backdrop,
 body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
-.km-max-backdrop { position: fixed; inset: 0; z-index: 1500; background: rgba(10, 10, 12, .55); }
+.km-max-backdrop { position: fixed; inset: 0; z-index: 2147483000; background: rgba(10, 10, 12, .55); }
 .km-max-backdrop[hidden] { display: none; }
-.km-board.is-maximized { position: fixed !important; top: 40px !important; right: 48px; bottom: 40px; left: 48px !important; width: auto !important; height: auto !important; z-index: 1600 !important; box-shadow: var(--shadow-pop); }
+.km-board.is-maximized { position: fixed !important; top: 40px !important; right: 48px; bottom: 40px; left: 48px !important; width: auto !important; height: auto !important; z-index: 2147483001 !important; box-shadow: var(--shadow-pop); }
 .km-board.is-maximized .km-board-actions { display: flex; }
 .km-board.is-maximized .km-resize { display: none; }
 .km-board.is-maximized .km-board-bar { cursor: default; }

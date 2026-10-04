@@ -139,3 +139,12 @@ def test_reorder_ignores_blocks_of_other_boards(client, db_session):
     db_session.refresh(foreign)
     assert [blk.content for blk in board.blocks] == ["b", "a"]
     assert foreign.position == 5
+
+
+def test_a_block_field_over_one_megabyte_saves(client, db_session):
+    block = _block(db_session, _board(db_session), KnowledgeBlockKind.CODE)
+    big = "x" * (1536 * 1024)
+    response = client.post(f"/knowledge/blocks/{block.id}/edit", files={"content": (None, big)}, headers=FETCH)
+    assert response.status_code == 200
+    db_session.refresh(block)
+    assert len(block.content) == len(big)

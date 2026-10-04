@@ -8,10 +8,14 @@ it cannot drift between the routers that trigger a delete.
 Callers commit; these helpers only stage the deletions.
 """
 
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.labels import clear_labels
 from app.models import KnowledgeLinkTarget, KnowledgePageLink, LabelAttachType
+
+logger = logging.getLogger(__name__)
 
 
 def _remove_screenshot(db: Session, screenshot) -> None:
@@ -61,8 +65,12 @@ def _remove_upload(relative_path: str | None) -> None:
     from app.routers.screenshots import UPLOADS_DIR
 
     disk_path = UPLOADS_DIR / relative_path
-    if disk_path.exists():
-        disk_path.unlink()
+    try:
+        disk_path.unlink(missing_ok=True)
+    except OSError:
+        # Windows refuses while the file is open (being served or compressed):
+        # an orphaned file beats a delete that fails halfway.
+        logger.warning("Could not remove upload %s", disk_path, exc_info=True)
 
 
 def delete_knowledge_block(db: Session, block) -> None:

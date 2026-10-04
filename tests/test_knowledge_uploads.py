@@ -1,5 +1,7 @@
 """Knowledge Management image/file uploads, downloads and file cleanup."""
 
+from pathlib import Path
+
 import pytest
 
 import app.routers.knowledge as knowledge_module
@@ -117,3 +119,17 @@ def test_download_header_survives_quotes_and_accents(client, db_session, uploads
     db_session.commit()
     disposition = client.get(f"/knowledge/blocks/{block.id}/download").headers["content-disposition"]
     assert disposition == "attachment; filename=\"R_sum_ _x_.pdf\"; filename*=utf-8''R%C3%A9sum%C3%A9%20%22x%22.pdf"
+
+
+def test_a_locked_file_does_not_block_deleting_its_block(client, db_session, monkeypatch):
+    board = _board(db_session)
+    client.post(f"/knowledge/boards/{board.id}/upload", files={"file": ("a.txt", b"x", "text/plain")}, headers=FETCH)
+    block = db_session.query(KnowledgeBlock).one()
+
+    def locked(self, missing_ok=False):
+        raise PermissionError(13, "The process cannot access the file")
+
+    monkeypatch.setattr(Path, "unlink", locked)
+    assert client.post(f"/knowledge/blocks/{block.id}/delete", headers=FETCH).status_code == 200
+    db_session.expire_all()
+    assert db_session.query(KnowledgeBlock).count() == 0
