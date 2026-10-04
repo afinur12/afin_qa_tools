@@ -59,6 +59,27 @@ def test_batch_positions_only_touch_this_pages_boards(client, db_session):
     assert client.post(f"/knowledge/pages/{page.id}/boards/positions", content="nope").status_code == 400
 
 
+def test_batch_positions_ignore_anything_that_is_not_a_real_int_id(client, db_session):
+    page = _page(db_session)
+    mine = _board(db_session, page, id=1, y=20)  # id 1 so that `True` would match it
+    other = _board(db_session, _page(db_session), y=20)
+    response = client.post(
+        f"/knowledge/pages/{page.id}/boards/positions",
+        json=[
+            {"id": mine.id, "y": 640},
+            {"id": [1], "y": 1},
+            {"id": {"x": 1}, "y": 1},
+            {"id": True, "y": 1},
+            {"id": mine.id, "y": 700},
+            {"id": other.id, "y": 999},
+        ],
+    )
+    assert response.status_code == 200
+    assert response.json() == {"updated": 1}
+    db_session.expire_all()
+    assert (db_session.get(KnowledgeBoard, mine.id).y, db_session.get(KnowledgeBoard, other.id).y) == (640, 20)
+
+
 def test_board_title_is_trimmed(client, db_session):
     board = _board(db_session, _page(db_session))
     assert client.post(f"/knowledge/boards/{board.id}/edit", data={"title": "  Project  "}, headers=FETCH).json() == {"ok": True}

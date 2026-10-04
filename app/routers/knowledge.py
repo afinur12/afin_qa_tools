@@ -283,13 +283,19 @@ async def board_positions(request: Request, page_id: int, db: Session = Depends(
     if not isinstance(moves, list):
         return JSONResponse({"error": "Expected a JSON list of {id, y}."}, status_code=400)
     boards = {b.id: b for b in page.boards}
+    seen: set[int] = set()
     updated = 0
     for move in moves:
         if not isinstance(move, dict):
             continue
-        board, y = boards.get(move.get("id")), move.get("y")
-        if board is None or not isinstance(y, int) or isinstance(y, bool):
+        board_id, y = move.get("id"), move.get("y")
+        # Real ints only: bool is an int subclass (True == 1) and a list/dict id is unhashable.
+        if type(board_id) is not int or type(y) is not int or board_id in seen:
             continue
+        board = boards.get(board_id)
+        if board is None:
+            continue
+        seen.add(board_id)
         board.y = max(0, y)
         updated += 1
     if updated:
