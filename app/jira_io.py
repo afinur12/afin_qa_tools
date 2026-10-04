@@ -294,34 +294,50 @@ def _is_bundled_entry(entry: dict, label: str) -> bool:
     return False
 
 
-def _apply_step_data(db: Session, entry: dict, old_data: list[tuple[str, str, str]], new_steps: list["TestCaseStep"]) -> None:
-    """Attach Test Data items to the FIRST of a section's just-recreated
-    steps. `old_data` is every data item that lived on the section's OLD
-    steps (title, value, language), captured by the caller BEFORE deleting
-    those steps — deletion.delete_step cascades to data_items, so reading
-    it after would find nothing.
+def _sync_steps_in_place(db: Session, section: "TestCaseSection", rows: list[tuple[str, str]]) -> list["TestCaseStep"]:
+    """Make the section's steps match `rows` ((step_text, expected_result)
+    per position) WITHOUT recreating them: the step already at a position
+    keeps its row — and with it its actual_result, Test Data items and
+    screenshots — and only its text changes. Positions past the old count
+    become new steps; old steps past the new count are removed (Jira
+    genuinely has fewer steps now). Recreating every step instead used to
+    delete each step's screenshots (files included) and Test Data on every
+    import, even when nothing had changed."""
+    old_steps = list(section.steps)
+    steps = []
+    for i, (step_value, expected_value) in enumerate(rows):
+        if i < len(old_steps):
+            step = old_steps[i]
+            step.step_no, step.step_text, step.expected_result = i + 1, step_value, expected_value
+        else:
+            step = TestCaseStep(
+                section_id=section.id, step_no=i + 1,
+                step_text=step_value, expected_result=expected_value, actual_result="",
+            )
+            db.add(step)
+        steps.append(step)
+    for step in old_steps[len(rows):]:
+        deletion.delete_step(db, step)
+    db.flush()
+    return steps
 
-    Same placeholder rule as step_text/expected_result: a missing or
-    placeholder "data" field means "nothing real supplied", so the OLD data
-    items are carried forward rather than wiped — there is no per-position
-    fallback the way step_text/expected_result have (data has no 1:1
-    correspondence to a step), so the whole old set is preserved wholesale,
-    reattached to the new first step. `language` is re-detected client-side
-    the next time an item is actually edited in the UI; there is no
-    server-side port of detectSnippetLanguage, so a freshly-imported item
-    (never re-typed since) keeps whatever language it already had (old
-    items) or defaults to "TEXT" (newly parsed items — see _parse_data_items
-    callers below)."""
-    if not new_steps:
+
+def _seed_step_data(db: Session, entry: dict, steps: list["TestCaseStep"]) -> None:
+    """Fill Test Data from Jira's "data" text only where the app has none
+    yet (a test case first created from Jira). Existing items are never
+    replaced: they're the per-step source of truth, while Jira's "data" is
+    a flattened copy with no per-step attribution (see _bundle_step_data),
+    so overwriting from it could only lose or misplace data. A missing,
+    placeholder, empty or unparseable "data" field adds nothing. New items
+    attach to the first of `steps` — `language` defaults to "TEXT" and is
+    re-detected client-side the next time an item is edited."""
+    if not steps or any(step.data_items for step in steps):
         return
-    first_step = new_steps[0]
-    if "data" not in entry or _is_placeholder(entry.get("data", "")):
-        for i, (title, value, language) in enumerate(old_data, start=1):
-            db.add(TestCaseStepData(step_id=first_step.id, order_no=i, title=title, value=value, language=language))
+    data_text = entry.get("data", "")
+    if _is_placeholder(data_text):
         return
-    items = _parse_data_items(entry.get("data", ""))
-    for i, (title, value) in enumerate(items, start=1):
-        db.add(TestCaseStepData(step_id=first_step.id, order_no=i, title=title, value=value, language="TEXT"))
+    for i, (title, value) in enumerate(_parse_data_items(data_text), start=1):
+        db.add(TestCaseStepData(step_id=steps[0].id, order_no=i, title=title, value=value, language="TEXT"))
 
 
 def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict, label: str) -> None:
@@ -365,24 +381,9 @@ def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict, la
             expected_value = expected_lines[i] if i < len(expected_lines) else ""
         else:
             expected_value = old.expected_result if old else ""
-        actual_value = old.actual_result if old else ""
-        new_rows.append((step_value, expected_value, actual_value))
+        new_rows.append((step_value, expected_value))
 
-    old_data = [(item.title, item.value, item.language) for step in old_steps for item in step.data_items]
-
-    for step in old_steps:
-        deletion.delete_step(db, step)
-    db.flush()
-    new_steps = []
-    for i, (step_value, expected_value, actual_value) in enumerate(new_rows):
-        new_step = TestCaseStep(
-            section_id=section.id, step_no=i + 1,
-            step_text=step_value, expected_result=expected_value, actual_result=actual_value,
-        )
-        db.add(new_step)
-        new_steps.append(new_step)
-    db.flush()
-    _apply_step_data(db, entry, old_data, new_steps)
+    _seed_step_data(db, entry, _sync_steps_in_place(db, section, new_rows))
 
 
 def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", entries: list[dict]) -> None:
@@ -402,36 +403,19 @@ def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", en
         return  # nothing real in any of this section's entries — leave existing steps alone
 
     new_rows = []
-    old_data_by_position = []
     for i, entry in enumerate(entries):
         old = old_steps[i] if i < len(old_steps) else None
         step_text = entry.get("step", "")
         expected_text = entry.get("expected_result", "")
         step_value = (old.step_text if old else "") if _is_placeholder(step_text) else step_text
         expected_value = (old.expected_result if old else "") if _is_placeholder(expected_text) else expected_text
-        actual_value = old.actual_result if old else ""
-        new_rows.append((step_value, expected_value, actual_value))
-        old_data_by_position.append([(item.title, item.value, item.language) for item in old.data_items] if old else [])
+        new_rows.append((step_value, expected_value))
 
-    for step in old_steps:
-        deletion.delete_step(db, step)
-    db.flush()
-    new_steps = []
-    for i, (step_value, expected_value, actual_value) in enumerate(new_rows):
-        new_step = TestCaseStep(
-            section_id=section.id, step_no=i + 1,
-            step_text=step_value, expected_result=expected_value, actual_result=actual_value,
-        )
-        db.add(new_step)
-        new_steps.append(new_step)
-    db.flush()
-    # Unlike _apply_zephyr_entry's single bundled entry (where "data" has no
-    # per-step attribution at all — see _apply_step_data), each entry here
-    # corresponds to exactly one step, so a "data" field on an individual
-    # entry attaches to THAT entry's own new step, not just the section's
-    # first one — proper positional attribution is possible in this shape.
-    for i, entry in enumerate(entries):
-        _apply_step_data(db, entry, old_data_by_position[i], [new_steps[i]])
+    steps = _sync_steps_in_place(db, section, new_rows)
+    # Each entry here is exactly one step, so its "data" belongs to THAT
+    # step (unlike the bundled shape, where it can only go on the first).
+    for entry, step in zip(entries, steps):
+        _seed_step_data(db, entry, [step])
 
 
 def _apply_labels(db: Session, attach_type: "LabelAttachType", attach_id: int, names: list[str]) -> None:

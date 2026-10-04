@@ -379,14 +379,15 @@ def test_import_zephyr_entry_with_matching_step_counts_preserves_expected_result
     assert [s.expected_result for s in main_section.steps] == ["Old expected A", "Old expected B"]
 
 
-def test_import_over_section_with_screenshot_cleans_up_instead_of_crashing(db_session):
+def test_import_over_section_with_screenshot_keeps_it_instead_of_crashing(db_session):
     # Regression (Bug 1, final whole-branch review, Critical): _apply_zephyr_
     # entry used to call db.delete(step) directly, bypassing
     # app.deletion.delete_step's screenshot cleanup. Importing over a section
     # whose step has a Screenshot child row raised an uncaught IntegrityError
     # (NOT NULL constraint on screenshots.step_id), which propagated past the
     # route's `except ValueError` as an unhandled 500, and left the
-    # screenshot's file orphaned on disk.
+    # screenshot's file orphaned on disk. Steps are now updated in place, so
+    # the screenshot (evidence) is kept rather than cleaned up.
     from app.models import Screenshot
     from app.routers.screenshots import UPLOADS_DIR
 
@@ -410,7 +411,40 @@ def test_import_over_section_with_screenshot_cleans_up_instead_of_crashing(db_se
     apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})  # must not raise
     db_session.commit()
 
-    assert db_session.get(Screenshot, screenshot_id) is None
+    assert db_session.get(Screenshot, screenshot_id) is not None
+    assert disk_path.exists()
+    db_session.refresh(main_section)
+    assert [s.step_text for s in main_section.steps] == ["Do A", "Do B"]
+    assert main_section.steps[0].id == step.id  # updated in place, not recreated
+
+
+def test_import_with_fewer_steps_removes_the_extra_step_and_its_screenshot_file(db_session):
+    from app.models import Screenshot
+    from app.routers.screenshots import UPLOADS_DIR
+
+    subtask = _make_subtask(db_session, code="SND-9953")
+    testcase = _make_testcase(db_session, subtask, code="SND-10153")
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    for no in (1, 2, 3):
+        db_session.add(TestCaseStep(section_id=main_section.id, step_no=no, step_text=f"Old {no}", expected_result="", actual_result=""))
+    db_session.commit()
+    third = main_section.steps[2]
+    relative_path = f"screenshots/jira_io_test/extra_{testcase.id}_{third.id}.png"
+    disk_path = UPLOADS_DIR / relative_path
+    disk_path.parent.mkdir(parents=True, exist_ok=True)
+    disk_path.write_bytes(b"fake-image-bytes")
+    shot = Screenshot(step_id=third.id, file_path=relative_path)
+    db_session.add(shot)
+    db_session.commit()
+    shot_id = shot.id
+
+    entry = _base_test_case_entry(issue_key="SND-10153")  # MAIN TEST has 2 steps
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+    db_session.refresh(main_section)
+
+    assert [s.step_text for s in main_section.steps] == ["Do A", "Do B"]
+    assert db_session.get(Screenshot, shot_id) is None
     assert not disk_path.exists()
 
 
@@ -671,3 +705,96 @@ def test_import_accepts_data_field_with_jira_code_language_suffix_and_lf_line_en
     db_session.refresh(main_section)
     assert [item.title for item in main_section.steps[0].data_items] == ["Hand-edited"]
     assert main_section.steps[0].data_items[0].value == "SELECT 1"
+
+
+@pytest.fixture(autouse=True)
+def _remove_kept_test_screenshots():
+    """Screenshots now survive an import, so the fake files these tests write
+    into app/uploads would otherwise accumulate there."""
+    yield
+    from app.routers.screenshots import UPLOADS_DIR
+
+    for path in (UPLOADS_DIR / "screenshots" / "jira_io_test").glob("*.png"):
+        path.unlink()
+
+
+def _section_with_two_evidenced_steps(db_session, testcase):
+    """MAIN section with two steps, each holding its own Test Data item and
+    screenshot (file on disk) — the state a passed test case is usually in."""
+    from app.models import Screenshot, TestCaseStepData
+    from app.routers.screenshots import UPLOADS_DIR
+
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    steps = []
+    for no, text in ((1, "Do A"), (2, "Do B")):
+        step = TestCaseStep(section_id=main_section.id, step_no=no, step_text=text, expected_result=f"{text} ok", actual_result="Same as expected")
+        db_session.add(step)
+        db_session.flush()
+        db_session.add(TestCaseStepData(step_id=step.id, order_no=1, title=f"data {no}", value=f"value {no}", language="SQL"))
+        relative = f"screenshots/jira_io_test/keep_{testcase.id}_{step.id}.png"
+        (UPLOADS_DIR / relative).parent.mkdir(parents=True, exist_ok=True)
+        (UPLOADS_DIR / relative).write_bytes(b"evidence")
+        db_session.add(Screenshot(step_id=step.id, file_path=relative))
+        steps.append(step)
+    db_session.commit()
+    return main_section, steps
+
+
+def _evidence(section):
+    from app.routers.screenshots import UPLOADS_DIR
+
+    return [
+        (s.id, s.step_text, s.actual_result, [(d.title, d.value, d.language) for d in s.data_items],
+         [(UPLOADS_DIR / sc.file_path).exists() for sc in s.screenshots])
+        for s in section.steps
+    ]
+
+
+def test_jira_round_trip_keeps_every_steps_own_data_and_screenshots(db_session):
+    # Regression: re-importing a subtask's own Jira export deleted and
+    # recreated every step — screenshots (and their files) were destroyed and
+    # every step's Test Data was piled onto the first step.
+    subtask = _make_subtask(db_session, code="SND-9950")
+    testcase = _make_testcase(db_session, subtask, code="SND-10150")
+    main_section, _ = _section_with_two_evidenced_steps(db_session, testcase)
+    before = _evidence(main_section)
+
+    apply_jira_json_to_subtask(db_session, subtask, subtask_to_jira_json(subtask, db_session))
+    db_session.commit()
+    db_session.refresh(main_section)
+
+    assert _evidence(main_section) == before
+
+
+def test_jira_import_with_empty_or_unparseable_data_never_wipes_test_data(db_session):
+    subtask = _make_subtask(db_session, code="SND-9951")
+    testcase = _make_testcase(db_session, subtask, code="SND-10151")
+    main_section, _ = _section_with_two_evidenced_steps(db_session, testcase)
+    before = _evidence(main_section)
+
+    for data in ("", "msisdn 62812 (typed straight into Jira)"):
+        exported = subtask_to_jira_json(subtask, db_session)
+        for entry in exported["test_cases"][0]["zephyr_steps"]:
+            entry["data"] = data
+        apply_jira_json_to_subtask(db_session, subtask, exported)
+        db_session.commit()
+        db_session.refresh(main_section)
+        assert _evidence(main_section) == before, data
+
+
+def test_jira_import_updates_step_text_in_place_keeping_evidence(db_session):
+    subtask = _make_subtask(db_session, code="SND-9952")
+    testcase = _make_testcase(db_session, subtask, code="SND-10152")
+    main_section, steps = _section_with_two_evidenced_steps(db_session, testcase)
+
+    exported = subtask_to_jira_json(subtask, db_session)
+    main = next(e for e in exported["test_cases"][0]["zephyr_steps"] if e["step_type"] == "MAIN TEST")
+    main["step"] = main["step"].replace("Do B", "Do B (edited in Jira)")
+    apply_jira_json_to_subtask(db_session, subtask, exported)
+    db_session.commit()
+    db_session.refresh(main_section)
+
+    after = _evidence(main_section)
+    assert [row[0] for row in after] == [s.id for s in steps]  # same rows, not recreated
+    assert after[1][1] == "Do B (edited in Jira)"
+    assert after[1][3] == [("data 2", "value 2", "SQL")] and after[1][4] == [True]
