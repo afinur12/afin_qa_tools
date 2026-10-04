@@ -2751,3 +2751,24 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-table-tools button { padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer; }
 .km-table-tools button:hover { color: var(--ink); }
 .km-table-tools label { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: var(--ink-2); }
+.km-links { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.km-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 380px; padding: 4px 6px 4px 10px; border-radius: var(--r-pill); background: var(--indigo-soft); color: var(--indigo-ink); font-size: 12.5px; font-weight: 600; }
+.km-chip a { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: inherit; text-decoration: none; }
+.km-chip .kind { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+.km-chip .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.km-chip button { padding: 0 4px; border: none; background: none; color: inherit; font-size: 14px; line-height: 1; opacity: .6; cursor: pointer; }
+.km-chip button:hover { opacity: 1; }
+.km-link-btn { padding: 4px 10px; border: 1px dashed var(--line-strong); border-radius: var(--r-pill); background: none; color: var(--ink-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.km-link-pop { position: absolute; top: 34px; left: 0; z-index: 3000; width: 420px; max-height: 360px; overflow: auto; padding: 10px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); }
+.km-link-pop[hidden] { display: none; }
+.km-link-pop input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-sunk); color: var(--ink); font: inherit; font-size: 13px; }
+.km-link-group { margin: 10px 4px 4px; color: var(--ink-3); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.km-link-option { display: flex; gap: 8px; width: 100%; padding: 7px 8px; border: none; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.km-link-option:hover { background: var(--surface-sunk); }
+.km-link-option code { color: var(--indigo-ink); font-family: var(--font-mono); font-size: 12px; }
+.km-link-empty { margin: 10px 4px 0; color: var(--ink-3); font-size: 13px; }
+.km-linked-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--line); }
+.km-linked-row:first-of-type { border-top: none; }
+.km-page-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; background: var(--indigo-soft); color: var(--indigo-ink); }
+.km-linked-title { color: var(--ink); font-weight: 600; text-decoration: none; }
+.km-linked-sub { color: var(--ink-3); font-size: 12px; }

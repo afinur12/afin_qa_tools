@@ -38,4 +38,72 @@
   if (sections) initReorder(sections, { itemSelector: ".km-section", idKey: "sectionId", indexSelector: "[data-km-index]" });
   const pages = root.querySelector("[data-km-pages]");
   if (pages) initReorder(pages, { itemSelector: ".km-page-item", idKey: "pageId", indexSelector: "[data-km-index]" });
+  // ── links to tasks and subtasks ───────────────────────────────────────
+  // app.js's escapeHtml doesn't escape quotes; these strings also go into
+  // attributes.
+  const esc = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const chipHtml = (link) =>
+    `<span class="km-chip" data-link-id="${link.id}"><a href="${esc(link.url)}"><span class="kind">${esc(link.kind)}</span>` +
+    `<span class="txt">${esc(link.code)} · ${esc(link.title)}</span></a>` +
+    `<button type="button" data-km-unlink title="Unlink" aria-label="Unlink ${esc(link.code)}">&times;</button></span>`;
+
+  const links = document.querySelector("[data-km-links]");
+  if (links) {
+    const pop = links.querySelector("[data-km-link-pop]");
+    const search = links.querySelector("[data-km-link-search]");
+    const results = links.querySelector("[data-km-link-results]");
+    let timer;
+
+    async function loadTargets() {
+      const response = await fetch(`/knowledge/link-targets.json?q=${encodeURIComponent(search.value)}`);
+      const data = await response.json();
+      const group = (label, type, items) => (items.length
+        ? `<div class="km-link-group">${label}</div>` + items.map((t) =>
+          `<button type="button" class="km-link-option" data-target-type="${type}" data-target-id="${t.id}"><code>${esc(t.code)}</code> ${esc(t.title)}</button>`).join("")
+        : "");
+      results.innerHTML = group("Tasks", "STORY", data.stories) + group("Subtasks", "SUBTASK", data.subtasks) || '<p class="km-link-empty">Nothing matches.</p>';
+    }
+
+    links.addEventListener("click", async (event) => {
+      if (event.target.closest("[data-km-link-open]")) {
+        pop.hidden = !pop.hidden;
+        if (!pop.hidden) {
+          search.value = "";
+          loadTargets();
+          search.focus();
+        }
+        return;
+      }
+      const option = event.target.closest(".km-link-option");
+      if (option) {
+        const body = new FormData();
+        body.append("page_id", links.dataset.pageId);
+        body.append("target_type", option.dataset.targetType);
+        body.append("target_id", option.dataset.targetId);
+        const response = await fetch("/knowledge/links", { method: "POST", body, headers: { "X-Requested-With": "fetch" } });
+        if (!response.ok) {
+          toast("Couldn't link that item.", "danger");
+          return;
+        }
+        const link = await response.json();
+        if (!links.querySelector(`[data-link-id="${link.id}"]`)) links.querySelector("[data-km-link-open]").insertAdjacentHTML("beforebegin", chipHtml(link));
+        pop.hidden = true;
+        return;
+      }
+      const unlink = event.target.closest("[data-km-unlink]");
+      if (unlink) {
+        event.preventDefault();
+        const chip = unlink.closest("[data-link-id]");
+        const response = await fetch(`/knowledge/links/${chip.dataset.linkId}/delete`, { method: "POST", headers: { "X-Requested-With": "fetch" } });
+        if (response.ok) chip.remove();
+      }
+    });
+    search.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(loadTargets, 200);
+    });
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-km-links]")) pop.hidden = true;
+    });
+  }
 })();

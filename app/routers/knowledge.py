@@ -15,6 +15,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from markupsafe import Markup
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 import app.routers.screenshots as screenshots_module
@@ -25,7 +26,10 @@ from app.image_compress import compress_in_background
 from app.knowledge_sanitize import (
     EMPTY_TABLE_JSON, parse_table, sanitize_cell_html, sanitize_table_json, sanitize_text_html,
 )
-from app.models import KnowledgeBlock, KnowledgeBlockKind, KnowledgeBoard, KnowledgePage, KnowledgeSection
+from app.models import (
+    KnowledgeBlock, KnowledgeBlockKind, KnowledgeBoard, KnowledgeLinkTarget, KnowledgePage, KnowledgePageLink,
+    KnowledgeSection, Story, Subtask,
+)
 from app.templating import templates
 
 router = APIRouter()
@@ -89,8 +93,32 @@ def _parse_order(order: str) -> list[int]:
     return [int(part) for part in order.split(",") if part.strip().isdigit()]
 
 
+def _link_view(db: Session, link: KnowledgePageLink) -> dict | None:
+    """Chip data for one link, or None when its story/subtask no longer exists."""
+    if link.target_type == KnowledgeLinkTarget.STORY:
+        target, kind, url = db.get(Story, link.target_id), "Task", f"/stories/{link.target_id}"
+    else:
+        target, kind, url = db.get(Subtask, link.target_id), "Subtask", f"/subtasks/{link.target_id}"
+    if target is None:
+        return None
+    return {"id": link.id, "kind": kind, "code": target.display_code, "title": target.title, "url": url}
+
+
 def _link_views(db: Session, page: KnowledgePage) -> list[dict]:
-    return []
+    return [view for view in (_link_view(db, link) for link in page.links) if view]
+
+
+def _safe_next(next_url: str) -> str | None:
+    return next_url if next_url.startswith("/") and not next_url.startswith("//") else None
+
+
+def knowledge_card_context(db: Session, target_type: KnowledgeLinkTarget, target_id: int) -> dict:
+    """Context for knowledge/_linked_pages.html on a story or subtask page."""
+    links = db.query(KnowledgePageLink).filter(
+        KnowledgePageLink.target_type == target_type, KnowledgePageLink.target_id == target_id
+    ).all()
+    linked = sorted(({"page": link.page, "link_id": link.id} for link in links), key=lambda item: item["page"].title.lower())
+    return {"km_target_type": target_type.value, "km_target_id": target_id, "km_linked": linked, "km_sections": _sections(db)}
 
 
 def _render(request: Request, db: Session, section: KnowledgeSection | None = None, page: KnowledgePage | None = None):
@@ -472,3 +500,62 @@ def download_block_file(request: Request, block_id: int, db: Session = Depends(g
     fallback = re.sub(r'[^ -~]|["\\]', "_", name)
     disposition = f"attachment; filename=\"{fallback}\"; filename*=utf-8''{quote(name, safe='')}"
     return FileResponse(disk_path, media_type=block.content_type or "application/octet-stream", headers={"Content-Disposition": disposition})
+
+
+# ── Links to stories and subtasks ───────────────────────────────────────
+
+@router.get("/knowledge/link-targets.json")
+def link_targets(q: str = "", db: Session = Depends(get_db)):
+    like = f"%{q.strip()}%"
+
+    def search(model):
+        rows = (
+            db.query(model)
+            .filter(or_(model.display_code.ilike(like), model.title.ilike(like)))
+            .order_by(model.id.desc())
+            .limit(20)
+            .all()
+        )
+        return [{"id": r.id, "code": r.display_code, "title": r.title} for r in rows]
+
+    return JSONResponse({"stories": search(Story), "subtasks": search(Subtask)})
+
+
+@router.post("/knowledge/links")
+def create_link(
+    request: Request, page_id: int = Form(...), target_type: str = Form(...), target_id: int = Form(...),
+    next: str = Form(""), db: Session = Depends(get_db),
+):
+    page = db.get(KnowledgePage, page_id)
+    if page is None:
+        return _not_found(request)
+    try:
+        kind = KnowledgeLinkTarget(target_type.strip().upper())
+    except ValueError:
+        return JSONResponse({"error": "Links point at a story or a subtask."}, status_code=400)
+    if db.get(Story if kind == KnowledgeLinkTarget.STORY else Subtask, target_id) is None:
+        return _not_found(request)
+    link = db.query(KnowledgePageLink).filter_by(page_id=page.id, target_type=kind, target_id=target_id).first()
+    if link is None:
+        link = KnowledgePageLink(page_id=page.id, target_type=kind, target_id=target_id)
+        db.add(link)
+        _touch(page)
+        db.commit()
+        db.refresh(link)
+    if _is_fetch(request):
+        return JSONResponse(_link_view(db, link))
+    return RedirectResponse(_safe_next(next) or f"/knowledge/pages/{page.id}", status_code=303)
+
+
+@router.post("/knowledge/links/{link_id}/delete")
+def delete_link(request: Request, link_id: int, next: str = Form(""), db: Session = Depends(get_db)):
+    link = db.get(KnowledgePageLink, link_id)
+    if link is None:
+        return _not_found(request)
+    page = link.page
+    db.delete(link)
+    _touch(page)
+    db.commit()
+    if _is_fetch(request):
+        return JSONResponse({"ok": True})
+    return RedirectResponse(_safe_next(next) or f"/knowledge/pages/{page.id}", status_code=303)

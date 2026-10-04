@@ -4,11 +4,14 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import Label, LabelAttachType, Note, NoteAttachType, Phase, PhaseType, Story, Subtask, TaskStatus, TestCase, TestCaseStatus, User, UserType, generate_internal_key
 from app.labels import clear_labels, get_labels, set_labels
+from app.models import KnowledgeLinkTarget
+from app.routers.knowledge import knowledge_card_context
 from app.testcase_io import dict_to_task
 
 router = APIRouter()
@@ -155,6 +158,7 @@ def story_detail(request: Request, story_id: int, db: Session = Depends(get_db))
             "story_labels": get_labels(db, LabelAttachType.STORY, story_id),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.STORY, story_id)],
             **_user_dropdowns(db),
+            **knowledge_card_context(db, KnowledgeLinkTarget.STORY, story_id),
         },
     )
 
@@ -256,6 +260,7 @@ def delete_story(request: Request, story_id: int, db: Session = Depends(get_db))
         )
     code = story.display_code
     clear_labels(db, LabelAttachType.STORY, story.id)
+    deletion.delete_knowledge_links_to(db, KnowledgeLinkTarget.STORY, story.id)
     db.delete(story)
     db.commit()
     return redirect_with_flash("/stories", f"Story {code} deleted.", category="danger")

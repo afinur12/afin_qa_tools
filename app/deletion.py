@@ -11,7 +11,7 @@ Callers commit; these helpers only stage the deletions.
 from sqlalchemy.orm import Session
 
 from app.labels import clear_labels
-from app.models import KnowledgePageLink, LabelAttachType
+from app.models import KnowledgeLinkTarget, KnowledgePageLink, LabelAttachType
 
 
 def _remove_screenshot(db: Session, screenshot) -> None:
@@ -51,6 +51,7 @@ def delete_subtask(db: Session, subtask) -> None:
         clear_labels(db, LabelAttachType.BUG, bug.id)
         db.delete(bug)
     clear_labels(db, LabelAttachType.SUBTASK, subtask.id)
+    delete_knowledge_links_to(db, KnowledgeLinkTarget.SUBTASK, subtask.id)
     db.delete(subtask)
 
 

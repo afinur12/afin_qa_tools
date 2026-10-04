@@ -11,6 +11,8 @@ from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Screenshot, Subtask, SubtaskType, TaskStatus, TestCase, TestCaseSection, TestCaseStep, generate_internal_key
 from app.labels import get_labels, set_labels
+from app.models import KnowledgeLinkTarget
+from app.routers.knowledge import knowledge_card_context
 from app.routers.stories import _parse_id, _user_dropdowns
 from app.testcase_io import dict_to_subtask
 
@@ -214,6 +216,7 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
             "subtask_labels": get_labels(db, LabelAttachType.SUBTASK, subtask_id),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],
             **_user_dropdowns(db),
+            **knowledge_card_context(db, KnowledgeLinkTarget.SUBTASK, subtask_id),
         },
     )
 

@@ -1,0 +1,63 @@
+{# "Linked knowledge pages" card for a story or subtask page. Needs the keys
+   from app.routers.knowledge.knowledge_card_context in the template context;
+   renders nothing on routes that don't provide them. #}
+{% if km_target_type is defined %}
+<div class="card km-linked-card">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Linked knowledge pages</div>
+      <div class="card-sub">{{ km_linked | length }} page{{ '' if km_linked | length == 1 else 's' }}</div>
+    </div>
+    <div class="spacer"></div>
+    {% if km_sections %}<a class="btn secondary sm" href="#" data-modal-open="km-link-page">+ Link a page</a>{% endif %}
+  </div>
+  {% for item in km_linked %}
+  <div class="km-linked-row">
+    <span class="km-page-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg></span>
+    <div class="km-linked-text">
+      <a class="km-linked-title" href="/knowledge/pages/{{ item.page.id }}">{{ item.page.title }}</a>
+      <div class="km-linked-sub">{{ item.page.section.name }} &middot; {{ item.page.boards | length }} board{{ '' if item.page.boards | length == 1 else 's' }} &middot; edited {{ item.page.updated_at.strftime("%b %d, %Y") }}</div>
+    </div>
+    <span class="spacer"></span>
+    <a class="btn secondary sm" href="/knowledge/pages/{{ item.page.id }}">Open</a>
+    <form class="inline-form" method="post" action="/knowledge/links/{{ item.link_id }}/delete">
+      <input type="hidden" name="next" value="{{ request.url.path }}">
+      <button class="btn act remove" type="submit" title="Unlink" aria-label="Unlink {{ item.page.title }}">&times;</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted" style="margin:0;">No pages linked yet.</p>
+  {% endfor %}
+</div>
+
+{% if km_sections %}
+<div class="modal-backdrop" id="km-link-page" data-modal hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="km-link-page-title">
+    <div class="modal-head">
+      <div class="modal-title" id="km-link-page-title">Link a knowledge page</div>
+      <div class="spacer"></div>
+      <button class="btn secondary icon" type="button" data-modal-close aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/knowledge/links">
+      <input type="hidden" name="target_type" value="{{ km_target_type }}">
+      <input type="hidden" name="target_id" value="{{ km_target_id }}">
+      <input type="hidden" name="next" value="{{ request.url.path }}">
+      <div class="field">
+        <label>Page</label>
+        <select name="page_id" required>
+          {% for s in km_sections %}{% if s.pages %}
+          <optgroup label="{{ s.name }}">{% for p in s.pages %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</optgroup>
+          {% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="form-actions" style="justify-content:flex-end;">
+        <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+        <button class="btn" type="submit">Link</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endif %}

@@ -78,7 +78,16 @@
           <button class="km-row-btn danger" type="submit" title="Delete page" aria-label="Delete page">{{ icon_trash(13) }}</button>
         </form>
       </div>
-      {# km:links #}
+      <div class="km-links" data-km-links data-page-id="{{ page.id }}">
+        {% for l in link_views %}
+        <span class="km-chip" data-link-id="{{ l.id }}"><a href="{{ l.url }}"><span class="kind">{{ l.kind }}</span><span class="txt">{{ l.code }} &middot; {{ l.title }}</span></a><button type="button" data-km-unlink title="Unlink" aria-label="Unlink {{ l.code }}">&times;</button></span>
+        {% endfor %}
+        <button class="km-link-btn" type="button" data-km-link-open>+ Link task / subtask</button>
+        <div class="km-link-pop" data-km-link-pop hidden>
+          <input type="search" placeholder="Search tasks and subtasks by code or title" data-km-link-search autocomplete="off">
+          <div data-km-link-results></div>
+        </div>
+      </div>
       <div class="km-toolbar" data-km-toolbar>
         <button class="btn sm" type="button" data-km-add-board>{{ icon_plus(12) }} Board</button>
         {# km:export-button #}
