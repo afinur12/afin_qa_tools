@@ -2707,8 +2707,8 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-code .snippet-code { overflow-x: hidden; }
 .km-code .snippet-header { padding-right: 60px; }
 .km-code.code-block { margin-bottom: 0; }
-.km-code-paper pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
-.km-code-paper-title { font-weight: 600; }
+.km-code-paper pre { margin: 0; padding: 0 18px 16px; white-space: pre-wrap; word-break: break-word; }
+.km-code-paper-title { color: #f2f1f6; font-family: var(--font-mono); font-size: 14px; font-weight: 700; letter-spacing: .3px; }
 .km-add-menu { position: absolute; z-index: 3000; display: flex; flex-direction: column; min-width: 160px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); }
 .km-add-menu[hidden] { display: none; }
 .km-add-menu button { padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
@@ -2776,3 +2776,5 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-choice[hidden] { display: none; }
 .km-paper { margin: 0; background: #ffffff; }
 .km-paper .km-page.card { min-height: 100vh; }
+/* No "Type here…" on paper (html2canvas would copy the ::before text). */
+.km-paper .km-text:empty::before { content: none; }
