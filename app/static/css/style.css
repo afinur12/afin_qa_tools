@@ -2741,8 +2741,13 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-grid a { color: #3a7bd5; }
 .km-grid.has-head-row tr:first-child td { background: var(--surface-sunk); font-weight: 700; }
 .km-grid.has-head-col td:first-child { width: 1%; background: var(--surface-sunk); color: var(--ink-2); font-weight: 600; white-space: nowrap; }
-.km-table-tools { display: none; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; font-size: 11.5px; }
-.km-block--table:hover .km-table-tools, .km-block--table:focus-within .km-table-tools { display: flex; }
-.km-table-tools button { padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer; }
+/* The tools row is always laid out and only shown on hover / while editing:
+   showing it must never change the board's height, or the canvas would push
+   (and save) the boards below. The block's up / down / delete buttons move to
+   its bottom corner so they don't cover the row. */
+.km-table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; font-size: 11.5px; visibility: hidden; }
+.km-block--table:hover .km-table-tools, .km-block--table:focus-within .km-table-tools { visibility: visible; }
+.km-block--table > .km-block-tools { top: auto; bottom: -10px; }
+.km-table-tools button { padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer; }
 .km-table-tools button:hover { color: var(--ink); }
-.km-table-tools label { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--ink-2); }
+.km-table-tools label { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: var(--ink-2); }

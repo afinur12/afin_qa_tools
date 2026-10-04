@@ -93,21 +93,36 @@
       if (action === "row") addRow(table, row).cells[0].focus();
       else if (action === "col") rows.forEach((tr) => tr.cells[Math.min(col, tr.cells.length - 1)].after(newCell()));
       else if (action === "del-row" && rows.length > 1) {
+        // Keep working where you were: the row that takes its place, same column.
+        const next = row.nextElementSibling || row.previousElementSibling;
         row.remove();
-        lastCell = null;
+        lastCell = next.cells[Math.min(col, next.cells.length - 1)];
+        lastCell.focus();
       } else if (action === "del-col" && rows[0].cells.length > 1) {
         rows.forEach((tr) => tr.cells[col]?.remove());
-        lastCell = null;
+        lastCell = row.cells[Math.min(col, row.cells.length - 1)];
+        lastCell.focus();
+      } else {
+        return; // the last row / column stays — nothing changed, nothing to save
       }
       tableChanged(tableForm);
     });
-    // Tab / Shift+Tab walk the cells; Tab in the last cell adds a row.
+    // Tab / Shift+Tab walk the cells; Tab in the last cell adds a row. Enter is
+    // a line break inside the cell (a <div> paragraph, which Firefox makes,
+    // would be unwrapped by the cell sanitiser and the lines run together).
     tableForm.addEventListener("keydown", (event) => {
-      if (event.key !== "Tab" || !event.target.matches("td")) return;
+      const cell = event.target.closest?.("td");
+      if (!cell || event.isComposing) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        document.execCommand("insertLineBreak");
+        return;
+      }
+      if (event.key !== "Tab") return;
       event.preventDefault();
       const table = tableOf(tableForm);
       const cells = [...table.querySelectorAll("td")];
-      const next = cells.indexOf(event.target) + (event.shiftKey ? -1 : 1);
+      const next = cells.indexOf(cell) + (event.shiftKey ? -1 : 1);
       if (next >= cells.length) {
         addRow(table).cells[0].focus();
         tableChanged(tableForm);
@@ -118,14 +133,16 @@
     // Pasting tab-separated text (from Excel / OneNote) fills cells from the
     // focused one, adding rows and columns as needed.
     tableForm.addEventListener("paste", (event) => {
-      if (!event.target.matches("td")) return;
+      // The caret may sit inside formatting (<b>, <a>) within the cell.
+      const cell = event.target.closest?.("td");
+      if (!cell) return;
       const text = event.clipboardData?.getData("text/plain") || "";
       if (!text.includes("\t")) return;
       event.preventDefault();
       const table = tableOf(tableForm);
       const grid = window.KnowledgeLayout.tsvToGrid(text);
-      const r0 = event.target.parentElement.rowIndex;
-      const c0 = event.target.cellIndex;
+      const r0 = cell.parentElement.rowIndex;
+      const c0 = cell.cellIndex;
       grid.forEach((line, dr) => {
         while (table.rows.length <= r0 + dr) addRow(table);
         line.forEach((value, dc) => {

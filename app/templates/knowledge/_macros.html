@@ -109,17 +109,18 @@
   <a class="btn secondary sm" href="/knowledge/blocks/{{ blk.id }}/download">Download</a>
 </div>
 {% endmacro %}
+
 {% macro table_block(blk) %}
 {% set t = blk.content | km_table %}
 <form method="post" action="/knowledge/blocks/{{ blk.id }}/edit" data-autosave data-km-table-form>
   <input type="hidden" name="content" value="{{ blk.content | km_table_json }}" data-km-table-value>
   <div class="km-table-tools">
-    <button type="button" data-km-tbl="row">+ Row</button>
-    <button type="button" data-km-tbl="col">+ Column</button>
-    <button type="button" data-km-tbl="del-row">Delete row</button>
-    <button type="button" data-km-tbl="del-col">Delete column</button>
-    <label><input type="checkbox" data-km-tbl="head-row"{% if t.head_row %} checked{% endif %}> Header row</label>
-    <label><input type="checkbox" data-km-tbl="head-col"{% if t.head_col %} checked{% endif %}> Header column</label>
+    <button type="button" data-km-tbl="row" title="Add a row below">+ Row</button>
+    <button type="button" data-km-tbl="col" title="Add a column to the right">+ Col</button>
+    <button type="button" data-km-tbl="del-row" title="Delete this row">&minus; Row</button>
+    <button type="button" data-km-tbl="del-col" title="Delete this column">&minus; Col</button>
+    <label title="Header row"><input type="checkbox" data-km-tbl="head-row"{% if t.head_row %} checked{% endif %}> Head row</label>
+    <label title="Header column"><input type="checkbox" data-km-tbl="head-col"{% if t.head_col %} checked{% endif %}> Head col</label>
   </div>
   <table class="km-grid{% if t.head_row %} has-head-row{% endif %}{% if t.head_col %} has-head-col{% endif %}">
     <tbody>
