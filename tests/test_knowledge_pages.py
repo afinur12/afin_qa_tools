@@ -1,5 +1,7 @@
 """Knowledge Management sections, pages and the page shell."""
 
+from datetime import datetime
+
 from app.models import (
     KnowledgeBlock, KnowledgeBlockKind, KnowledgeBoard, KnowledgeLinkTarget, KnowledgePage,
     KnowledgePageLink, KnowledgeSection,
@@ -77,12 +79,23 @@ def test_edit_section_name_and_only_palette_colours(client, db_session):
 
 def test_page_title_autosave_returns_json_and_touches_updated_at(client, db_session):
     page = _page(db_session, _section(db_session))
-    before = page.updated_at
+    long_ago = datetime(2000, 1, 1)
+    page.updated_at = long_ago
+    db_session.commit()
     response = client.post(f"/knowledge/pages/{page.id}/edit", data={"title": "  New title  "}, headers=FETCH)
     assert response.json() == {"ok": True}
     db_session.refresh(page)
     assert page.title == "New title"
-    assert page.updated_at >= before
+    assert page.updated_at > long_ago
+    assert page.updated_at.tzinfo is None
+
+    # The column's onupdate also bumps updated_at whenever the title changes, so
+    # re-save the same title: no column changes, and only _touch can move it.
+    page.updated_at = long_ago
+    db_session.commit()
+    client.post(f"/knowledge/pages/{page.id}/edit", data={"title": "New title"}, headers=FETCH)
+    db_session.refresh(page)
+    assert page.updated_at > long_ago
 
 
 def test_reorder_sections_and_pages(client, db_session):
