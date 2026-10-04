@@ -651,3 +651,101 @@ class ApiHistory(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+# ── Knowledge Management ────────────────────────────────────────────────
+# Sections → pages → boards (free-form canvas cards) → blocks. See
+# docs/superpowers/specs/2026-10-04-knowledge-management-design.md.
+
+class KnowledgeBlockKind(str, enum.Enum):
+    TEXT = "TEXT"
+    CODE = "CODE"
+    IMAGE = "IMAGE"
+    FILE = "FILE"
+    TABLE = "TABLE"
+
+
+class KnowledgeLinkTarget(str, enum.Enum):
+    STORY = "STORY"
+    SUBTASK = "SUBTASK"
+
+
+class KnowledgeSection(Base):
+    __tablename__ = "knowledge_sections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    color: Mapped[str] = mapped_column(String(16), nullable=False, default="#9b9aa4")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+    pages: Mapped[list["KnowledgePage"]] = relationship(
+        "KnowledgePage", back_populates="section", order_by="KnowledgePage.position"
+    )
+
+
+class KnowledgePage(Base):
+    __tablename__ = "knowledge_pages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    section_id: Mapped[int] = mapped_column(ForeignKey("knowledge_sections.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="Untitled page")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    section: Mapped["KnowledgeSection"] = relationship("KnowledgeSection", back_populates="pages")
+    boards: Mapped[list["KnowledgeBoard"]] = relationship(
+        "KnowledgeBoard", back_populates="page", order_by="KnowledgeBoard.z"
+    )
+    links: Mapped[list["KnowledgePageLink"]] = relationship("KnowledgePageLink", back_populates="page")
+
+
+class KnowledgeBoard(Base):
+    __tablename__ = "knowledge_boards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("knowledge_pages.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    x: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    y: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    width: Mapped[int] = mapped_column(Integer, nullable=False, default=380)
+    # NULL until the user resizes vertically: the board grows with its content.
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    z: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    page: Mapped["KnowledgePage"] = relationship("KnowledgePage", back_populates="boards")
+    blocks: Mapped[list["KnowledgeBlock"]] = relationship(
+        "KnowledgeBlock", back_populates="board", order_by="KnowledgeBlock.position"
+    )
+
+
+class KnowledgeBlock(Base):
+    __tablename__ = "knowledge_blocks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    board_id: Mapped[int] = mapped_column(ForeignKey("knowledge_boards.id"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    kind: Mapped[KnowledgeBlockKind] = mapped_column(SAEnum(KnowledgeBlockKind), nullable=False)
+    # TEXT: sanitised HTML · CODE: plain text · IMAGE: caption · TABLE: JSON · FILE: unused
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    language: Mapped[str] = mapped_column(String(16), nullable=False, default="TEXT")
+    file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    file_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    board: Mapped["KnowledgeBoard"] = relationship("KnowledgeBoard", back_populates="blocks")
+
+
+class KnowledgePageLink(Base):
+    __tablename__ = "knowledge_page_links"
+    __table_args__ = (UniqueConstraint("page_id", "target_type", "target_id", name="uq_knowledge_link"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("knowledge_pages.id"), nullable=False)
+    target_type: Mapped[KnowledgeLinkTarget] = mapped_column(SAEnum(KnowledgeLinkTarget), nullable=False)
+    target_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    page: Mapped["KnowledgePage"] = relationship("KnowledgePage", back_populates="links")

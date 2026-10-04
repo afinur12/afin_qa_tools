@@ -5,6 +5,7 @@ qa_toolbox.db
 app/uploads/screenshots/**
 app/uploads/exports/**
 app/uploads/import_tmp/
+app/uploads/knowledge/
 !app/uploads/screenshots/.gitkeep
 !app/uploads/exports/.gitkeep
 .filesqa_toolbox.db.bak-*
