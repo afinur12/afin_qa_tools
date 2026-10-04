@@ -183,6 +183,14 @@
 {%- endif -%}
 {% endmacro %}
 
+{% macro icon_camera(size=12) %}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+{%- endmacro %}
+
+{% macro icon_check(size=12) %}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
+{%- endmacro %}
+
 {# A test case that has a matching entry in the Prebuilt library — see
    prebuilt_id_by_testcase_id in app/routers/subtasks.py for the match rule. #}
 {% macro icon_prebuilt(size=13) %}

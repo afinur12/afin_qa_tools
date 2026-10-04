@@ -2,13 +2,14 @@ import json
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
+from sqlalchemy import case, exists, func
 from sqlalchemy.orm import Session, selectinload
 
 from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Subtask, SubtaskType, TaskStatus, TestCase, generate_internal_key
+from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Screenshot, Subtask, SubtaskType, TaskStatus, TestCase, TestCaseSection, TestCaseStep, generate_internal_key
 from app.labels import get_labels, set_labels
 from app.routers.stories import _parse_id, _user_dropdowns
 from app.testcase_io import dict_to_subtask
@@ -158,6 +159,23 @@ async def import_subtask(request: Request, phase_id: int, file: UploadFile = Fil
     return redirect_with_flash(f"/subtasks/{subtask.id}", f"Subtask {subtask.display_code} imported.")
 
 
+def _screenshot_coverage(db: Session, testcase_ids: list[int]) -> dict[int, tuple[int, int]]:
+    """testcase_id -> (steps, steps with at least one screenshot), in one
+    query for the whole table. A test case with no steps is absent here and
+    reads as (0, 0) — shown as incomplete."""
+    if not testcase_ids:
+        return {}
+    has_shot = exists().where(Screenshot.step_id == TestCaseStep.id)
+    rows = (
+        db.query(TestCaseSection.testcase_id, func.count(TestCaseStep.id), func.sum(case((has_shot, 1), else_=0)))
+        .join(TestCaseStep, TestCaseStep.section_id == TestCaseSection.id)
+        .filter(TestCaseSection.testcase_id.in_(testcase_ids))
+        .group_by(TestCaseSection.testcase_id)
+        .all()
+    )
+    return {tc_id: (int(total), int(with_shot or 0)) for tc_id, total, with_shot in rows}
+
+
 @router.get("/subtasks/{subtask_id}")
 def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_db)):
     subtask = db.get(
@@ -191,6 +209,7 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
             "subtask": subtask, "error": None, "notes": notes,
             "prebuilts": prebuilts,
             "prebuilt_id_by_testcase_id": prebuilt_id_by_testcase_id,
+            "screenshot_coverage": _screenshot_coverage(db, [tc.id for tc in subtask.testcases]),
             "statuses": list(TaskStatus),
             "subtask_labels": get_labels(db, LabelAttachType.SUBTASK, subtask_id),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],

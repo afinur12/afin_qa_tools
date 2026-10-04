@@ -429,3 +429,65 @@ def test_testcase_prebuilt_badge_disappears_once_title_no_longer_matches(client)
     client.post(f"/testcases/{testcase_id}/edit", data={"display_code": "TC-1", "title": "Renamed title"})
     after = client.get(f"/subtasks/{subtask_id}").text
     assert "badge prebuilt-yes" not in after
+
+
+def _evidence_fixture(client, db_session, code):
+    """Three test cases: every step screenshotted / some / none, plus one
+    with no steps at all."""
+    from app.models import Screenshot, StepSection, TestCase, TestCaseSection, TestCaseStep
+
+    subtask_id = int(_make_subtask_for_testcases(client, code))
+    for tc_code in ("TC-ALL", "TC-SOME", "TC-NONE", "TC-EMPTY"):
+        client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": tc_code, "title": tc_code})
+    db_session.expire_all()
+    by_code = {tc.display_code: tc for tc in db_session.query(TestCase).filter_by(subtask_id=subtask_id)}
+    shots_per_step = {"TC-ALL": [1, 2], "TC-SOME": [1, 0, 0], "TC-NONE": [0, 0]}
+    for tc_code, shots in shots_per_step.items():
+        section = db_session.query(TestCaseSection).filter_by(testcase_id=by_code[tc_code].id, kind=StepSection.MAIN).first()
+        for no, count in enumerate(shots, start=1):
+            step = TestCaseStep(section_id=section.id, step_no=no, step_text=f"s{no}")
+            db_session.add(step)
+            db_session.flush()
+            for i in range(count):
+                db_session.add(Screenshot(step_id=step.id, file_path=f"screenshots/x/{step.id}_{i}.png"))
+    db_session.commit()
+    return subtask_id
+
+
+def test_subtask_page_shows_screenshot_completeness_per_test_case(client, db_session):
+    subtask_id = _evidence_fixture(client, db_session, "EX-320")
+    page = client.get(f"/subtasks/{subtask_id}").text
+
+    assert 'data-sort-key="evidence">Screenshots</th>' in page
+    assert 'class="badge evidence evidence-ok" title="All 2 steps have a screenshot"' in page
+    assert 'class="badge evidence evidence-missing" title="2 of 3 steps have no screenshot"' in page
+    assert 'class="badge evidence evidence-none" title="None of the 2 steps has a screenshot"' in page
+    assert 'class="badge evidence evidence-none" title="This test case has no steps yet"' in page
+    # sortable: complete cases sort as a fraction of steps covered
+    assert 'data-sort-evidence="1.0"' in page and 'data-sort-evidence="0.0"' in page
+
+
+def test_subtask_page_summarises_completeness(client, db_session):
+    subtask_id = _evidence_fixture(client, db_session, "EX-321")
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert "1/4 complete" in page
+    assert "3 test cases missing screenshots" in page
+
+
+def test_subtask_page_summary_when_every_test_case_is_complete(client, db_session):
+    from app.models import Screenshot, StepSection, TestCase, TestCaseSection, TestCaseStep
+
+    subtask_id = int(_make_subtask_for_testcases(client, "EX-322"))
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
+    db_session.expire_all()
+    tc = db_session.query(TestCase).filter_by(subtask_id=subtask_id).one()
+    section = db_session.query(TestCaseSection).filter_by(testcase_id=tc.id, kind=StepSection.MAIN).first()
+    step = TestCaseStep(section_id=section.id, step_no=1, step_text="s")
+    db_session.add(step)
+    db_session.flush()
+    db_session.add(Screenshot(step_id=step.id, file_path="screenshots/x/y.png"))
+    db_session.commit()
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert "All 1 test case has screenshots" in page
+    assert "missing screenshots" not in page
