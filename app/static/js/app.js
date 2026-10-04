@@ -325,7 +325,8 @@ function wireAutosaveForm(form) {
   });
 
   let timer;
-  form.addEventListener("input", () => {
+  form.addEventListener("input", (event) => {
+    if (event.target.matches("[data-step-select]")) return; // copy-selection checkbox, not step content
     clearTimeout(timer);
     setSaveState(form, "editing");
     timer = setTimeout(() => submitAutosave(form), 700);
@@ -1209,7 +1210,7 @@ document.addEventListener("click", (event) => {
 // both the test-case execute page and the Prebuilt editor.
 document.addEventListener("focusin", (event) => {
   const field = event.target.closest(".step input, .step textarea");
-  if (!field) return;
+  if (!field || field.matches("[data-step-select]")) return;
   const step = field.closest(".step");
   const container = step && step.closest("[data-steps]");
   if (!container) return;

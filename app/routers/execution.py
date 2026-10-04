@@ -1,16 +1,34 @@
 from fastapi import APIRouter, Depends, Form, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import SECTION_LABELS, DEFAULT_SECTION_KINDS, LabelAttachType, PrebuiltTestCase, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestCaseStepData, TestPriority, TestType
+from app.models import SECTION_LABELS, DEFAULT_SECTION_KINDS, LabelAttachType, Phase, PrebuiltTestCase, Story, Subtask, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestCaseStepData, TestPriority, TestType
 from app.labels import get_labels, set_labels
+from app.step_copy import copy_steps
 from app.routers.stories import _parse_id, _user_dropdowns
 
 router = APIRouter()
+
+
+def _copy_destinations(db: Session) -> list[dict]:
+    """Every test case, labelled "TASK › SUBTASK › CODE title", for the
+    "Copy steps to…" dialog's destination list."""
+    rows = (
+        db.query(TestCase.id, TestCase.display_code, TestCase.title, Subtask.display_code, Story.display_code)
+        .join(Subtask, TestCase.subtask_id == Subtask.id)
+        .join(Phase, Subtask.phase_id == Phase.id)
+        .join(Story, Phase.story_id == Story.id)
+        .order_by(Story.id, Subtask.id, TestCase.id)
+        .all()
+    )
+    return [
+        {"id": tc_id, "group": f"{story_code} › {subtask_code}", "label": f"{code} {title}"}
+        for tc_id, code, title, subtask_code, story_code in rows
+    ]
 
 
 def _render_execute(request: Request, testcase: TestCase, db: Session, error: str | None = None, status_code: int = 200):
@@ -27,6 +45,7 @@ def _render_execute(request: Request, testcase: TestCase, db: Session, error: st
             "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.TESTCASE, testcase.id)],
             "testcase_labels": get_labels(db, LabelAttachType.TESTCASE, testcase.id),
+            "copy_destinations": _copy_destinations(db),
             "error": error,
             **_user_dropdowns(db),
         },
@@ -36,6 +55,45 @@ def _render_execute(request: Request, testcase: TestCase, db: Session, error: st
 
 def _next_position(testcase: TestCase) -> int:
     return max((section.position for section in testcase.sections), default=-1) + 1
+
+
+@router.get("/testcases/{testcase_id}/sections.json")
+def testcase_sections_json(testcase_id: int, db: Session = Depends(get_db)):
+    """The destination picker's section list — numbered the way the test
+    case page numbers them (1 is the Description tab)."""
+    testcase = db.get(TestCase, testcase_id)
+    if testcase is None:
+        return JSONResponse({"sections": []}, status_code=404)
+    return JSONResponse({"sections": [
+        {"id": section.id, "label": f"{index}. {section.label}", "step_count": len(section.steps)}
+        for index, section in enumerate(testcase.sections, start=2)
+    ]})
+
+
+@router.post("/testcases/{testcase_id}/steps/copy-to")
+def copy_steps_to(
+    request: Request, testcase_id: int, section_id: int = Form(0), step_ids: list[int] = Form([]),
+    db: Session = Depends(get_db),
+):
+    """Append copies of this test case's ticked steps (Test Data and
+    screenshots included) to a section of any test case."""
+    source = db.get(TestCase, testcase_id)
+    if source is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    back = f"/testcases/{testcase_id}/execute"
+    target = db.get(TestCaseSection, section_id)
+    if target is None:
+        return redirect_with_flash(back, "Pick a destination section to copy the steps into.", category="danger")
+    # Only steps that are actually on this page, in the page's own order.
+    wanted = set(step_ids)
+    steps = [step for section in source.sections for step in section.steps if step.id in wanted]
+    if not steps:
+        return redirect_with_flash(back, "No steps selected to copy.", category="danger")
+    copy_steps(db, steps, target)
+    db.commit()
+    destination = db.get(TestCase, target.testcase_id)
+    plural = "" if len(steps) == 1 else "s"
+    return redirect_with_flash(back, f"Copied {len(steps)} step{plural} to {destination.display_code} › {target.label}.")
 
 
 @router.get("/testcases/{testcase_id}/execute")

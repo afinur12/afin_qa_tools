@@ -600,6 +600,7 @@ body.is-collapsed [data-sidebar-toggle] svg { transform: rotate(180deg); }
 .selection-actions { display: inline-flex; align-items: center; gap: 8px; margin-right: 4px; }
 .selection-actions[hidden] { display: none; }
 .selection-count { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.step-head .step-select { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; cursor: pointer; }
 /* Test type master data — class is the lowercased, hyphenated name; a
    type without a rule here keeps the plain badge. */
 .badge.test-type-positive   { background: var(--pass-bg);     color: var(--pass); }

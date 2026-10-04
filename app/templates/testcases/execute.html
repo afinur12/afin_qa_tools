@@ -255,6 +255,11 @@
       {% endfor %}
     </div>
     <div class="spacer"></div>
+    {# Shown by app.js only while at least one step checkbox is ticked. #}
+    <div class="selection-actions" data-selection-actions="step_ids" hidden>
+      <span class="selection-count" data-selection-count>0 selected</span>
+      <a class="btn sm" href="#" data-modal-open="copy-steps">Copy steps to&hellip;</a>
+    </div>
     <button type="button" class="btn secondary sm" data-collapse-all>Collapse All</button>
   </div>
 
@@ -267,6 +272,8 @@
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/delete" id="step-delete-{{ step.id }}" hidden></form>
   <form method="post" action="/testcases/{{ testcase.id }}/steps/{{ step.id }}/edit" data-autosave>
     <div class="step-head">
+      <input type="checkbox" class="step-select" data-step-select data-selection-name="step_ids" value="{{ step.id }}"
+             title="Select to copy to another test case" aria-label="Select step {{ step.step_no }} to copy">
       <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
       </span>
@@ -328,6 +335,33 @@
   </div>
 </div>
 {% endmacro %}
+
+{% call modal('copy-steps', 'Copy Steps To', '/testcases/' ~ testcase.id ~ '/steps/copy-to', wide=True,
+             hint='Copies the ticked steps with their Test Data and screenshots, appended after the destination section\'s existing steps. The steps here stay as they are.') %}
+  <div data-copy-steps-form>
+    <div class="field">
+      <label>Destination test case</label>
+      <input type="search" placeholder="Filter by task, subtask, code or title" data-copy-dest-filter autocomplete="off">
+      <select size="8" data-copy-dest required style="margin-top:8px; width:100%;">
+        {% for group in copy_destinations | groupby('group') %}
+        <optgroup label="{{ group.grouper }}">
+          {% for dest in group.list %}<option value="{{ dest.id }}"{% if dest.id == testcase.id %} data-current{% endif %}>{{ dest.label }}{% if dest.id == testcase.id %} (this test case){% endif %}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Destination section</label>
+      <select name="section_id" data-copy-section required disabled>
+        <option value="">Pick a test case first</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-actions" style="justify-content:flex-end;">
+    <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+    <button class="btn" type="submit" data-copy-submit>Copy steps</button>
+  </div>
+{% endcall %}
 
 <div data-sections data-reorder-action="/testcases/{{ testcase.id }}/sections/reorder" data-index-offset="2">
 {% for section in testcase.sections %}
@@ -436,4 +470,5 @@
 <script src="{{ static_url('js/paste_screenshot.js') }}"></script>
 <script src="{{ static_url('js/vendor/sql-formatter/sql-formatter.min.js') }}"></script>
 <script src="{{ static_url('js/testcases_step_data.js') }}"></script>
+<script src="{{ static_url('js/testcases_copy_steps.js') }}"></script>
 {% endblock %}
