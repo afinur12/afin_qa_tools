@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
-from app.knowledge_sanitize import parse_table, sanitize_cell_html, sanitize_table_json, sanitize_text_html
+from app.knowledge_sanitize import (
+    EMPTY_TABLE_JSON, parse_table, sanitize_cell_html, sanitize_table_json, sanitize_text_html,
+)
 from app.models import KnowledgeBlock, KnowledgeBlockKind, KnowledgeBoard, KnowledgePage, KnowledgeSection
 from app.templating import templates
 
@@ -26,6 +28,14 @@ LAST_PAGE_COOKIE = "km_last_page"
 DEFAULT_BOARD_WIDTH = 380
 MIN_BOARD_WIDTH = 220
 MIN_BOARD_HEIGHT = 80
+CREATABLE_KINDS = {KnowledgeBlockKind.TEXT, KnowledgeBlockKind.CODE, KnowledgeBlockKind.TABLE}
+# Same language codes as app.js's detectSnippetLanguage / HLJS_LANGUAGE_MAP.
+KM_HLJS = {
+    "CURL": "bash", "JSON": "json", "SQL": "sql", "TEXT": "plaintext", "YAML": "yaml",
+    "XML": "xml", "BASH": "bash", "PYTHON": "python", "JAVASCRIPT": "javascript",
+}
+CODE_LANGUAGES = set(KM_HLJS)
+templates.env.globals["km_hljs"] = KM_HLJS
 
 
 def _human_size(size: int | None) -> str:
@@ -311,6 +321,92 @@ def delete_board(request: Request, board_id: int, db: Session = Depends(get_db))
         return _not_found(request)
     page = board.page
     deletion.delete_knowledge_board(db, board)
+    _touch(page)
+    db.commit()
+    if _is_fetch(request):
+        return JSONResponse({"ok": True})
+    return RedirectResponse(f"/knowledge/pages/{page.id}", status_code=303)
+
+
+# ── Blocks ──────────────────────────────────────────────────────────────
+
+def _next_block_position(board: KnowledgeBoard) -> int:
+    return max((b.position for b in board.blocks), default=-1) + 1
+
+
+@router.post("/knowledge/boards/{board_id}/blocks")
+def create_block(request: Request, board_id: int, kind: str = Form(...), db: Session = Depends(get_db)):
+    board = db.get(KnowledgeBoard, board_id)
+    if board is None:
+        return _not_found(request)
+    try:
+        block_kind = KnowledgeBlockKind(kind.strip().upper())
+    except ValueError:
+        return JSONResponse({"error": f"Unknown block kind {kind!r}."}, status_code=400)
+    if block_kind not in CREATABLE_KINDS:
+        return JSONResponse({"error": "Images and files are added by uploading."}, status_code=400)
+    block = KnowledgeBlock(
+        board_id=board.id, position=_next_block_position(board), kind=block_kind,
+        content=EMPTY_TABLE_JSON if block_kind == KnowledgeBlockKind.TABLE else "",
+    )
+    db.add(block)
+    _touch(board.page)
+    db.commit()
+    db.refresh(block)
+    return templates.TemplateResponse(request, "knowledge/_block_fragment.html", {"item": block})
+
+
+@router.post("/knowledge/blocks/{block_id}/edit")
+async def edit_block(request: Request, block_id: int, db: Session = Depends(get_db)):
+    """Reads the raw form on purpose: FastAPI turns an empty Form() field into
+    its default, which would make clearing a block impossible."""
+    block = db.get(KnowledgeBlock, block_id)
+    if block is None:
+        return _not_found(request)
+    data = await request.form()
+    kind = block.kind
+    if "content" in data:
+        content = str(data["content"])
+        if kind == KnowledgeBlockKind.TEXT:
+            block.content = sanitize_text_html(content)
+        elif kind == KnowledgeBlockKind.TABLE:
+            block.content = sanitize_table_json(content)
+        elif kind == KnowledgeBlockKind.CODE:
+            block.content = content
+        elif kind == KnowledgeBlockKind.IMAGE:
+            block.content = content.strip()[:500]
+    if kind == KnowledgeBlockKind.CODE and "title" in data:
+        block.title = str(data["title"]).strip()[:300]
+    if kind == KnowledgeBlockKind.CODE and "language" in data:
+        language = str(data["language"]).strip().upper()
+        block.language = language if language in CODE_LANGUAGES else "TEXT"
+    _touch(block.board.page)
+    db.commit()
+    if _is_fetch(request):
+        return JSONResponse({"ok": True})
+    return RedirectResponse(f"/knowledge/pages/{block.board.page_id}", status_code=303)
+
+
+@router.post("/knowledge/boards/{board_id}/blocks/reorder")
+def reorder_blocks(request: Request, board_id: int, order: str = Form(""), db: Session = Depends(get_db)):
+    board = db.get(KnowledgeBoard, board_id)
+    if board is None:
+        return _not_found(request)
+    by_id = {b.id: b for b in board.blocks}
+    for position, block_id in enumerate(i for i in _parse_order(order) if i in by_id):
+        by_id[block_id].position = position
+    _touch(board.page)
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.post("/knowledge/blocks/{block_id}/delete")
+def delete_block(request: Request, block_id: int, db: Session = Depends(get_db)):
+    block = db.get(KnowledgeBlock, block_id)
+    if block is None:
+        return _not_found(request)
+    page = block.board.page
+    deletion.delete_knowledge_block(db, block)
     _touch(page)
     db.commit()
     if _is_fetch(request):

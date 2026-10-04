@@ -35,7 +35,9 @@
       <button type="submit" title="Delete block" aria-label="Delete block">&times;</button>
     </form>
   </div>
-  {% if blk.kind.value == "TEXT" %}{{ text_block(blk) }}{% endif %}
+  {% if blk.kind.value == "TEXT" %}{{ text_block(blk) }}
+  {% elif blk.kind.value == "CODE" %}{{ code_block(blk, paper) }}
+  {% endif %}
 </div>
 {% endmacro %}
 
@@ -44,4 +46,40 @@
   <input type="hidden" name="content" value="{{ blk.content | km_clean }}" data-km-text-value>
   <div class="km-text" contenteditable="true" data-km-text data-placeholder="Type here…">{{ blk.content | km_text }}</div>
 </form>
+{% endmacro %}
+
+{# Code blocks reuse Test Data's editor markup (attachCodeEditor in app.js,
+   wrap mode) so they look and behave the same; the global [data-copy]
+   handler in app.js copies [data-note-content]. #}
+{% macro code_block(blk, paper=False) %}
+{% if paper %}
+<div class="code-block km-code-paper">
+  <div class="snippet-header"><div class="snippet-header-row">
+    <span class="badge code">{{ blk.language }}</span><span class="km-code-paper-title">{{ blk.title }}</span>
+  </div></div>
+  <pre class="snippet-pre"><code class="language-{{ km_hljs.get(blk.language, 'plaintext') }}" data-km-hljs>{{ blk.content }}</code></pre>
+</div>
+{% else %}
+<form class="code-block ac-code-editor km-code" method="post" action="/knowledge/blocks/{{ blk.id }}/edit" data-autosave>
+  <input type="hidden" name="language" value="{{ blk.language }}" data-note-language>
+  <div class="snippet-actions">
+    <button class="snippet-icon-btn" type="button" data-copy title="Copy">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2.2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span class="sr-only" data-copy-label>Copy</span>
+    </button>
+  </div>
+  <div class="snippet-header"><div class="snippet-header-row">
+    <span class="badge code" data-km-code-lang>{{ blk.language }}</span>
+    <input class="step-data-title-input" name="title" value="{{ blk.title }}" placeholder="Untitled snippet" autocomplete="off" maxlength="300">
+    <span class="save-state snippet-save-state" data-save-state></span>
+  </div></div>
+  <div class="snippet-code ac-code-scroll">
+    <div class="snippet-gutter"><span>1</span></div>
+    <div class="ac-code-editor-inner">
+      <pre class="snippet-pre ac-code-overlay" aria-hidden="true"><code class="hljs"></code></pre>
+      <textarea class="ac-code-textarea" name="content" data-note-content data-km-code spellcheck="false" autocomplete="off">{{ blk.content }}</textarea>
+    </div>
+  </div>
+</form>
+{% endif %}
 {% endmacro %}

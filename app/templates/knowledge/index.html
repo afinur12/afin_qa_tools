@@ -108,6 +108,28 @@
   </section>
 </div>
 
+{% if page %}
+<div class="km-add-menu" data-km-add-menu-pop hidden>
+  <button type="button" data-km-add="text">Text</button>
+  <button type="button" data-km-add="code">Code snippet</button>
+  {# km:add-menu-items #}
+</div>
+<div class="km-format" data-km-format hidden>
+  <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+  <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+  <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+  <span class="sep"></span>
+  <button type="button" data-cmd="formatBlock" data-arg="h2" title="Heading">H1</button>
+  <button type="button" data-cmd="formatBlock" data-arg="h3" title="Subheading">H2</button>
+  <button type="button" data-cmd="formatBlock" data-arg="p" title="Normal text">&para;</button>
+  <span class="sep"></span>
+  <button type="button" data-cmd="insertUnorderedList" title="Bullet list">&bull; List</button>
+  <button type="button" data-cmd="insertOrderedList" title="Numbered list">1. List</button>
+  <span class="sep"></span>
+  <button type="button" data-cmd="createLink" title="Link">Link</button>
+  <button type="button" data-cmd="removeFormat" title="Clear formatting">Clear</button>
+</div>
+{% endif %}
 {# km:overlays #}
 
 {% call modal('km-new-section', 'New Section', '/knowledge/sections') %}
@@ -151,4 +173,5 @@
 <script src="{{ static_url('js/knowledge_layout.js') }}"></script>
 <script src="{{ static_url('js/knowledge_page.js') }}"></script>
 <script src="{{ static_url('js/knowledge_canvas.js') }}"></script>
+<script src="{{ static_url('js/knowledge_blocks.js') }}"></script>
 {% endblock %}

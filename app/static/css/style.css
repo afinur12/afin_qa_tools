@@ -2685,3 +2685,35 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-board.is-maximized .km-board-actions { display: flex; }
 .km-board.is-maximized .km-resize { display: none; }
 .km-board.is-maximized .km-board-bar { cursor: default; }
+/* Knowledge Management blocks */
+.km-block { position: relative; }
+.km-block-tools { position: absolute; top: -10px; right: -6px; z-index: 3; display: none; gap: 2px; }
+.km-block:hover > .km-block-tools { display: flex; }
+.km-block-tools button { padding: 3px 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink-2); font-size: 11px; line-height: 1; cursor: pointer; }
+.km-block-tools button:hover { color: var(--ink); }
+.km-text { min-height: 22px; border-radius: 6px; outline: none; color: var(--ink); font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.km-text:empty::before { content: attr(data-placeholder); color: var(--ink-3); }
+.km-text:focus { box-shadow: 0 0 0 2px rgba(91, 87, 232, 0.25); }
+.km-text h2 { margin: 0 0 6px; font-size: 22px; font-weight: 600; }
+.km-text h3 { margin: 10px 0 2px; font-size: 16px; font-weight: 600; color: #3a7bd5; }
+.km-text p, .km-text div { margin: 0 0 4px; }
+.km-text ul, .km-text ol { margin: 2px 0 6px; padding-left: 22px; }
+.km-text a { color: #3a7bd5; }
+.km-text code { padding: 1px 5px; border-radius: 4px; background: var(--surface-sunk); font-family: var(--font-mono); font-size: 12.5px; }
+/* Code blocks wrap like Test Data's editor; both layers need the same wrap
+   or the caret drifts from the coloured overlay. */
+.km-code .ac-code-overlay { white-space: pre-wrap; word-break: break-word; }
+.km-code.ac-code-editor .ac-code-editor-inner .ac-code-textarea { min-height: 40px; white-space: pre-wrap; word-break: break-word; }
+.km-code .snippet-code { overflow-x: hidden; }
+.km-code .snippet-header { padding-right: 60px; }
+.km-code-paper pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.km-code-paper-title { font-weight: 600; }
+.km-add-menu { position: absolute; z-index: 3000; display: flex; flex-direction: column; min-width: 160px; padding: 4px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); }
+.km-add-menu[hidden] { display: none; }
+.km-add-menu button { padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.km-add-menu button:hover { background: var(--surface-sunk); }
+.km-format { position: absolute; z-index: 3000; display: flex; gap: 2px; padding: 4px; border-radius: 8px; background: var(--ink-inverse); box-shadow: var(--shadow-pop); }
+.km-format[hidden] { display: none; }
+.km-format button { min-width: 26px; height: 26px; padding: 0 6px; border: none; border-radius: 5px; background: none; color: #f2f1ec; font: inherit; font-size: 12.5px; cursor: pointer; }
+.km-format button:hover { background: rgba(255, 255, 255, .12); }
+.km-format .sep { width: 1px; margin: 3px 2px; background: rgba(255, 255, 255, .18); }
