@@ -2728,3 +2728,21 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-file-name { color: var(--ink); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
 .km-file-meta { color: var(--ink-3); font-size: 12px; }
 .km-board.is-drop-target { outline: 2px dashed var(--indigo); outline-offset: 2px; }
+/* Knowledge Management tables. The table draws its own top/left/bottom edge
+   and the last row's cells draw no bottom border: html2canvas (PDF export)
+   never paints the last row's cell bottom borders, but does paint the
+   table's (measured while building the preview). */
+.km-grid { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; font-size: 13.5px;
+  border-top: 1px solid var(--line-strong); border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
+.km-grid td { min-width: 60px; padding: 6px 9px; border: 0; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong);
+  outline: none; color: var(--ink); line-height: 1.5; vertical-align: top; }
+.km-grid tr:last-child td { border-bottom: 0; }
+.km-grid td:focus { box-shadow: inset 0 0 0 2px rgba(91, 87, 232, 0.55); }
+.km-grid a { color: #3a7bd5; }
+.km-grid.has-head-row tr:first-child td { background: var(--surface-sunk); font-weight: 700; }
+.km-grid.has-head-col td:first-child { width: 1%; background: var(--surface-sunk); color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+.km-table-tools { display: none; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; font-size: 11.5px; }
+.km-block--table:hover .km-table-tools, .km-block--table:focus-within .km-table-tools { display: flex; }
+.km-table-tools button { padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer; }
+.km-table-tools button:hover { color: var(--ink); }
+.km-table-tools label { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--ink-2); }

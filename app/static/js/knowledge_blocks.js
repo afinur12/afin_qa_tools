@@ -36,7 +36,108 @@
     });
   }
 
-  const wirers = [["[data-km-text]", wireText], ["[data-km-code]", wireCode]];
+  // ── tables: cells are contenteditable; the whole grid saves as JSON ────
+  let lastCell = null;
+  const tableOf = (tableForm) => tableForm.querySelector("table");
+  function serializeTable(tableForm) {
+    const table = tableOf(tableForm);
+    tableForm.querySelector("[data-km-table-value]").value = JSON.stringify({
+      head_row: table.classList.contains("has-head-row"),
+      head_col: table.classList.contains("has-head-col"),
+      rows: [...table.rows].map((tr) => [...tr.cells].map((td) => td.innerHTML)),
+    });
+  }
+  // Structural edits fire no native "input" event — announce one so the
+  // form's autosave picks them up.
+  function tableChanged(tableForm) {
+    serializeTable(tableForm);
+    tableForm.querySelector("[data-km-table-value]").dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  function newCell() {
+    const td = document.createElement("td");
+    td.contentEditable = "true";
+    return td;
+  }
+  function addRow(table, afterRow) {
+    const tr = document.createElement("tr");
+    for (let i = 0; i < table.rows[0].cells.length; i++) tr.appendChild(newCell());
+    if (afterRow) afterRow.after(tr);
+    else table.tBodies[0].appendChild(tr);
+    return tr;
+  }
+
+  function wireTable(tableForm) {
+    if (tableForm.dataset.kmWired) return;
+    tableForm.dataset.kmWired = "1";
+    tableForm.addEventListener("input", (event) => {
+      if (event.target.matches("td")) serializeTable(tableForm);
+    });
+    tableForm.addEventListener("focusin", (event) => {
+      if (event.target.matches("td")) lastCell = event.target;
+    });
+    tableForm.addEventListener("change", (event) => {
+      const box = event.target.closest("input[data-km-tbl]");
+      if (!box) return;
+      tableOf(tableForm).classList.toggle(box.dataset.kmTbl === "head-row" ? "has-head-row" : "has-head-col", box.checked);
+      tableChanged(tableForm);
+    });
+    tableForm.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-km-tbl]");
+      if (!button) return;
+      const table = tableOf(tableForm);
+      const rows = [...table.rows];
+      const cell = lastCell && table.contains(lastCell) ? lastCell : rows[rows.length - 1].cells[0];
+      const row = cell.parentElement;
+      const col = cell.cellIndex;
+      const action = button.dataset.kmTbl;
+      if (action === "row") addRow(table, row).cells[0].focus();
+      else if (action === "col") rows.forEach((tr) => tr.cells[Math.min(col, tr.cells.length - 1)].after(newCell()));
+      else if (action === "del-row" && rows.length > 1) {
+        row.remove();
+        lastCell = null;
+      } else if (action === "del-col" && rows[0].cells.length > 1) {
+        rows.forEach((tr) => tr.cells[col]?.remove());
+        lastCell = null;
+      }
+      tableChanged(tableForm);
+    });
+    // Tab / Shift+Tab walk the cells; Tab in the last cell adds a row.
+    tableForm.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab" || !event.target.matches("td")) return;
+      event.preventDefault();
+      const table = tableOf(tableForm);
+      const cells = [...table.querySelectorAll("td")];
+      const next = cells.indexOf(event.target) + (event.shiftKey ? -1 : 1);
+      if (next >= cells.length) {
+        addRow(table).cells[0].focus();
+        tableChanged(tableForm);
+      } else if (next >= 0) {
+        cells[next].focus();
+      }
+    });
+    // Pasting tab-separated text (from Excel / OneNote) fills cells from the
+    // focused one, adding rows and columns as needed.
+    tableForm.addEventListener("paste", (event) => {
+      if (!event.target.matches("td")) return;
+      const text = event.clipboardData?.getData("text/plain") || "";
+      if (!text.includes("\t")) return;
+      event.preventDefault();
+      const table = tableOf(tableForm);
+      const grid = window.KnowledgeLayout.tsvToGrid(text);
+      const r0 = event.target.parentElement.rowIndex;
+      const c0 = event.target.cellIndex;
+      grid.forEach((line, dr) => {
+        while (table.rows.length <= r0 + dr) addRow(table);
+        line.forEach((value, dc) => {
+          while (table.rows[r0 + dr].cells.length <= c0 + dc) [...table.rows].forEach((tr) => tr.appendChild(newCell()));
+          table.rows[r0 + dr].cells[c0 + dc].textContent = value;
+        });
+      });
+      tableChanged(tableForm);
+    });
+  }
+
+  const wirers = [["[data-km-text]", wireText], ["[data-km-code]", wireCode], ["[data-km-table-form]", wireTable]];
   function wireBlocks(scope) {
     wirers.forEach(([selector, wire]) => scope.querySelectorAll(selector).forEach(wire));
   }
