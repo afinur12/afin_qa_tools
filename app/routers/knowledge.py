@@ -5,16 +5,23 @@ exportable to PDF.
 Design: docs/superpowers/specs/2026-10-04-knowledge-management-design.md
 """
 
+import mimetypes
+import re
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from markupsafe import Markup
 from sqlalchemy.orm import Session
 
+import app.routers.screenshots as screenshots_module
 from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
+from app.image_compress import compress_in_background
 from app.knowledge_sanitize import (
     EMPTY_TABLE_JSON, parse_table, sanitize_cell_html, sanitize_table_json, sanitize_text_html,
 )
@@ -35,6 +42,8 @@ KM_HLJS = {
     "XML": "xml", "BASH": "bash", "PYTHON": "python", "JAVASCRIPT": "javascript",
 }
 CODE_LANGUAGES = set(KM_HLJS)
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 templates.env.globals["km_hljs"] = KM_HLJS
 
 
@@ -412,3 +421,51 @@ def delete_block(request: Request, block_id: int, db: Session = Depends(get_db))
     if _is_fetch(request):
         return JSONResponse({"ok": True})
     return RedirectResponse(f"/knowledge/pages/{page.id}", status_code=303)
+
+
+# ── Images and files ────────────────────────────────────────────────────
+
+@router.post("/knowledge/boards/{board_id}/upload")
+async def upload_to_board(request: Request, board_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    board = db.get(KnowledgeBoard, board_id)
+    if board is None:
+        return _not_found(request)
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        return JSONResponse({"error": f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."}, status_code=413)
+    original = Path(file.filename or "").name[:300] or "file"
+    content_type = file.content_type or "application/octet-stream"
+    extension = Path(original).suffix.lower()[:10] or mimetypes.guess_extension(content_type) or ".bin"
+    is_image = content_type.startswith("image/") and extension in IMAGE_EXTENSIONS
+    relative_path = f"knowledge/{board.page_id}/{uuid.uuid4().hex}{extension}"
+    disk_path = screenshots_module.UPLOADS_DIR / relative_path
+    disk_path.parent.mkdir(parents=True, exist_ok=True)
+    disk_path.write_bytes(data)
+    if extension == ".png":
+        compress_in_background(disk_path)
+    block = KnowledgeBlock(
+        board_id=board.id, position=_next_block_position(board),
+        kind=KnowledgeBlockKind.IMAGE if is_image else KnowledgeBlockKind.FILE,
+        file_path=relative_path, file_name=original, file_size=len(data), content_type=content_type,
+    )
+    db.add(block)
+    _touch(board.page)
+    db.commit()
+    db.refresh(block)
+    return templates.TemplateResponse(request, "knowledge/_block_fragment.html", {"item": block})
+
+
+@router.get("/knowledge/blocks/{block_id}/download")
+def download_block_file(request: Request, block_id: int, db: Session = Depends(get_db)):
+    block = db.get(KnowledgeBlock, block_id)
+    if block is None or not block.file_path:
+        return _not_found(request)
+    disk_path = screenshots_module.UPLOADS_DIR / block.file_path
+    if not disk_path.exists():
+        return _not_found(request)
+    name = block.file_name or disk_path.name
+    # Starlette's own header percent-encodes a name with a space and drops the
+    # plain filename=; send both (ASCII fallback + RFC 5987 form) instead.
+    fallback = re.sub(r'[^ -~]|["\\]', "_", name)
+    disposition = f"attachment; filename=\"{fallback}\"; filename*=utf-8''{quote(name)}"
+    return FileResponse(disk_path, media_type=block.content_type or "application/octet-stream", headers={"Content-Disposition": disposition})

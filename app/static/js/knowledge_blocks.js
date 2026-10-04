@@ -78,7 +78,10 @@
     menu.hidden = true;
     const board = menuBoard;
     const kind = item.dataset.kmAdd;
-    // km:add-upload-kinds
+    if (kind === "image" || kind === "file") {
+      pickFile(board, kind);
+      return;
+    }
     const response = await post(`/knowledge/boards/${board.dataset.boardId}/blocks`, form({ kind }));
     if (!response || !response.ok) return;
     const block = insertBlock(board, await response.text());
@@ -149,6 +152,73 @@
       event.preventDefault();
       event.target.blur();
     }
+  });
+
+  // ── images and files: + Add picker, Ctrl+V paste, drag and drop ───────
+  const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.multiple = true;
+  picker.hidden = true;
+  document.body.appendChild(picker);
+  let pickerBoard = null;
+
+  async function upload(board, file) {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast(`${file.name} is larger than 50 MB.`, "danger");
+      return;
+    }
+    const body = new FormData();
+    body.append("file", file, file.name || "pasted-image.png");
+    const response = await post(`/knowledge/boards/${board.dataset.boardId}/upload`, body);
+    if (!response) return;
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      toast(data.error || "Upload failed.", "danger");
+      return;
+    }
+    insertBlock(board, await response.text());
+  }
+
+  function pickFile(board, kind) {
+    pickerBoard = board;
+    picker.accept = kind === "image" ? "image/*" : "";
+    picker.value = "";
+    picker.click();
+  }
+  picker.addEventListener("change", () => {
+    const board = pickerBoard;
+    [...picker.files].forEach((file) => upload(board, file));
+  });
+
+  // Ctrl+V with an image on the clipboard adds it to the board you're in (or
+  // the selected one); text pastes are left to the field being edited.
+  document.addEventListener("paste", (event) => {
+    const images = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith("image/"));
+    if (!images.length) return;
+    const board = event.target.closest?.(".km-board") || canvas.querySelector(".km-board.is-selected");
+    if (!board) return;
+    event.preventDefault();
+    images.forEach((file) => upload(board, file));
+  });
+
+  canvas.addEventListener("dragover", (event) => {
+    const board = event.target.closest(".km-board");
+    if (!board || !event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault();
+    canvas.querySelectorAll(".km-board.is-drop-target").forEach((b) => b !== board && b.classList.remove("is-drop-target"));
+    board.classList.add("is-drop-target");
+  });
+  canvas.addEventListener("dragleave", (event) => {
+    const board = event.target.closest(".km-board");
+    if (board && !board.contains(event.relatedTarget)) board.classList.remove("is-drop-target");
+  });
+  canvas.addEventListener("drop", (event) => {
+    const board = event.target.closest(".km-board");
+    if (!board || !event.dataTransfer?.files.length) return;
+    event.preventDefault();
+    board.classList.remove("is-drop-target");
+    [...event.dataTransfer.files].forEach((file) => upload(board, file));
   });
 
   wireBlocks(canvas);

@@ -2718,3 +2718,13 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-format button { min-width: 26px; height: 26px; padding: 0 6px; border: none; border-radius: 5px; background: none; color: #f2f1ec; font: inherit; font-size: 12.5px; cursor: pointer; }
 .km-format button:hover { background: rgba(255, 255, 255, .12); }
 .km-format .sep { width: 1px; margin: 3px 2px; background: rgba(255, 255, 255, .18); }
+.km-image { margin: 0; }
+.km-image img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+.km-caption { width: 100%; margin-top: 6px; padding: 2px 0; border: none; background: transparent; color: var(--ink-3); font: inherit; font-size: 12px; }
+.km-caption:focus { outline: none; color: var(--ink); }
+.km-file { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-sunk); }
+.km-file-icon { display: grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 8px; background: #d6336c; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.km-file-info { flex: 1 1 auto; min-width: 0; }
+.km-file-name { color: var(--ink); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.km-file-meta { color: var(--ink-3); font-size: 12px; }
+.km-board.is-drop-target { outline: 2px dashed var(--indigo); outline-offset: 2px; }

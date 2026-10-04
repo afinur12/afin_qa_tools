@@ -37,6 +37,8 @@
   </div>
   {% if blk.kind.value == "TEXT" %}{{ text_block(blk) }}
   {% elif blk.kind.value == "CODE" %}{{ code_block(blk, paper) }}
+  {% elif blk.kind.value == "IMAGE" %}{{ image_block(blk) }}
+  {% elif blk.kind.value == "FILE" %}{{ file_block(blk) }}
   {% endif %}
 </div>
 {% endmacro %}
@@ -83,4 +85,26 @@
   </div>
 </form>
 {% endif %}
+{% endmacro %}
+
+{% macro image_block(blk) %}
+<figure class="km-image">
+  <a href="/uploads/{{ blk.file_path }}" target="_blank" rel="noopener" title="Open full size"><img src="/uploads/{{ blk.file_path }}" alt="{{ blk.content or blk.file_name }}"></a>
+  <form method="post" action="/knowledge/blocks/{{ blk.id }}/edit" data-autosave>
+    <input class="km-caption" name="content" value="{{ blk.content }}" placeholder="Add a caption" autocomplete="off" maxlength="500">
+  </form>
+</figure>
+{% endmacro %}
+
+{% macro file_block(blk) %}
+{% set name = blk.file_name or "file" %}
+{% set ext = (name.rsplit(".", 1)[-1] if "." in name else "file") | upper %}
+<div class="km-file">
+  <span class="km-file-icon">{{ ext[:4] }}</span>
+  <div class="km-file-info">
+    <div class="km-file-name">{{ name }}</div>
+    <div class="km-file-meta">{{ blk.file_size | km_size }}</div>
+  </div>
+  <a class="btn secondary sm" href="/knowledge/blocks/{{ blk.id }}/download">Download</a>
+</div>
 {% endmacro %}
