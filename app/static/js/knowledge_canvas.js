@@ -110,6 +110,21 @@
 
   // A board that grows (typing, rows, images loading) pushes the boards
   // below it down. Dragging and page load never do.
+  // Pushes coalesce into one save shortly after the last one: a resize drag
+  // pushes on every frame. The y is read when saving (inline style, which a
+  // maximized board keeps), so a drag in between is never overwritten.
+  const pushedIds = new Set();
+  let pushTimer = 0;
+  function savePushes(moves) {
+    moves.forEach(({ id }) => pushedIds.add(id));
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      const batch = [...pushedIds].map(boardById).filter(Boolean)
+        .map((b) => ({ id: Number(b.dataset.boardId), y: parseInt(b.style.top, 10) }));
+      pushedIds.clear();
+      if (batch.length) post(`/knowledge/pages/${pageId}/boards/positions`, batch, true);
+    }, 250);
+  }
   const lastHeight = new WeakMap();
   const observer = new ResizeObserver((entries) => {
     for (const { target } of entries) {
@@ -123,7 +138,7 @@
         if (moved) moved.style.top = `${y}px`;
       });
       growCanvas();
-      if (moves.length) post(`/knowledge/pages/${pageId}/boards/positions`, moves, true);
+      if (moves.length) savePushes(moves);
     }
   });
   function watch(board) {
@@ -133,20 +148,26 @@
   // After knowledge_blocks.js has laid out code editors on this tick.
   setTimeout(() => canvas.querySelectorAll(".km-board").forEach(watch), 0);
 
-  document.querySelector("[data-km-add-board]")?.addEventListener("click", async () => {
-    const response = await post(`/knowledge/pages/${pageId}/boards`, form({ x: 20, y: L.nextBoardY(boards().map(boxOf)) }));
-    if (!response || !response.ok) return;
-    const holder = document.createElement("div");
-    holder.innerHTML = (await response.text()).trim();
-    const board = holder.firstElementChild;
-    canvas.appendChild(board);
-    topZ = Math.max(topZ, parseInt(board.style.zIndex || "0", 10));
-    canvas.dispatchEvent(new CustomEvent("km:board-added", { detail: board }));
-    watch(board);
-    select(board);
-    growCanvas();
-    board.scrollIntoView({ block: "center" });
-    board.querySelector("[data-km-text]")?.focus();
+  const addBoardButton = document.querySelector("[data-km-add-board]");
+  addBoardButton?.addEventListener("click", async () => {
+    addBoardButton.disabled = true;
+    try {
+      const response = await post(`/knowledge/pages/${pageId}/boards`, form({ x: 20, y: L.nextBoardY(boards().map(boxOf)) }));
+      if (!response || !response.ok) return;
+      const holder = document.createElement("div");
+      holder.innerHTML = (await response.text()).trim();
+      const board = holder.firstElementChild;
+      canvas.appendChild(board);
+      topZ = Math.max(topZ, parseInt(board.style.zIndex || "0", 10));
+      canvas.dispatchEvent(new CustomEvent("km:board-added", { detail: board }));
+      watch(board);
+      select(board);
+      growCanvas();
+      board.scrollIntoView({ block: "center" });
+      board.querySelector("[data-km-text]")?.focus();
+    } finally {
+      addBoardButton.disabled = false;
+    }
   });
 
   canvas.addEventListener("change", (event) => {
@@ -162,11 +183,16 @@
   const backdrop = document.createElement("div");
   backdrop.className = "km-max-backdrop";
   backdrop.hidden = true;
-  document.body.appendChild(backdrop);
+  // Inside the canvas so it shares the boards' stacking context (the canvas is
+  // isolated, see style.css): the maximized board (1600) always beats it (1500),
+  // in full screen too.
+  canvas.appendChild(backdrop);
 
   function setMaximized(board, on) {
     board.classList.toggle("is-maximized", on);
     backdrop.hidden = !on;
+    canvas.classList.toggle("has-maximized", on);
+    document.body.classList.toggle("km-has-maximized", on);
     const button = board.querySelector("[data-km-max]");
     if (button) button.title = on ? "Restore (Esc)" : "Maximize this board (Esc to restore)";
     if (!on) growCanvas();

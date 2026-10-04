@@ -2651,27 +2651,34 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
 .km-empty p { margin: 0 0 14px; }
 
 /* Knowledge Management boards */
+/* Board z-indexes only compete inside the canvas, so they never rise above
+   dialogs, toasts or the app chrome however often boards are raised. While a
+   board is maximized the whole canvas lifts above the page (dialogs and toasts
+   are lifted higher still, below). */
+.km-canvas { isolation: isolate; }
+.km-canvas.has-maximized { z-index: 1500; }
 .km-board { position: absolute; display: flex; flex-direction: column; min-width: 220px; min-height: 80px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-card); }
 .km-board.is-selected { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(91, 87, 232, 0.22), var(--shadow-pop); }
-.km-board-bar { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; background: var(--surface-sunk); cursor: grab; user-select: none; }
+.km-board-bar { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; background: var(--surface-sunk); cursor: grab; user-select: none; touch-action: none; }
 .km-board-bar:active { cursor: grabbing; }
 .km-grip { padding: 0 2px; color: var(--ink-3); font-size: 13px; letter-spacing: -2px; }
 .km-board-title { flex: 1 1 auto; min-width: 0; padding: 3px 4px; border: none; border-radius: 6px; background: transparent; color: var(--ink-3); font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; cursor: text; }
 .km-board-title:focus { outline: none; background: var(--surface); color: var(--ink); letter-spacing: 0; text-transform: none; }
 .km-board-actions { display: none; align-items: center; gap: 2px; flex: 0 0 auto; }
-.km-board:hover .km-board-actions, .km-board.is-selected .km-board-actions { display: flex; }
+.km-board:hover .km-board-actions, .km-board.is-selected .km-board-actions, .km-board:focus-within .km-board-actions { display: flex; }
 .km-board-actions button { display: inline-flex; align-items: center; padding: 3px 7px; border: none; border-radius: 6px; background: none; color: var(--ink-2); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
 .km-board-actions button:hover { background: var(--surface); color: var(--ink); }
 .km-board-actions button.danger:hover { background: var(--fail-bg); color: var(--fail); }
 .km-board-body { display: flex; flex: 1; flex-direction: column; gap: 12px; padding: 12px 14px 14px; overflow: auto; }
-.km-resize { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; border-radius: 0 0 10px 0; opacity: .55; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, var(--ink-3) 50%, var(--ink-3) 60%, transparent 60%, transparent 70%, var(--ink-3) 70%, var(--ink-3) 80%, transparent 80%); }
+.km-resize { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; border-radius: 0 0 10px 0; opacity: .55; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, var(--ink-3) 50%, var(--ink-3) 60%, transparent 60%, transparent 70%, var(--ink-3) 70%, var(--ink-3) 80%, transparent 80%); touch-action: none; }
 
 /* Full screen page and maximized board (CSS overlays, not the browser
    Fullscreen API, so menus and dialogs keep working above them). */
 .km-page.card.is-fullscreen { position: fixed; inset: 0; z-index: 1000; background: var(--surface); }
 .km-page.is-fullscreen .km-canvas-wrap { min-height: 0; }
 body.km-has-fullscreen { overflow: hidden; }
-body.km-has-fullscreen .modal-backdrop { z-index: 2000; }
+body.km-has-fullscreen .modal-backdrop, body.km-has-maximized .modal-backdrop,
+body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-max-backdrop { position: fixed; inset: 0; z-index: 1500; background: rgba(10, 10, 12, .55); }
 .km-max-backdrop[hidden] { display: none; }
 .km-board.is-maximized { position: fixed !important; top: 40px !important; right: 48px; bottom: 40px; left: 48px !important; width: auto !important; height: auto !important; z-index: 1600 !important; box-shadow: var(--shadow-pop); }
