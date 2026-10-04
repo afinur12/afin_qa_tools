@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import modal, icon_plus, icon_pencil, icon_trash with context %}
+{% from "knowledge/_macros.html" import board %}
 {% block title %}{% if page %}{{ page.title }} - {% endif %}Knowledge Management - QA Toolbox{% endblock %}
 {% block content %}
 {% set chevron_left = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' | safe %}
@@ -84,7 +85,7 @@
     </div>
     <div class="km-canvas-wrap" data-km-canvas-wrap>
       <div class="km-canvas" data-km-canvas>
-        {# km:boards #}
+        {% for b in page.boards %}{{ board(b) }}{% endfor %}
       </div>
     </div>
     {% elif active_section %}

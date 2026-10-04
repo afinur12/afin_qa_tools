@@ -1,0 +1,47 @@
+{# Knowledge Management canvas markup: one macro per board and per block
+   kind, shared by the full page, the fetch fragments and the paper view
+   used for PDF export (paper=True skips nothing visible, only swaps the
+   code editor for a static highlighted <pre>). #}
+{% from "macros.html" import icon_trash %}
+
+{% macro board(b, paper=False) %}
+<div class="km-board" data-board-id="{{ b.id }}" style="left:{{ b.x }}px; top:{{ b.y }}px; width:{{ b.width }}px;{% if b.height %} height:{{ b.height }}px;{% endif %} z-index:{{ b.z }};">
+  <div class="km-board-bar" data-km-board-bar>
+    <span class="km-grip" aria-hidden="true">&#8942;&#8942;</span>
+    <input class="km-board-title" data-km-board-title value="{{ b.title }}" placeholder="Board" aria-label="Board title" autocomplete="off" maxlength="200">
+    <span class="km-board-actions">
+      <button type="button" data-km-add-menu title="Add text, code, image, file or table">+ Add &#9662;</button>
+      <button type="button" data-km-max title="Maximize this board (Esc to restore)" aria-label="Maximize board">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+      </button>
+      <form class="inline-form" method="post" action="/knowledge/boards/{{ b.id }}/delete"{% if b.blocks %} data-confirm="Delete this board and its {{ b.blocks | length }} block(s)?"{% endif %}>
+        <button type="submit" class="danger" title="Delete board" aria-label="Delete board">{{ icon_trash(13) }}</button>
+      </form>
+    </span>
+  </div>
+  <div class="km-board-body" data-km-blocks>
+    {% for blk in b.blocks %}{{ block(blk, paper) }}{% endfor %}
+  </div>
+  <span class="km-resize" data-km-resize title="Resize"></span>
+</div>
+{% endmacro %}
+
+{% macro block(blk, paper=False) %}
+<div class="km-block km-block--{{ blk.kind.value | lower }}" data-block-id="{{ blk.id }}" data-kind="{{ blk.kind.value }}">
+  <div class="km-block-tools">
+    <button type="button" data-km-block-up title="Move up" aria-label="Move block up">&uarr;</button>
+    <button type="button" data-km-block-down title="Move down" aria-label="Move block down">&darr;</button>
+    <form class="inline-form" method="post" action="/knowledge/blocks/{{ blk.id }}/delete" data-confirm="Delete this block?">
+      <button type="submit" title="Delete block" aria-label="Delete block">&times;</button>
+    </form>
+  </div>
+  {% if blk.kind.value == "TEXT" %}{{ text_block(blk) }}{% endif %}
+</div>
+{% endmacro %}
+
+{% macro text_block(blk) %}
+<form method="post" action="/knowledge/blocks/{{ blk.id }}/edit" data-autosave>
+  <input type="hidden" name="content" value="{{ blk.content | km_clean }}" data-km-text-value>
+  <div class="km-text" contenteditable="true" data-km-text data-placeholder="Type here…">{{ blk.content | km_text }}</div>
+</form>
+{% endmacro %}

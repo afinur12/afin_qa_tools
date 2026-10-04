@@ -16,13 +16,16 @@ from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.knowledge_sanitize import parse_table, sanitize_cell_html, sanitize_table_json, sanitize_text_html
-from app.models import KnowledgePage, KnowledgeSection
+from app.models import KnowledgeBlock, KnowledgeBlockKind, KnowledgeBoard, KnowledgePage, KnowledgeSection
 from app.templating import templates
 
 router = APIRouter()
 
 SECTION_COLORS = ["#9b9aa4", "#d6336c", "#2f9e44", "#1c7ed6", "#e8590c", "#7048e8", "#0c8599", "#f08c00"]
 LAST_PAGE_COOKIE = "km_last_page"
+DEFAULT_BOARD_WIDTH = 380
+MIN_BOARD_WIDTH = 220
+MIN_BOARD_HEIGHT = 80
 
 
 def _human_size(size: int | None) -> str:
@@ -218,3 +221,92 @@ def delete_page(request: Request, page_id: int, db: Session = Depends(get_db)):
     deletion.delete_knowledge_page(db, page)
     db.commit()
     return redirect_with_flash(f"/knowledge/sections/{section_id}", f'Page "{title}" deleted.', category="danger")
+
+
+# ── Boards ──────────────────────────────────────────────────────────────
+
+@router.post("/knowledge/pages/{page_id}/boards")
+def create_board(request: Request, page_id: int, x: int = Form(20), y: int = Form(20), db: Session = Depends(get_db)):
+    page = db.get(KnowledgePage, page_id)
+    if page is None:
+        return _not_found(request)
+    board = KnowledgeBoard(
+        page_id=page.id, x=max(0, x), y=max(0, y), width=DEFAULT_BOARD_WIDTH,
+        z=max((b.z for b in page.boards), default=0) + 1,
+    )
+    db.add(board)
+    db.flush()
+    db.add(KnowledgeBlock(board_id=board.id, position=0, kind=KnowledgeBlockKind.TEXT, content=""))
+    _touch(page)
+    db.commit()
+    db.refresh(board)
+    return templates.TemplateResponse(request, "knowledge/_board_fragment.html", {"item": board})
+
+
+@router.post("/knowledge/boards/{board_id}/edit")
+def edit_board(request: Request, board_id: int, title: str = Form(""), db: Session = Depends(get_db)):
+    board = db.get(KnowledgeBoard, board_id)
+    if board is None:
+        return _not_found(request)
+    board.title = title.strip()[:200]
+    _touch(board.page)
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.post("/knowledge/boards/{board_id}/geometry")
+def board_geometry(
+    request: Request, board_id: int, x: int = Form(...), y: int = Form(...), width: int = Form(...),
+    height: str = Form(""), z: int = Form(0), db: Session = Depends(get_db),
+):
+    board = db.get(KnowledgeBoard, board_id)
+    if board is None:
+        return _not_found(request)
+    board.x, board.y = max(0, x), max(0, y)
+    board.width = max(MIN_BOARD_WIDTH, width)
+    board.height = max(MIN_BOARD_HEIGHT, int(height)) if height.strip().isdigit() else None
+    board.z = max(0, z)
+    _touch(board.page)
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.post("/knowledge/pages/{page_id}/boards/positions")
+async def board_positions(request: Request, page_id: int, db: Session = Depends(get_db)):
+    page = db.get(KnowledgePage, page_id)
+    if page is None:
+        return _not_found(request)
+    try:
+        moves = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "Expected a JSON list of {id, y}."}, status_code=400)
+    if not isinstance(moves, list):
+        return JSONResponse({"error": "Expected a JSON list of {id, y}."}, status_code=400)
+    boards = {b.id: b for b in page.boards}
+    updated = 0
+    for move in moves:
+        if not isinstance(move, dict):
+            continue
+        board, y = boards.get(move.get("id")), move.get("y")
+        if board is None or not isinstance(y, int) or isinstance(y, bool):
+            continue
+        board.y = max(0, y)
+        updated += 1
+    if updated:
+        _touch(page)
+    db.commit()
+    return JSONResponse({"updated": updated})
+
+
+@router.post("/knowledge/boards/{board_id}/delete")
+def delete_board(request: Request, board_id: int, db: Session = Depends(get_db)):
+    board = db.get(KnowledgeBoard, board_id)
+    if board is None:
+        return _not_found(request)
+    page = board.page
+    deletion.delete_knowledge_board(db, board)
+    _touch(page)
+    db.commit()
+    if _is_fetch(request):
+        return JSONResponse({"ok": True})
+    return RedirectResponse(f"/knowledge/pages/{page.id}", status_code=303)
