@@ -435,7 +435,10 @@ async def upload_to_board(request: Request, board_id: int, file: UploadFile = Fi
         return JSONResponse({"error": f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."}, status_code=413)
     original = Path(file.filename or "").name[:300] or "file"
     content_type = file.content_type or "application/octet-stream"
-    extension = Path(original).suffix.lower()[:10] or mimetypes.guess_extension(content_type) or ".bin"
+    # Letters and digits only: a client name like "x.txt:stream" or "y.a<b"
+    # must not reach the Windows file system as-is.
+    suffix = re.sub(r"[^a-z0-9]", "", Path(original).suffix.lower())[:10]
+    extension = f".{suffix}" if suffix else (mimetypes.guess_extension(content_type) or ".bin")
     is_image = content_type.startswith("image/") and extension in IMAGE_EXTENSIONS
     relative_path = f"knowledge/{board.page_id}/{uuid.uuid4().hex}{extension}"
     disk_path = screenshots_module.UPLOADS_DIR / relative_path
@@ -467,5 +470,5 @@ def download_block_file(request: Request, block_id: int, db: Session = Depends(g
     # Starlette's own header percent-encodes a name with a space and drops the
     # plain filename=; send both (ASCII fallback + RFC 5987 form) instead.
     fallback = re.sub(r'[^ -~]|["\\]', "_", name)
-    disposition = f"attachment; filename=\"{fallback}\"; filename*=utf-8''{quote(name)}"
+    disposition = f"attachment; filename=\"{fallback}\"; filename*=utf-8''{quote(name, safe='')}"
     return FileResponse(disk_path, media_type=block.content_type or "application/octet-stream", headers={"Content-Disposition": disposition})

@@ -145,10 +145,10 @@
     post(`/knowledge/boards/${block.closest(".km-board").dataset.boardId}/blocks/reorder`, form({ order }));
   });
 
-  // Enter in a snippet title would submit its form natively (a full page
+  // Enter in a snippet title or an image caption would submit its form natively (a full page
   // reload); leave the field instead, which flushes the autosave.
   canvas.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && event.target.matches(".km-code input[name='title']")) {
+    if (event.key === "Enter" && event.target.matches(".km-code input[name='title'], .km-caption")) {
       event.preventDefault();
       event.target.blur();
     }
@@ -177,7 +177,13 @@
       toast(data.error || "Upload failed.", "danger");
       return;
     }
-    insertBlock(board, await response.text());
+    const block = insertBlock(board, await response.text());
+    // A PNG is swapped for its compressed copy a moment after upload; a
+    // fetch caught mid-swap fails, so a new image gets one more try.
+    const img = block.querySelector(".km-image img");
+    img?.addEventListener("error", () => setTimeout(() => {
+      img.src = `${img.src.split("?")[0]}?retry=${Date.now()}`;
+    }, 400), { once: true });
   }
 
   function pickFile(board, kind) {
@@ -195,29 +201,33 @@
   // the selected one); text pastes are left to the field being edited.
   document.addEventListener("paste", (event) => {
     const images = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith("image/"));
-    if (!images.length) return;
+    // A copy that carries text too (Excel, Word) is a text paste for the field.
+    if (!images.length || event.clipboardData.getData("text/plain").trim()) return;
     const board = event.target.closest?.(".km-board") || canvas.querySelector(".km-board.is-selected");
     if (!board) return;
     event.preventDefault();
     images.forEach((file) => upload(board, file));
   });
 
+  // File drags are accepted anywhere on the canvas, so a drop that misses a
+  // board never makes the browser open the file and leave the page.
   canvas.addEventListener("dragover", (event) => {
-    const board = event.target.closest(".km-board");
-    if (!board || !event.dataTransfer?.types.includes("Files")) return;
+    if (!event.dataTransfer?.types.includes("Files")) return;
     event.preventDefault();
+    const board = event.target.closest(".km-board");
     canvas.querySelectorAll(".km-board.is-drop-target").forEach((b) => b !== board && b.classList.remove("is-drop-target"));
-    board.classList.add("is-drop-target");
+    board?.classList.add("is-drop-target");
   });
   canvas.addEventListener("dragleave", (event) => {
     const board = event.target.closest(".km-board");
     if (board && !board.contains(event.relatedTarget)) board.classList.remove("is-drop-target");
   });
   canvas.addEventListener("drop", (event) => {
-    const board = event.target.closest(".km-board");
-    if (!board || !event.dataTransfer?.files.length) return;
+    if (!event.dataTransfer?.files.length) return;
     event.preventDefault();
-    board.classList.remove("is-drop-target");
+    canvas.querySelectorAll(".km-board.is-drop-target").forEach((b) => b.classList.remove("is-drop-target"));
+    const board = event.target.closest(".km-board");
+    if (!board) return;
     [...event.dataTransfer.files].forEach((file) => upload(board, file));
   });
 

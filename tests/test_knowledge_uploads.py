@@ -69,6 +69,7 @@ def test_deleting_blocks_and_pages_removes_their_files(client, db_session, uploa
     client.post(f"/knowledge/boards/{board.id}/upload", files={"file": ("a.png", PNG, "image/png")}, headers=FETCH)
     client.post(f"/knowledge/boards/{board.id}/upload", files={"file": ("b.txt", b"hello", "text/plain")}, headers=FETCH)
     first, second = db_session.query(KnowledgeBlock).order_by(KnowledgeBlock.id).all()
+    assert (uploads["root"] / first.file_path).exists() and (uploads["root"] / second.file_path).exists()
     client.post(f"/knowledge/blocks/{first.id}/delete")
     assert not (uploads["root"] / first.file_path).exists()
     client.post(f"/knowledge/pages/{board.page_id}/delete")
@@ -87,3 +88,32 @@ def test_caption_saves_on_image_blocks(client, db_session):
 def test_upload_and_download_404(client, db_session):
     assert client.post("/knowledge/boards/999/upload", files={"file": ("a.png", PNG, "image/png")}).status_code == 404
     assert client.get("/knowledge/blocks/999/download").status_code == 404
+
+
+def test_svg_is_stored_as_a_file_not_an_image(client, db_session):
+    board = _board(db_session)
+    svg = b"<svg xmlns='http://www.w3.org/2000/svg'/>"
+    client.post(f"/knowledge/boards/{board.id}/upload", files={"file": ("logo.svg", svg, "image/svg+xml")}, headers=FETCH)
+    assert db_session.query(KnowledgeBlock).one().kind == KnowledgeBlockKind.FILE
+
+
+def test_stored_extension_keeps_only_letters_and_digits(client, db_session):
+    board = _board(db_session)
+    client.post(f"/knowledge/boards/{board.id}/upload", files={"file": ("x.txt:stream", b"data", "text/plain")}, headers=FETCH)
+    client.post(f"/knowledge/boards/{board.id}/upload", files={"file": ("y.a<b", b"data", "application/octet-stream")}, headers=FETCH)
+    paths = [b.file_path for b in db_session.query(KnowledgeBlock).order_by(KnowledgeBlock.id)]
+    assert paths[0].endswith(".txtstream") and paths[1].endswith(".ab")
+
+
+def test_download_header_survives_quotes_and_accents(client, db_session, uploads):
+    board = _board(db_session)
+    (uploads["root"] / "knowledge").mkdir()
+    (uploads["root"] / "knowledge" / "f.pdf").write_bytes(b"%PDF")
+    block = KnowledgeBlock(
+        board_id=board.id, position=0, kind=KnowledgeBlockKind.FILE, file_path="knowledge/f.pdf",
+        file_name='Résumé "x".pdf', content_type="application/pdf",
+    )
+    db_session.add(block)
+    db_session.commit()
+    disposition = client.get(f"/knowledge/blocks/{block.id}/download").headers["content-disposition"]
+    assert disposition == "attachment; filename=\"R_sum_ _x_.pdf\"; filename*=utf-8''R%C3%A9sum%C3%A9%20%22x%22.pdf"
