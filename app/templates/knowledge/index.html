@@ -80,7 +80,13 @@
       </div>
       {# km:links #}
       <div class="km-toolbar" data-km-toolbar>
-        {# km:toolbar #}
+        <button class="btn sm" type="button" data-km-add-board>{{ icon_plus(12) }} Board</button>
+        {# km:export-button #}
+        <button class="btn secondary sm" type="button" data-km-fullscreen>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          Full screen
+        </button>
+        <span class="km-hint">Drag a board by its top bar &middot; resize from its corner &middot; Esc leaves full screen</span>
       </div>
     </div>
     <div class="km-canvas-wrap" data-km-canvas-wrap>
@@ -142,5 +148,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ static_url('js/knowledge_layout.js') }}"></script>
 <script src="{{ static_url('js/knowledge_page.js') }}"></script>
+<script src="{{ static_url('js/knowledge_canvas.js') }}"></script>
 {% endblock %}
