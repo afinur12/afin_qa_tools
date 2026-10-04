@@ -17,6 +17,7 @@ to compress screenshots that were stored before this existed.
 import logging
 import os
 import sys
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
@@ -34,6 +35,23 @@ OXIPNG_LEVEL = 2
 # One worker: oxipng already uses several cores per image, and a burst of
 # pasted screenshots shouldn't compete for CPU with the app itself.
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="png-compress")
+
+# Windows won't replace a file while another handle has it open — typically
+# the browser fetching the image it was just handed. Those reads are short,
+# so the swap is retried for a moment before giving up on this file.
+REPLACE_ATTEMPTS = 8
+REPLACE_RETRY_SECONDS = 0.25
+
+
+def _replace(tmp_path: Path, path: Path) -> None:
+    for attempt in range(REPLACE_ATTEMPTS):
+        try:
+            os.replace(tmp_path, path)  # atomic: a concurrent download sees old or new, never half
+            return
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(REPLACE_RETRY_SECONDS)
 
 
 def compress_png(path: str | Path) -> int:
@@ -56,7 +74,11 @@ def compress_png(path: str | Path) -> int:
             return 0
         tmp_path = path.with_name(path.name + ".tmp")
         tmp_path.write_bytes(optimized)
-        os.replace(tmp_path, path)  # atomic: a concurrent download sees old or new, never half
+        try:
+            _replace(tmp_path, path)
+        except OSError:
+            tmp_path.unlink(missing_ok=True)  # no orphaned copy next to the kept original
+            raise
         return len(raw) - len(optimized)
     except Exception:
         logger.exception("PNG compression failed for %s", path)

@@ -50,6 +50,44 @@ def test_compress_png_leaves_non_png_and_missing_files_alone(tmp_path):
     assert image_compress.compress_png(tmp_path / "gone.png") == 0
 
 
+def test_compress_png_retries_a_swap_blocked_by_an_open_file(tmp_path, monkeypatch):
+    # Windows refuses to replace a file another handle has open — e.g. the
+    # browser fetching the image it was just handed.
+    path = tmp_path / "shot.png"
+    path.write_bytes(_bloated_png())
+    real_replace = image_compress.os.replace
+    calls = []
+
+    def blocked_twice(src, dst):
+        calls.append(src)
+        if len(calls) < 3:
+            raise PermissionError(13, "Access is denied")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(image_compress, "REPLACE_RETRY_SECONDS", 0)
+    monkeypatch.setattr(image_compress.os, "replace", blocked_twice)
+
+    assert image_compress.compress_png(path) > 0
+    assert len(calls) == 3
+    assert not (tmp_path / "shot.png.tmp").exists()
+
+
+def test_compress_png_leaves_no_tmp_file_when_the_swap_never_succeeds(tmp_path, monkeypatch):
+    path = tmp_path / "shot.png"
+    original = _bloated_png()
+    path.write_bytes(original)
+
+    def always_blocked(src, dst):
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(image_compress, "REPLACE_RETRY_SECONDS", 0)
+    monkeypatch.setattr(image_compress.os, "replace", always_blocked)
+
+    assert image_compress.compress_png(path) == 0
+    assert path.read_bytes() == original
+    assert not (tmp_path / "shot.png.tmp").exists()
+
+
 def test_uploaded_screenshot_is_queued_for_compression(client, monkeypatch):
     queued = []
     monkeypatch.setattr("app.routers.screenshots.compress_in_background", queued.append)
