@@ -201,3 +201,58 @@ def test_status_can_be_set_to_back_log(client):
     )
     assert response.status_code == 303
     assert "BACK LOG" in client.get(f"/subtasks/{subtask_id}").text
+
+
+def test_set_status_on_selected_test_cases(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-340")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    tc2 = _add_testcase(client, db_session, subtask_id, "TC-2")
+    tc3 = _add_testcase(client, db_session, subtask_id, "TC-3")
+
+    response = client.post(
+        f"/subtasks/{subtask_id}/testcases/set-status",
+        data={"testcase_ids": [str(tc1), str(tc3)], "status": "PASS"}, follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"].rstrip("/") == f"/subtasks/{subtask_id}"
+    assert "Set%202%20test%20cases%20to%20PASS" in response.cookies.get("flash", "")
+
+    db_session.expire_all()
+    status = {t.id: t.status for t in db_session.query(m.TestCase).filter_by(subtask_id=int(subtask_id))}
+    assert status == {tc1: m.TestCaseStatus.PASS, tc2: m.TestCaseStatus.TO_DO, tc3: m.TestCaseStatus.PASS}
+
+
+def test_set_status_ignores_ids_from_another_subtask(client, db_session):
+    import app.models as m
+
+    subtask_a = _create_execution_subtask(client, "EX-341")
+    subtask_b = _create_execution_subtask(client, "EX-342")
+    own = _add_testcase(client, db_session, subtask_a, "TC-1")
+    other = _add_testcase(client, db_session, subtask_b, "TC-2")
+    client.post(f"/subtasks/{subtask_a}/testcases/set-status",
+                data={"testcase_ids": [str(own), str(other)], "status": "IN_PROGRESS"})
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, own).status == m.TestCaseStatus.IN_PROGRESS
+    assert db_session.get(m.TestCase, other).status == m.TestCaseStatus.TO_DO
+
+
+def test_set_status_with_an_unknown_status_changes_nothing(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-343")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    response = client.post(f"/subtasks/{subtask_id}/testcases/set-status",
+                           data={"testcase_ids": [str(tc1)], "status": "DONE"}, follow_redirects=False)
+    assert response.status_code == 303
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, tc1).status == m.TestCaseStatus.TO_DO
+
+
+def test_subtask_page_offers_bulk_set_status(client, db_session):
+    subtask_id = _create_execution_subtask(client, "EX-344")
+    _add_testcase(client, db_session, subtask_id, "TC-1")
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert f'action="/subtasks/{subtask_id}/testcases/set-status"' in page
+    assert 'data-bulk-status' in page and '<option value="PASS">PASS</option>' in page

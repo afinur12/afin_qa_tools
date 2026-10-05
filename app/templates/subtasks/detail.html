@@ -203,6 +203,16 @@
         <button class="btn act remove" type="button" data-submit-selected="delete-selected-form" data-selection-name="testcase_ids"
                 title="Delete selected test cases" aria-label="Delete selected test cases">{{ icon_trash() }}</button>
       </form>
+      {# app.js copies the ticked cases in and asks to confirm before it submits. #}
+      <form id="set-status-selected-form" class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/set-status"
+            data-confirm="Set the selected test cases to this status?">
+        <input type="hidden" name="status" value="" data-bulk-status-value>
+        <select class="bulk-status" data-bulk-status data-selection-name="testcase_ids"
+                title="Set the status of the selected test cases" aria-label="Set the status of the selected test cases">
+          <option value="">Set status&hellip;</option>
+          {% for s in testcase_statuses %}<option value="{{ s.value }}">{{ s.label }}</option>{% endfor %}
+        </select>
+      </form>
     </div>
     {% endif %}
     <a class="btn act add" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase"

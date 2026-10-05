@@ -10,7 +10,7 @@ from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Screenshot, Subtask, SubtaskType, TaskStatus, TestCase, TestCaseSection, TestCaseStep, TestCaseStepData, generate_internal_key
+from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Screenshot, Subtask, SubtaskType, TaskStatus, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestCaseStepData, generate_internal_key
 from app.labels import get_labels, set_labels
 from app.models import KnowledgeLinkTarget
 from app.routers.knowledge import knowledge_card_context
@@ -252,6 +252,7 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
             "prebuilt_id_by_testcase_id": prebuilt_id_by_testcase_id,
             "screenshot_coverage": _screenshot_coverage(db, [tc.id for tc in subtask.testcases]),
             "test_data_coverage": _test_data_coverage(db, [tc.id for tc in subtask.testcases]),
+            "testcase_statuses": list(TestCaseStatus),
             "statuses": list(TaskStatus),
             "subtask_labels": get_labels(db, LabelAttachType.SUBTASK, subtask_id),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],

@@ -12,7 +12,7 @@ from app.flash import redirect_with_flash
 from app.jira_io import apply_jira_json_to_subtask
 from app.templating import templates
 from app.models import (
-    DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStep,
+    DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep,
     generate_internal_key,
 )
 from app import testcase_io
@@ -303,3 +303,29 @@ def delete_selected_testcases(
     db.commit()
     message = f"Deleted {len(doomed)} test case{'' if len(doomed) == 1 else 's'}."
     return redirect_with_flash(f"/subtasks/{subtask_id}", message, category="danger")
+
+
+@router.post("/subtasks/{subtask_id}/testcases/set-status")
+def set_status_of_selected_testcases(
+    request: Request, subtask_id: int, testcase_ids: list[int] = Form([]), status: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    back = f"/subtasks/{subtask_id}"
+    try:
+        new_status = TestCaseStatus(status)
+    except ValueError:
+        return redirect_with_flash(back, "Pick a status to set.", category="danger")
+    # Only this subtask's own cases — an id from elsewhere is ignored.
+    wanted = set(testcase_ids)
+    chosen = [tc for tc in subtask.testcases if tc.id in wanted]
+    if not chosen:
+        return redirect_with_flash(back, "No test cases selected.", category="danger")
+    for testcase in chosen:
+        testcase.status = new_status
+    db.commit()
+    return redirect_with_flash(
+        back, f"Set {len(chosen)} test case{'' if len(chosen) == 1 else 's'} to {new_status.label}."
+    )

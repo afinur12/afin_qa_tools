@@ -1116,6 +1116,35 @@ document.addEventListener("click", (event) => {
   else form.submit();
 });
 
+// A <select data-bulk-status data-selection-name="<name>"> sets one value on
+// every ticked item: picking an option copies the ticked checkboxes into its
+// form, names the choice in the confirm message and submits through the
+// confirm dialog. The picker resets either way.
+document.addEventListener("change", (event) => {
+  const picker = event.target.closest("select[data-bulk-status]");
+  if (!picker || !picker.value) return;
+  const value = picker.value;
+  const label = picker.selectedOptions[0].textContent.trim();
+  picker.value = "";
+  const form = picker.form;
+  const name = picker.dataset.selectionName;
+  const checked = document.querySelectorAll(`input[data-selection-name="${name}"]:checked`);
+  if (!form || checked.length === 0) return;
+  form.querySelector("[data-bulk-status-value]").value = value;
+  form.querySelectorAll('input[data-generated="1"]').forEach((el) => el.remove());
+  checked.forEach((cb) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = cb.value;
+    input.dataset.generated = "1";
+    form.appendChild(input);
+  });
+  form.dataset.confirm = `Set ${checked.length} selected test case${checked.length === 1 ? "" : "s"} to ${label}?`;
+  if (form.requestSubmit) form.requestSubmit();
+  else form.submit();
+});
+
 document.querySelectorAll("[data-snippet-code]").forEach((block) => {
   if (!window.hljs) return; // vendored bundle failed to load — plain text is still readable
   const lang = HLJS_LANGUAGE_MAP[block.dataset.snippetCode] || "plaintext";
