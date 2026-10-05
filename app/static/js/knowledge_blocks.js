@@ -214,8 +214,13 @@
   function placeToolbar() {
     if (!toolbarFor) return;
     const rect = toolbarFor.getBoundingClientRect();
+    // Just above the text being edited — or above the whole board when that
+    // would cover the board's own top bar (its title, + Add, maximize, delete).
+    const bar = toolbarFor.closest(".km-board")?.querySelector("[data-km-board-bar]")?.getBoundingClientRect();
+    let top = rect.top - toolbar.offsetHeight - 6;
+    if (bar && top < bar.bottom) top = bar.top - toolbar.offsetHeight - 6;
     toolbar.style.left = `${rect.left + window.scrollX}px`;
-    toolbar.style.top = `${Math.max(4, rect.top - toolbar.offsetHeight - 6) + window.scrollY}px`;
+    toolbar.style.top = `${Math.max(4, top) + window.scrollY}px`;
   }
   document.addEventListener("focusin", (event) => {
     const editor = event.target.closest("[data-km-text]");

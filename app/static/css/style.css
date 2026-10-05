@@ -2621,7 +2621,9 @@ mark.ac-search-hit.is-current { background: var(--lime); box-shadow: 0 0 0 1px v
 .km-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .km-hint { font-size: 12px; color: var(--ink-3); }
 .km-canvas-wrap { position: relative; flex: 1; min-height: 560px; overflow: auto; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 20px 20px; }
-.km-canvas { position: relative; width: 1200px; min-height: 900px; }
+/* At least as wide as the visible area; knowledge_canvas.js widens it to its
+   boards, so it only scrolls sideways once a board reaches past the view. */
+.km-canvas { position: relative; min-width: 100%; min-height: 900px; }
 .km-empty { padding: 60px 24px; text-align: center; color: var(--ink-3); }
 .km-empty p { margin: 0 0 14px; }
 
@@ -2776,3 +2778,10 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 @supports not selector(::-webkit-scrollbar) {
   * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 }
+
+/* Alignment guides while a board is dragged (knowledge_canvas.js): above
+   every board in the canvas, never in the way of the pointer. */
+.km-guides { position: absolute; inset: 0; z-index: 2147482000; pointer-events: none; }
+.km-guide { position: absolute; background: var(--indigo); }
+.km-guide--x { width: 1px; }
+.km-guide--y { height: 1px; }

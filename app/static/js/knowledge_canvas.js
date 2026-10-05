@@ -56,6 +56,20 @@
     canvas.style.minHeight = `${height}px`;
   }
 
+  // Alignment guides, shown only while a board is being dragged.
+  const guideLayer = document.createElement("div");
+  guideLayer.className = "km-guides";
+  canvas.appendChild(guideLayer);
+  function showGuides(guides) {
+    guideLayer.replaceChildren(...guides.map(({ axis, at, from, to }) => {
+      const line = document.createElement("div");
+      line.className = `km-guide km-guide--${axis}`;
+      if (axis === "x") Object.assign(line.style, { left: `${at}px`, top: `${from}px`, height: `${to - from}px` });
+      else Object.assign(line.style, { top: `${at}px`, left: `${from}px`, width: `${to - from}px` });
+      return line;
+    }));
+  }
+
   function saveGeometry(board) {
     return post(`/knowledge/boards/${board.dataset.boardId}/geometry`, form({
       x: board.offsetLeft,
@@ -91,6 +105,12 @@
     target.addEventListener("pointercancel", end);
   }
 
+  // A click on the empty canvas around the boards leaves no board active.
+  canvas.closest("[data-km-canvas-wrap]")?.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".km-board")) return;
+    canvas.querySelectorAll(".km-board.is-selected").forEach((b) => b.classList.remove("is-selected"));
+  });
+
   canvas.addEventListener("pointerdown", (event) => {
     const board = event.target.closest(".km-board");
     if (!board || board.classList.contains("is-maximized") || event.button !== 0) return;
@@ -100,21 +120,36 @@
     if (handle) {
       event.preventDefault();
       const startX = event.clientX, startY = event.clientY, width = board.offsetWidth, height = board.offsetHeight;
+      const others = boards().filter((b) => b !== board).map(boxOf);
       track(handle, event.pointerId, (move) => {
-        board.style.width = `${Math.max(L.MIN_W, width + move.clientX - startX)}px`;
         // Height is only pinned by a clearly vertical drag; double-click the
         // corner to let it follow the content again.
-        if (Math.abs(move.clientY - startY) > PIN_THRESHOLD) board.style.height = `${Math.max(L.MIN_H, height + move.clientY - startY)}px`;
-      }, () => { growCanvas(); saveGeometry(board); });
+        const pinning = Math.abs(move.clientY - startY) > PIN_THRESHOLD;
+        const free = {
+          x: board.offsetLeft, y: board.offsetTop,
+          w: Math.max(L.MIN_W, width + move.clientX - startX),
+          h: pinning ? Math.max(L.MIN_H, height + move.clientY - startY) : board.offsetHeight,
+        };
+        // The dragged edges snap to other boards' lines; hold Alt to resize freely.
+        const { w, h, guides } = move.altKey ? { ...free, guides: [] } : L.snapResize(free, others, pinning);
+        board.style.width = `${w}px`;
+        if (pinning) board.style.height = `${h}px`;
+        showGuides(guides);
+      }, () => { showGuides([]); growCanvas(); saveGeometry(board); });
       return;
     }
     if (bar && !event.target.closest("button, input, form, a")) {
       event.preventDefault();
       const startX = event.clientX, startY = event.clientY, left = board.offsetLeft, top = board.offsetTop;
+      const others = boards().filter((b) => b !== board).map(boxOf);
       track(bar, event.pointerId, (move) => {
-        board.style.left = `${Math.max(0, left + move.clientX - startX)}px`;
-        board.style.top = `${Math.max(0, top + move.clientY - startY)}px`;
-      }, () => { growCanvas(); saveGeometry(board); });
+        const free = { x: Math.max(0, left + move.clientX - startX), y: Math.max(0, top + move.clientY - startY), w: board.offsetWidth, h: board.offsetHeight };
+        // Snaps to other boards' edges and centers; hold Alt to place it freely.
+        const { x, y, guides } = move.altKey ? { ...free, guides: [] } : L.snapMove(free, others);
+        board.style.left = `${Math.max(0, x)}px`;
+        board.style.top = `${Math.max(0, y)}px`;
+        showGuides(guides);
+      }, () => { showGuides([]); growCanvas(); saveGeometry(board); });
       return;
     }
     if (raised) saveGeometry(board);
