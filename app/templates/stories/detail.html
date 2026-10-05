@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload, icon_link with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_chevron, icon_download, icon_doc, icon_braces, icon_upload, icon_link, label_picker with context %}
 {% block title %}{{ story.display_code }} - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -95,14 +95,7 @@
   </div>
   <div class="field">
     <label>Labels</label>
-    {% for l in all_labels %}
-    <label class="choice">
-      <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
-      <span>{{ l.name }}</span>
-    </label>
-    {% else %}
-    <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
-    {% endfor %}
+    {{ label_picker(all_labels, current_label_ids) }}
   </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>
@@ -210,14 +203,7 @@
     </div>
     <div class="field">
       <label>Labels</label>
-      {% for l in all_labels %}
-      <label class="choice">
-        <input type="checkbox" name="label_ids" value="{{ l.id }}">
-        <span>{{ l.name }}</span>
-      </label>
-      {% else %}
-      <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
-      {% endfor %}
+      {{ label_picker(all_labels) }}
     </div>
     <div class="form-actions" style="justify-content:flex-end;">
       <button class="btn secondary" type="button" data-modal-close>Cancel</button>

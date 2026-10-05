@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_search, icon_template with context %}
+{% from "macros.html" import modal, icon_search, icon_template, label_picker with context %}
 {% block title %}Dashboard - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -57,14 +57,7 @@
   </div>
   <div class="field">
     <label>Labels</label>
-    {% for l in all_labels %}
-    <label class="choice">
-      <input type="checkbox" name="label_ids" value="{{ l.id }}">
-      <span>{{ l.name }}</span>
-    </label>
-    {% else %}
-    <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
-    {% endfor %}
+    {{ label_picker(all_labels) }}
   </div>
   <div class="form-actions" style="justify-content:flex-end;">
     <button class="btn secondary" type="button" data-modal-close>Cancel</button>

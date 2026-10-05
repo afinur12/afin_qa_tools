@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import label_picker %}
 {% block title %}{% if bug %}Edit {{ bug.display_code }}{% else %}New Bug{% endif %} - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -48,14 +49,7 @@
     </div>
     <div class="field">
       <label>Labels</label>
-      {% for l in all_labels %}
-      <label class="choice">
-        <input type="checkbox" name="label_ids" value="{{ l.id }}" {% if l.id in current_label_ids %}checked{% endif %}>
-        <span>{{ l.name }}</span>
-      </label>
-      {% else %}
-      <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
-      {% endfor %}
+      {{ label_picker(all_labels, current_label_ids) }}
     </div>
 
     {% if bug %}

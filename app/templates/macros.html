@@ -30,6 +30,22 @@
 </div>
 {% endmacro %}
 
+{# Labels picker: one toggle chip per label, wrapping onto as few rows as fit.
+   Each chip is a real checkbox named label_ids, so a form posts exactly what
+   the old one-row-per-label checklist did. #}
+{% macro label_picker(all_labels, current_label_ids=()) %}
+<div class="label-chips">
+  {%- for l in all_labels %}
+  <label class="label-chip">
+    <input type="checkbox" name="label_ids" value="{{ l.id }}"{% if l.id in current_label_ids %} checked{% endif %}>
+    <span>{{ l.name }}</span>
+  </label>
+  {%- else %}
+  <div class="muted" style="font-size:12.5px;">No labels yet — add some under Settings.</div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
 {# ── Icons ─────────────────────────────────────────────────────────────────
    Stroke icons on a 24px grid. Icon-only buttons must always pass a title
    and aria-label, since there is no visible text to read.
