@@ -22,9 +22,21 @@ def _remove_screenshot(db: Session, screenshot) -> None:
     from app.routers.screenshots import UPLOADS_DIR
 
     disk_path = UPLOADS_DIR / screenshot.file_path
-    if disk_path.exists():
-        disk_path.unlink()
+    try:
+        disk_path.unlink(missing_ok=True)
+    except OSError:
+        # Windows refuses while the file is open (being served or compressed):
+        # an orphaned file beats a delete that fails halfway.
+        logger.warning("Could not remove screenshot %s", disk_path, exc_info=True)
     db.delete(screenshot)
+
+
+def delete_step_screenshots(db: Session, step) -> int:
+    """Remove every screenshot of a step (rows and files); returns how many."""
+    screenshots = list(step.screenshots)
+    for screenshot in screenshots:
+        _remove_screenshot(db, screenshot)
+    return len(screenshots)
 
 
 def delete_step(db: Session, step) -> None:

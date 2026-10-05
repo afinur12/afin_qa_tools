@@ -8,7 +8,7 @@ from app.flash import redirect_with_flash
 from app.templating import templates
 from app.models import SECTION_LABELS, DEFAULT_SECTION_KINDS, LabelAttachType, Phase, PrebuiltTestCase, Story, Subtask, StepSection, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, TestCaseStepData, TestPriority, TestType
 from app.labels import get_labels, set_labels
-from app.step_copy import copy_steps
+from app.step_copy import copy_steps, copy_steps_matching
 from app.routers.stories import _parse_id, _user_dropdowns
 
 router = APIRouter()
@@ -73,14 +73,29 @@ def testcase_sections_json(testcase_id: int, db: Session = Depends(get_db)):
 @router.post("/testcases/{testcase_id}/steps/copy-to")
 def copy_steps_to(
     request: Request, testcase_id: int, section_id: int = Form(0), step_ids: list[int] = Form([]),
-    db: Session = Depends(get_db),
+    mode: str = Form("section"), dest_testcase_id: int = Form(0), db: Session = Depends(get_db),
 ):
     """Append copies of this test case's ticked steps (Test Data and
-    screenshots included) to a section of any test case."""
+    screenshots included) to a section of any test case — or, with
+    mode=match, each into the destination's matching section."""
     source = db.get(TestCase, testcase_id)
     if source is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     back = f"/testcases/{testcase_id}/execute"
+    if mode == "match":
+        destination = db.get(TestCase, dest_testcase_id)
+        if destination is None:
+            return redirect_with_flash(back, "Pick a destination test case to copy the steps into.", category="danger")
+        results = copy_steps_matching(db, source, set(step_ids), destination)
+        copied = sum(len(new) for _, new, _ in results)
+        if not copied:
+            return redirect_with_flash(back, "No steps selected to copy.", category="danger")
+        db.commit()
+        added = sum(1 for _, _, was_added in results if was_added)
+        message = f"Copied {copied} step{'' if copied == 1 else 's'} to {destination.display_code} into matching sections"
+        if added:
+            message += f", adding {added} new section{'' if added == 1 else 's'}"
+        return redirect_with_flash(back, message + ".")
     target = db.get(TestCaseSection, section_id)
     if target is None:
         return redirect_with_flash(back, "Pick a destination section to copy the steps into.", category="danger")
@@ -94,6 +109,28 @@ def copy_steps_to(
     destination = db.get(TestCase, target.testcase_id)
     plural = "" if len(steps) == 1 else "s"
     return redirect_with_flash(back, f"Copied {len(steps)} step{plural} to {destination.display_code} › {target.label}.")
+
+
+@router.post("/testcases/{testcase_id}/steps/screenshots/delete")
+def delete_selected_step_screenshots(
+    request: Request, testcase_id: int, step_ids: list[int] = Form([]), db: Session = Depends(get_db),
+):
+    """Delete every screenshot (rows and files) of this test case's ticked
+    steps; the steps and their Test Data stay."""
+    testcase = db.get(TestCase, testcase_id)
+    if testcase is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    back = f"/testcases/{testcase_id}/execute"
+    wanted = set(step_ids)
+    steps = [step for section in testcase.sections for step in section.steps if step.id in wanted]
+    removed = [deletion.delete_step_screenshots(db, step) for step in steps]
+    total, touched = sum(removed), sum(1 for n in removed if n)
+    if not total:
+        return redirect_with_flash(back, "The selected steps have no screenshots.", category="danger")
+    db.commit()
+    return redirect_with_flash(
+        back, f"Deleted {total} screenshot{'' if total == 1 else 's'} from {touched} step{'' if touched == 1 else 's'}."
+    )
 
 
 @router.get("/testcases/{testcase_id}/execute")

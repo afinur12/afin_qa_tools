@@ -169,6 +169,184 @@ def test_copy_skips_a_screenshot_whose_file_is_missing(client, db_session, uploa
     assert [(uploads / s.file_path).read_bytes() for s in copied] == [b"keep"]
 
 
+def _section(db, tc, kind, position):
+    section = TestCaseSection(testcase_id=tc.id, kind=kind, position=position)
+    db.add(section)
+    db.flush()
+    return section
+
+
+def _texts(db, tc_id):
+    """[(kind, [step texts])] per section of a test case, in page order."""
+    db.expire_all()
+    return [(s.kind, [st.step_text for st in s.steps]) for s in db.get(TestCase, tc_id).sections]
+
+
+def test_copy_into_matching_sections_keeps_each_step_in_its_kind(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-11")
+    dst, dst_sections = _testcase(db_session, "DST-11")
+    p1 = _step(db_session, uploads, src, src_sections[StepSection.PRECONDITION], 1, "pre one",
+               data=[("query", "SELECT 1", "SQL")], shots=[b"img-p1"])
+    m1 = _step(db_session, uploads, src, src_sections[StepSection.MAIN], 1, "main one")
+    m2 = _step(db_session, uploads, src, src_sections[StepSection.MAIN], 2, "main two")
+    q1 = _step(db_session, uploads, src, src_sections[StepSection.POSTCONDITION], 1, "post one")
+    _step(db_session, uploads, dst, dst_sections[StepSection.MAIN], 1, "existing main")
+    db_session.commit()
+
+    resp = client.post(f"/testcases/{src.id}/steps/copy-to", data={
+        "mode": "match", "dest_testcase_id": str(dst.id),
+        "step_ids": [str(q1.id), str(m2.id), str(p1.id), str(m1.id)],
+    }, follow_redirects=False)
+    assert resp.status_code == 303
+    assert "Copied%204%20steps%20to%20DST-11%20into%20matching%20sections" in resp.cookies.get("flash", "")
+
+    assert _texts(db_session, dst.id) == [
+        (StepSection.PRECONDITION, ["pre one"]),
+        (StepSection.MAIN, ["existing main", "main one", "main two"]),
+        (StepSection.POSTCONDITION, ["post one"]),
+    ]
+    copied = db_session.get(TestCaseSection, dst_sections[StepSection.PRECONDITION].id).steps[0]
+    assert [(d.title, d.value) for d in copied.data_items] == [("query", "SELECT 1")]
+    assert [(uploads / s.file_path).read_bytes() for s in copied.screenshots] == [b"img-p1"]
+
+
+def test_matching_puts_the_second_main_into_the_second_main_and_adds_missing_sections(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-12")
+    dst, dst_sections = _testcase(db_session, "DST-12")
+    src_main2 = _section(db_session, src, StepSection.MAIN, 3)
+    src_post2 = _section(db_session, src, StepSection.POSTCONDITION, 4)
+    dst_main2 = _section(db_session, dst, StepSection.MAIN, 3)          # DST-12 has a 2nd Main but no 2nd Post
+    a = _step(db_session, uploads, src, src_main2, 1, "second main step")
+    b = _step(db_session, uploads, src, src_post2, 1, "second post step")
+    db_session.commit()
+
+    resp = client.post(f"/testcases/{src.id}/steps/copy-to", data={
+        "mode": "match", "dest_testcase_id": str(dst.id), "step_ids": [str(a.id), str(b.id)],
+    }, follow_redirects=False)
+    assert "adding%201%20new%20section" in resp.cookies.get("flash", "")
+
+    assert _texts(db_session, dst.id) == [
+        (StepSection.PRECONDITION, []),
+        (StepSection.MAIN, []),
+        (StepSection.POSTCONDITION, []),
+        (StepSection.MAIN, ["second main step"]),
+        (StepSection.POSTCONDITION, ["second post step"]),   # added at the end
+    ]
+    assert db_session.get(TestCaseSection, dst_main2.id).steps[0].step_text == "second main step"
+
+
+def _bare_testcase(db, code, *kinds):
+    """A test case holding only the given sections, in that order."""
+    tc, sections = _testcase(db, code)
+    for section in sections.values():
+        db.delete(section)
+    db.flush()
+    for position, kind in enumerate(kinds):
+        _section(db, tc, kind, position)
+    db.commit()
+    return tc
+
+
+def test_matching_into_a_blank_test_case_creates_the_sections_in_order(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-15")
+    dst = _bare_testcase(db_session, "DST-15")
+    ids = [
+        _step(db_session, uploads, src, src_sections[kind], 1, f"{kind.value.lower()} step").id
+        for kind in (StepSection.PRECONDITION, StepSection.MAIN, StepSection.POSTCONDITION)
+    ]
+    db_session.commit()
+    resp = client.post(f"/testcases/{src.id}/steps/copy-to", data={
+        "mode": "match", "dest_testcase_id": str(dst.id), "step_ids": [str(i) for i in ids],
+    }, follow_redirects=False)
+    assert "adding%203%20new%20sections" in resp.cookies.get("flash", "")
+    assert _texts(db_session, dst.id) == [
+        (StepSection.PRECONDITION, ["precondition step"]),
+        (StepSection.MAIN, ["main step"]),
+        (StepSection.POSTCONDITION, ["postcondition step"]),
+    ]
+
+
+def test_a_missing_section_is_added_where_it_belongs(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-16")
+    dst = _bare_testcase(db_session, "DST-16", StepSection.MAIN, StepSection.POSTCONDITION)
+    pre = _step(db_session, uploads, src, src_sections[StepSection.PRECONDITION], 1, "pre step")
+    main = _step(db_session, uploads, src, src_sections[StepSection.MAIN], 1, "main step")
+    db_session.commit()
+    client.post(f"/testcases/{src.id}/steps/copy-to", data={
+        "mode": "match", "dest_testcase_id": str(dst.id), "step_ids": [str(pre.id), str(main.id)],
+    })
+    assert _texts(db_session, dst.id) == [
+        (StepSection.PRECONDITION, ["pre step"]),   # first, not after the Post Condition
+        (StepSection.MAIN, ["main step"]),
+        (StepSection.POSTCONDITION, []),
+    ]
+
+
+def test_delete_screenshots_of_the_selected_steps(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-17")
+    other, other_sections = _testcase(db_session, "OTH-17")
+    main = src_sections[StepSection.MAIN]
+    a = _step(db_session, uploads, src, main, 1, "a", data=[("query", "SELECT 1", "SQL")], shots=[b"a1", b"a2"])
+    b = _step(db_session, uploads, src, main, 2, "b", shots=[b"b1"])
+    kept = _step(db_session, uploads, src, main, 3, "not ticked", shots=[b"c1"])
+    foreign = _step(db_session, uploads, other, other_sections[StepSection.MAIN], 1, "other case", shots=[b"f1"])
+    db_session.commit()
+    gone = [uploads / s.file_path for s in a.screenshots + b.screenshots]
+
+    resp = client.post(f"/testcases/{src.id}/steps/screenshots/delete",
+                       data={"step_ids": [str(a.id), str(b.id), str(foreign.id)]}, follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"] == f"/testcases/{src.id}/execute"
+    assert "Deleted%203%20screenshots%20from%202%20steps" in resp.cookies.get("flash", "")
+
+    db_session.expire_all()
+    assert [len(db_session.get(TestCaseStep, s.id).screenshots) for s in (a, b, kept, foreign)] == [0, 0, 1, 1]
+    assert not any(path.exists() for path in gone)
+    assert [(d.title, d.value) for d in db_session.get(TestCaseStep, a.id).data_items] == [("query", "SELECT 1")]
+    assert db_session.query(TestCaseStep).filter_by(section_id=main.id).count() == 3
+
+
+def test_delete_screenshots_when_the_selected_steps_have_none(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-18")
+    a = _step(db_session, uploads, src, src_sections[StepSection.MAIN], 1, "a")
+    db_session.commit()
+    resp = client.post(f"/testcases/{src.id}/steps/screenshots/delete", data={"step_ids": [str(a.id)]},
+                       follow_redirects=False)
+    assert resp.status_code == 303
+    assert "have%20no%20screenshots" in resp.cookies.get("flash", "")
+
+
+def test_execute_page_has_the_delete_screenshots_action(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-19")
+    _step(db_session, uploads, src, src_sections[StepSection.MAIN], 1, "a")
+    db_session.commit()
+    page = client.get(f"/testcases/{src.id}/execute").text
+    assert f'action="/testcases/{src.id}/steps/screenshots/delete"' in page
+    assert 'data-submit-selected="delete-step-screenshots" data-selection-name="step_ids"' in page
+
+
+def test_matching_with_an_unknown_destination_changes_nothing(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-13")
+    s1 = _step(db_session, uploads, src, src_sections[StepSection.MAIN], 1, "a")
+    db_session.commit()
+    count = db_session.query(TestCaseStep).count()
+    resp = client.post(f"/testcases/{src.id}/steps/copy-to",
+                       data={"mode": "match", "dest_testcase_id": "999999", "step_ids": [str(s1.id)]},
+                       follow_redirects=False)
+    assert resp.status_code == 303
+    db_session.expire_all()
+    assert db_session.query(TestCaseStep).count() == count
+    assert db_session.query(TestCaseSection).filter_by(testcase_id=src.id).count() == 3
+
+
+def test_copy_dialog_offers_matching_sections(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-14")
+    _step(db_session, uploads, src, src_sections[StepSection.MAIN], 1, "a")
+    db_session.commit()
+    page = client.get(f"/testcases/{src.id}/execute").text
+    assert 'name="mode" value="match"' in page and 'name="mode" value="section"' in page
+    assert 'name="dest_testcase_id"' in page
+
+
 def test_sections_endpoint_lists_destination_sections(client, db_session, uploads):
     dst, dst_sections = _testcase(db_session, "DST-7")
     _step(db_session, uploads, dst, dst_sections[StepSection.PRECONDITION], 1, "x")
@@ -179,6 +357,24 @@ def test_sections_endpoint_lists_destination_sections(client, db_session, upload
         (dst_sections[StepSection.MAIN].id, "3. Main Test", 0),
         (dst_sections[StepSection.POSTCONDITION].id, "4. Post Condition", 0),
     ]
+
+
+def test_execute_page_has_section_and_select_all_step_boxes(client, db_session, uploads):
+    src, src_sections = _testcase(db_session, "SRC-9")
+    pre = src_sections[StepSection.PRECONDITION]
+    _step(db_session, uploads, src, pre, 1, "a")
+    _step(db_session, uploads, src, pre, 2, "b")
+    db_session.commit()
+    page = client.get(f"/testcases/{src.id}/execute").text
+    assert f'data-section-select="{pre.id}"' in page
+    assert f'data-section-select="{src_sections[StepSection.MAIN].id}"' not in page  # no steps, no box
+    assert "data-select-all-steps" in page
+
+
+def test_execute_page_without_steps_has_no_select_all_box(client, db_session, uploads):
+    src, _ = _testcase(db_session, "SRC-10")
+    db_session.commit()
+    assert "data-select-all-steps" not in client.get(f"/testcases/{src.id}/execute").text
 
 
 def test_execute_page_has_step_checkboxes_and_copy_dialog(client, db_session, uploads):

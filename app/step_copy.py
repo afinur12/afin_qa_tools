@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 import app.routers.screenshots as screenshots_module
 from app.image_compress import compress_in_background
-from app.models import Screenshot, TestCaseSection, TestCaseStep, TestCaseStepData
+from app.models import Screenshot, TestCase, TestCaseSection, TestCaseStep, TestCaseStepData
 
 
 def _copy_screenshot(shot: Screenshot, testcase_id: int, step_id: int) -> Screenshot | None:
@@ -54,3 +54,44 @@ def copy_steps(db: Session, steps: list[TestCaseStep], target: TestCaseSection) 
         created.append(step)
     db.flush()
     return created
+
+
+def copy_steps_matching(
+    db: Session, source: TestCase, step_ids: set[int], destination: TestCase,
+) -> list[tuple[TestCaseSection, list[TestCaseStep], bool]]:
+    """Copy `source`'s ticked steps into `destination`, each into the section
+    matching its own: same kind, same place among the sections of that kind
+    (the 2nd Main Test into the 2nd Main Test). A section the destination
+    doesn't have is added where it belongs — right after the destination
+    section matching the source section before it, or first — so a blank
+    destination ends up with the source's structure. Returns (target section,
+    new steps, whether the section was added) per source section that had
+    ticked steps."""
+    order = list(destination.sections)
+    existing: dict = {}
+    for section in order:
+        existing.setdefault(section.kind, []).append(section)
+    seen: dict = {}
+    anchor = None  # destination section matching the latest source section
+    plan = []
+    for section in source.sections:
+        place = seen.get(section.kind, 0)
+        seen[section.kind] = place + 1
+        candidates = existing.get(section.kind, [])
+        target = candidates[place] if place < len(candidates) else None
+        steps = [step for step in section.steps if step.id in step_ids]
+        added = False
+        if steps and target is None:
+            target = TestCaseSection(testcase_id=destination.id, kind=section.kind, position=0)
+            db.add(target)
+            order.insert(order.index(anchor) + 1 if anchor is not None else 0, target)
+            added = True
+        if target is not None:
+            anchor = target
+        if steps:
+            plan.append((target, steps, added))
+    if any(added for _, _, added in plan):
+        for position, section in enumerate(order):
+            section.position = position
+        db.flush()
+    return [(target, copy_steps(db, steps, target), added) for target, steps, added in plan]

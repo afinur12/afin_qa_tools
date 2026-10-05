@@ -2785,3 +2785,11 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-guide { position: absolute; background: var(--indigo); }
 .km-guide--x { width: 1px; }
 .km-guide--y { height: 1px; }
+
+/* Test case page: tick a whole section, or every step (testcases_copy_steps.js). */
+.section-card .card-head .section-select { flex: 0 0 auto; width: 16px; height: 16px; margin: 0 2px 0 0; cursor: pointer; }
+.select-all-steps { display: inline-flex; align-items: center; gap: 6px; align-self: center; color: var(--ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.select-all-steps input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+
+/* Copy steps dialog: "One section" can't take a destination without sections. */
+.choice.is-disabled { opacity: .5; cursor: not-allowed; }

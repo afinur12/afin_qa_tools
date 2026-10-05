@@ -259,7 +259,18 @@
     <div class="selection-actions" data-selection-actions="step_ids" hidden>
       <span class="selection-count" data-selection-count>0 selected</span>
       <a class="btn sm" href="#" data-modal-open="copy-steps">Copy steps to&hellip;</a>
+      <form id="delete-step-screenshots" class="inline-form" method="post" action="/testcases/{{ testcase.id }}/steps/screenshots/delete"
+            data-confirm="Delete the screenshots of the selected steps? This can't be undone."
+            data-confirm-template="Delete the screenshots of {count} selected step{s}? This can't be undone.">
+        <button class="btn danger sm" type="button" data-submit-selected="delete-step-screenshots" data-selection-name="step_ids"
+                title="Delete every screenshot of the selected steps">Delete screenshots</button>
+      </form>
     </div>
+    {% if testcase.sections | selectattr("steps") | list %}
+    <label class="select-all-steps" title="Select every step in every section">
+      <input type="checkbox" data-select-all-steps> Select all steps
+    </label>
+    {% endif %}
     <button type="button" class="btn secondary sm" data-collapse-all>Collapse All</button>
   </div>
 
@@ -337,20 +348,32 @@
 {% endmacro %}
 
 {% call modal('copy-steps', 'Copy Steps To', '/testcases/' ~ testcase.id ~ '/steps/copy-to', wide=True,
-             hint='Copies the ticked steps with their Test Data and screenshots, appended after the destination section\'s existing steps. The steps here stay as they are.') %}
+             hint='Copies the ticked steps with their Test Data and screenshots, appended after the steps already there. The steps here stay as they are.') %}
   <div data-copy-steps-form>
     <div class="field">
       <label>Destination test case</label>
       <input type="search" placeholder="Filter by task, subtask, code or title" data-copy-dest-filter autocomplete="off">
-      <select size="8" data-copy-dest required style="margin-top:8px; width:100%;">
+      <select size="8" name="dest_testcase_id" data-copy-dest required style="margin-top:8px; width:100%;">
         {% for group in copy_destinations | groupby('group') %}
         <optgroup label="{{ group.grouper }}">
           {% for dest in group.list %}<option value="{{ dest.id }}"{% if dest.id == testcase.id %} data-current{% endif %}>{{ dest.label }}{% if dest.id == testcase.id %} (this test case){% endif %}</option>{% endfor %}
         </optgroup>
         {% endfor %}
       </select>
+      <p class="muted" data-copy-blank-note hidden style="margin:8px 0 0; font-size:12.5px;">
+        This test case has no sections yet &mdash; copying creates the ones your steps come from.
+      </p>
     </div>
+    {# testcases_copy_steps.js preselects "Matching sections" when the ticked
+       steps come from more than one section. #}
     <div class="field">
+      <label>Where the steps go</label>
+      <label class="choice"><input type="radio" name="mode" value="match" data-copy-mode>
+        <span><b>Matching sections</b> &mdash; Pre Condition into Pre Condition, Main Test into Main Test&hellip;; a section the destination doesn&rsquo;t have is added at its end</span></label>
+      <label class="choice"><input type="radio" name="mode" value="section" data-copy-mode checked>
+        <span><b>One section</b> &mdash; every ticked step into the section picked below</span></label>
+    </div>
+    <div class="field" data-copy-section-field>
       <label>Destination section</label>
       <select name="section_id" data-copy-section required disabled>
         <option value="">Pick a test case first</option>
@@ -367,6 +390,10 @@
 {% for section in testcase.sections %}
   <div class="card section-card" data-section-id="{{ section.id }}" data-kind="{{ section.kind.value }}" data-section-label="{{ section.label }}">
     <div class="card-head">
+      {% if section.steps %}
+      <input type="checkbox" class="section-select" data-section-select="{{ section.id }}"
+             title="Select every step in this section" aria-label="Select every step in {{ section.label }}">
+      {% endif %}
       <span class="drag-handle" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
       </span>
