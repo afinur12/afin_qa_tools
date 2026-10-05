@@ -1,4 +1,5 @@
 import json
+import re
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
@@ -9,7 +10,7 @@ from app import deletion
 from app.database import get_db
 from app.flash import redirect_with_flash
 from app.templating import templates
-from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Screenshot, Subtask, SubtaskType, TaskStatus, TestCase, TestCaseSection, TestCaseStep, generate_internal_key
+from app.models import LabelAttachType, Note, NoteAttachType, Phase, PhaseType, PrebuiltTestCase, Screenshot, Subtask, SubtaskType, TaskStatus, TestCase, TestCaseSection, TestCaseStep, TestCaseStepData, generate_internal_key
 from app.labels import get_labels, set_labels
 from app.models import KnowledgeLinkTarget
 from app.routers.knowledge import knowledge_card_context
@@ -178,6 +179,44 @@ def _screenshot_coverage(db: Session, testcase_ids: list[int]) -> dict[int, tupl
     return {tc_id: (int(total), int(with_shot or 0)) for tc_id, total, with_shot in rows}
 
 
+# A step that checks the state *after* the run (e.g. "check balance after")
+# mirrors a "before" step that already carries the Test Data.
+AFTER_STEP = re.compile(r"\bafter\b", re.IGNORECASE)
+
+
+def needs_test_data(step_text: str | None) -> bool:
+    """Every step needs Test Data, except one whose text has the word "after"."""
+    return not AFTER_STEP.search(step_text or "")
+
+
+def _test_data_coverage(db: Session, testcase_ids: list[int]) -> dict[int, tuple[int, int, int, int]]:
+    """testcase_id -> (steps needing Test Data, how many of those have it,
+    "after" steps not counted, all steps), in one query for the whole table.
+    A step has Test Data when one of its items has a non-blank value. A test
+    case with no steps is absent here (reads as all zeros: incomplete)."""
+    if not testcase_ids:
+        return {}
+    has_data = exists().where(
+        TestCaseStepData.step_id == TestCaseStep.id,
+        func.trim(func.coalesce(TestCaseStepData.value, "")) != "",
+    )
+    rows = (
+        db.query(TestCaseSection.testcase_id, TestCaseStep.step_text, case((has_data, 1), else_=0))
+        .join(TestCaseStep, TestCaseStep.section_id == TestCaseSection.id)
+        .filter(TestCaseSection.testcase_id.in_(testcase_ids))
+        .all()
+    )
+    coverage: dict[int, tuple[int, int, int, int]] = {}
+    for testcase_id, step_text, with_data in rows:
+        needed, have, exempt, total = coverage.get(testcase_id, (0, 0, 0, 0))
+        if needs_test_data(step_text):
+            needed, have = needed + 1, have + (1 if with_data else 0)
+        else:
+            exempt += 1
+        coverage[testcase_id] = (needed, have, exempt, total + 1)
+    return coverage
+
+
 @router.get("/subtasks/{subtask_id}")
 def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_db)):
     subtask = db.get(
@@ -212,6 +251,7 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
             "prebuilts": prebuilts,
             "prebuilt_id_by_testcase_id": prebuilt_id_by_testcase_id,
             "screenshot_coverage": _screenshot_coverage(db, [tc.id for tc in subtask.testcases]),
+            "test_data_coverage": _test_data_coverage(db, [tc.id for tc in subtask.testcases]),
             "statuses": list(TaskStatus),
             "subtask_labels": get_labels(db, LabelAttachType.SUBTASK, subtask_id),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.SUBTASK, subtask_id)],

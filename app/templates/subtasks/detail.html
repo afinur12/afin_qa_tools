@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link, icon_sync, icon_priority, icon_prebuilt, icon_camera, icon_check with context %}
+{% from "macros.html" import modal, icon_plus, icon_trash, icon_pencil, icon_download, icon_doc, icon_braces, icon_upload, icon_link, icon_sync, icon_priority, icon_prebuilt, icon_camera, icon_check, icon_database with context %}
 {% block title %}{{ subtask.display_code }} - QA Toolbox{% endblock %}
 {% block content %}
 
@@ -168,6 +168,19 @@
         <span class="evidence-summary-note">{{ incomplete }} test case{{ '' if incomplete == 1 else 's' }} missing screenshots</span>
         {% endif %}
       </div>
+      {# Complete = every step that needs Test Data has it; steps with "after"
+         don't need any (see _test_data_coverage / needs_test_data). #}
+      {% set td_ns = namespace(complete=0) %}
+      {% for tc in subtask.testcases %}{% set td = test_data_coverage.get(tc.id, (0, 0, 0, 0)) %}{% if td[3] and td[1] == td[0] %}{% set td_ns.complete = td_ns.complete + 1 %}{% endif %}{% endfor %}
+      {% set td_missing = total_cases - td_ns.complete %}
+      <div class="evidence-summary">
+        {% if td_missing == 0 %}
+        <span class="badge evidence evidence-ok">{{ icon_check() }}All {{ total_cases }} test case{{ ' has' if total_cases == 1 else 's have' }} test data</span>
+        {% else %}
+        <span class="badge evidence {{ 'evidence-none' if td_ns.complete == 0 else 'evidence-missing' }}">{{ icon_database(12) }}{{ td_ns.complete }}/{{ total_cases }} with test data</span>
+        <span class="evidence-summary-note">{{ td_missing }} test case{{ '' if td_missing == 1 else 's' }} missing test data</span>
+        {% endif %}
+      </div>
       {% endif %}
     </div>
     <div class="spacer"></div>
@@ -237,13 +250,14 @@
   <table data-sortable-table>
     <thead><tr>
       <th style="width:1%;">{% if subtask.testcases %}<input type="checkbox" data-select-all="[data-selection-name='testcase_ids']" title="Select all">{% endif %}</th>
-      <th data-sort-key="code">Code</th><th data-sort-key="priority">Test Priority</th><th data-sort-key="test-type">Test Type</th><th data-sort-key="title">Title</th><th style="text-align:center;">Prebuilt</th><th data-sort-key="evidence">Screenshots</th><th data-sort-key="status">Status</th><th></th>
+      <th data-sort-key="code">Code</th><th data-sort-key="priority">Test Priority</th><th data-sort-key="test-type">Test Type</th><th data-sort-key="title">Title</th><th style="text-align:center;">Prebuilt</th><th data-sort-key="evidence">Screenshots</th><th data-sort-key="test-data">Test Data</th><th data-sort-key="status">Status</th><th></th>
     </tr></thead>
     <tbody>
       {% for tc in subtask.testcases %}
       <tr data-sort-code="{{ tc.display_code }}" data-sort-priority="{{ tc.test_priority_id or 999999 }}"
           data-sort-test-type="{{ (tc.test_type_ref.name if tc.test_type_ref else '') | lower }}"
           {% set cov = screenshot_coverage.get(tc.id, (0, 0)) %}data-sort-evidence="{{ (cov[1] / cov[0]) if cov[0] else 0.0 }}"
+          {% set td = test_data_coverage.get(tc.id, (0, 0, 0, 0)) %}data-sort-test-data="{{ (td[1] / td[0]) if td[0] else (1.0 if td[3] else 0.0) }}"
           data-sort-title="{{ tc.title }}" data-sort-status="{{ tc.status.label }}">
         <td><input type="checkbox" data-selection-name="testcase_ids" value="{{ tc.id }}" aria-label="Select {{ tc.display_code }}"></td>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
@@ -274,6 +288,21 @@
           <span class="badge evidence evidence-none" title="None of the {{ total }} steps has a screenshot">{{ icon_camera() }}{{ with_shot }}/{{ total }}</span>
           {% else %}
           <span class="badge evidence evidence-missing" title="{{ total - with_shot }} of {{ total }} steps have no screenshot">{{ icon_camera() }}{{ with_shot }}/{{ total }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% set needed, have, exempt, steps = test_data_coverage.get(tc.id, (0, 0, 0, 0)) %}
+          {% set not_counted = (' · ' ~ exempt ~ ' step' ~ ('' if exempt == 1 else 's') ~ ' with “after” not counted') if exempt else '' %}
+          {% if steps == 0 %}
+          <span class="badge evidence evidence-none" title="This test case has no steps yet">{{ icon_database(12) }}0/0</span>
+          {% elif needed == 0 %}
+          <span class="muted" title="Only steps with “after” — none needs Test Data">&mdash;</span>
+          {% elif have == needed %}
+          <span class="badge evidence evidence-ok" title="All {{ needed }} steps have Test Data{{ not_counted }}">{{ icon_check() }}{{ have }}/{{ needed }}</span>
+          {% elif have == 0 %}
+          <span class="badge evidence evidence-none" title="None of the {{ needed }} steps has Test Data{{ not_counted }}">{{ icon_database(12) }}{{ have }}/{{ needed }}</span>
+          {% else %}
+          <span class="badge evidence evidence-missing" title="{{ needed - have }} of {{ needed }} steps have no Test Data{{ not_counted }}">{{ icon_database(12) }}{{ have }}/{{ needed }}</span>
           {% endif %}
         </td>
         <td><span class="badge badge--{{ tc.status.value | lower }}">{{ tc.status.label }}</span></td>

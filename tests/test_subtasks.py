@@ -491,3 +491,83 @@ def test_subtask_page_summary_when_every_test_case_is_complete(client, db_sessio
     page = client.get(f"/subtasks/{subtask_id}").text
     assert "All 1 test case has screenshots" in page
     assert "missing screenshots" not in page
+
+
+def test_steps_with_after_need_no_test_data():
+    from app.routers.subtasks import needs_test_data
+
+    assert needs_test_data("check balance before") is True
+    assert needs_test_data("perform authorize") is True
+    assert needs_test_data("afternoon check") is True        # whole word only
+    assert needs_test_data("check balance after") is False
+    assert needs_test_data("Check Balance AFTER") is False
+    assert needs_test_data("after rollback check profile") is False
+    assert needs_test_data(None) is True
+
+
+def _test_data_fixture(client, db_session, code):
+    """Test cases whose steps have Test Data on every / some / no step, one
+    with only an "after" step, and one with no steps. A step's value '' is a
+    blank Test Data row, None means no row at all."""
+    from app.models import StepSection, TestCase, TestCaseSection, TestCaseStep, TestCaseStepData
+
+    plans = {
+        "TD-ALL": [("check balance before", "SELECT 1"), ("perform authorize", "curl x"), ("check balance after", None)],
+        "TD-SOME": [("s1", "v"), ("s2", ""), ("s3", None)],
+        "TD-NONE": [("s1", None), ("s2", None)],
+        "TD-AFTER": [("Check Balance AFTER", None)],
+        "TD-EMPTY": [],
+    }
+    subtask_id = int(_make_subtask_for_testcases(client, code))
+    for tc_code in plans:
+        client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": tc_code, "title": tc_code})
+    db_session.expire_all()
+    by_code = {tc.display_code: tc for tc in db_session.query(TestCase).filter_by(subtask_id=subtask_id)}
+    for tc_code, steps in plans.items():
+        section = db_session.query(TestCaseSection).filter_by(testcase_id=by_code[tc_code].id, kind=StepSection.MAIN).first()
+        for no, (text, value) in enumerate(steps, start=1):
+            step = TestCaseStep(section_id=section.id, step_no=no, step_text=text)
+            db_session.add(step)
+            db_session.flush()
+            if value is not None:
+                db_session.add(TestCaseStepData(step_id=step.id, order_no=1, title="t", value=value, language="TEXT"))
+    db_session.commit()
+    return subtask_id, by_code
+
+
+def test_subtask_page_shows_test_data_completeness_per_test_case(client, db_session):
+    subtask_id, by_code = _test_data_fixture(client, db_session, "EX-330")
+    page = client.get(f"/subtasks/{subtask_id}").text
+
+    assert 'data-sort-key="test-data">Test Data</th>' in page
+    assert 'class="badge evidence evidence-ok" title="All 2 steps have Test Data · 1 step with “after” not counted"' in page
+    assert 'class="badge evidence evidence-missing" title="2 of 3 steps have no Test Data"' in page   # a blank value doesn't count
+    assert 'class="badge evidence evidence-none" title="None of the 2 steps has Test Data"' in page
+    assert 'title="Only steps with “after” — none needs Test Data"' in page
+    assert 'class="badge evidence evidence-none" title="This test case has no steps yet"' in page
+    assert 'data-sort-test-data="1.0"' in page and 'data-sort-test-data="0.0"' in page
+
+
+def test_subtask_page_summarises_test_data(client, db_session):
+    subtask_id, _ = _test_data_fixture(client, db_session, "EX-331")
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert "2/5 with test data" in page          # TD-ALL and TD-AFTER
+    assert "3 test cases missing test data" in page
+
+
+def test_subtask_page_test_data_summary_when_complete(client, db_session):
+    from app.models import StepSection, TestCase, TestCaseSection, TestCaseStep, TestCaseStepData
+
+    subtask_id = int(_make_subtask_for_testcases(client, "EX-332"))
+    client.post(f"/subtasks/{subtask_id}/testcases", data={"display_code": "TC-1", "title": "A"})
+    db_session.expire_all()
+    tc = db_session.query(TestCase).filter_by(subtask_id=subtask_id).one()
+    section = db_session.query(TestCaseSection).filter_by(testcase_id=tc.id, kind=StepSection.MAIN).first()
+    step = TestCaseStep(section_id=section.id, step_no=1, step_text="s")
+    db_session.add(step)
+    db_session.flush()
+    db_session.add(TestCaseStepData(step_id=step.id, order_no=1, title="t", value="v", language="TEXT"))
+    db_session.commit()
+    page = client.get(f"/subtasks/{subtask_id}").text
+    assert "All 1 test case has test data" in page
+    assert "missing test data" not in page
