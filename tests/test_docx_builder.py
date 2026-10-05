@@ -130,7 +130,7 @@ def test_build_docx_header_and_single_step(tmp_path):
     # back to it, matching the fix in app/docx/builder.py.
     assert header_table.rows[6].cells[3].text == ""  # test_type (row 6)
     assert header_table.rows[8].cells[3].text == "1"  # iteration (row 8, affected by flat-index bug)
-    assert header_table.rows[13].cells[3].text == ""  # remark (row 13, affected by flat-index bug)
+    assert header_table.rows[13].cells[3].text == "-"  # remark (row 13, affected by flat-index bug); empty -> "-"
     assert header_table.rows[14].cells[-1].text.strip() == "msisdn: 62812"  # data_test (row 14, uses fallback to last cell)
 
     # Step blocks
@@ -470,3 +470,46 @@ def test_data_test_row_lists_msisdn_configuration_then_data_test(tmp_path):
         "SERVICE_ID: 8115579 XTRA Kuota Utama 2GB, 24jam",
         "amount: 50000",
     ]
+
+
+def test_text_defaults_to_the_theme_body_font_aptos(tmp_path):
+    """Everything the builder writes carries no font of its own and takes the
+    document default, which must be the theme's body font (Word: "Aptos
+    (Body)") rather than the template's Times New Roman."""
+    import zipfile
+
+    from docx.oxml.ns import qn
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    output_path = str(tmp_path / "out_font.docx")
+    build_docx(tc, output_path)
+
+    styles = Document(output_path).styles.element
+    fonts = styles.find(f"{qn('w:docDefaults')}/{qn('w:rPrDefault')}/{qn('w:rPr')}/{qn('w:rFonts')}")
+    assert fonts.get(qn("w:asciiTheme")) == "minorHAnsi"
+    assert fonts.get(qn("w:hAnsiTheme")) == "minorHAnsi"
+    # An explicit font name would win over the theme reference.
+    assert fonts.get(qn("w:ascii")) is None and fonts.get(qn("w:hAnsi")) is None
+    assert "Times New Roman" not in styles.xml
+    theme = zipfile.ZipFile(output_path).read("word/theme/theme1.xml").decode("utf-8")
+    assert '<a:minorFont><a:latin typeface="Aptos"' in theme
+
+
+def test_empty_remark_exports_as_a_dash(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    for i, remark in enumerate((None, "", "   ")):
+        tc.remark = remark
+        output_path = str(tmp_path / f"out_remark_{i}.docx")
+        build_docx(tc, output_path)
+        assert Document(output_path).tables[0].rows[13].cells[3].text == "-", repr(remark)
+
+
+def test_remark_is_exported_as_written(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.remark = "Retest after the fix"
+    output_path = str(tmp_path / "out_remark_text.docx")
+    build_docx(tc, output_path)
+    assert Document(output_path).tables[0].rows[13].cells[3].text == "Retest after the fix"

@@ -54,10 +54,37 @@ SCREENSHOT_WIDTH = Cm(18)
 # "Screenshot" rows above it on the same page.
 SCREENSHOT_MAX_HEIGHT = Cm(24)
 
+# The Remark row when the test case has none.
+EMPTY_REMARK = "-"
+
 # numId 1 in the template's numbering.xml is a real Word bullet list
 # (abstractNumId 0, numFmt "bullet"). Reusing it gives native bullets that
 # behave correctly in Word rather than a literal "-" typed into the text.
 BULLET_NUM_ID = 1
+
+
+def _use_theme_body_font(doc: Document) -> None:
+    """Make the theme's body font the document's default font.
+
+    Everything the builder writes (header values, step text, Expected /
+    Actual, Data Test bullets) carries no font of its own, so it takes the
+    document default, and the template sets that to Times New Roman. The
+    template's own labels use the theme's body font instead, which is Aptos
+    in this template and which Word lists as "Aptos (Body)". Pointing the
+    default at that same theme slot, rather than naming "Aptos" outright,
+    makes the filled-in text match the labels.
+    """
+    r_pr = doc.styles.element.find(f"{qn('w:docDefaults')}/{qn('w:rPrDefault')}/{qn('w:rPr')}")
+    fonts = OxmlElement("w:rFonts")
+    fonts.set(qn("w:asciiTheme"), "minorHAnsi")
+    fonts.set(qn("w:eastAsiaTheme"), "minorEastAsia")
+    fonts.set(qn("w:hAnsiTheme"), "minorHAnsi")
+    fonts.set(qn("w:cstheme"), "minorBidi")
+    old = r_pr.find(qn("w:rFonts"))
+    if old is not None:
+        r_pr.remove(old)
+    # rFonts comes first in an rPr (there is no rStyle in the defaults).
+    r_pr.insert(0, fonts)
 
 
 def _unwrap_content_controls(doc: Document) -> None:
@@ -414,6 +441,7 @@ def _insert_screenshots(table: Table, screenshot_paths: list[str]) -> None:
 
 def build_docx(testcase, output_path: str) -> str:
     doc = Document(str(TEMPLATE_PATH))
+    _use_theme_body_font(doc)
     _unwrap_content_controls(doc)
 
     subtask = testcase.subtask
@@ -440,7 +468,7 @@ def build_docx(testcase, output_path: str) -> str:
         "balance_after": _format_rupiah(testcase.balance_after),
         "usage": _format_rupiah(testcase.usage),
         "final_status": testcase.status.label,
-        "remark": testcase.remark,
+        "remark": testcase.remark if testcase.remark and testcase.remark.strip() else EMPTY_REMARK,
         # Data Test lists the MSISDN Configuration lines first, then the
         # Data Test field's own lines — each becomes its own bullet.
         "data_test": "\n".join(v for v in (testcase.msisdn, testcase.data_test) if v and v.strip()),
