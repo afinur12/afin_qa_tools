@@ -205,7 +205,7 @@
       </form>
       {# app.js copies the ticked cases in and asks to confirm before it submits. #}
       <form id="set-status-selected-form" class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/set-status"
-            data-confirm="Set the selected test cases to this status?">
+            data-confirm="Set the selected test cases to this status?" data-confirm-button="Set status">
         <input type="hidden" name="status" value="" data-bulk-status-value>
         <select class="bulk-status" data-bulk-status data-selection-name="testcase_ids"
                 title="Set the status of the selected test cases" aria-label="Set the status of the selected test cases">

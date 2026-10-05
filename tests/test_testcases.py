@@ -256,3 +256,5 @@ def test_subtask_page_offers_bulk_set_status(client, db_session):
     page = client.get(f"/subtasks/{subtask_id}").text
     assert f'action="/subtasks/{subtask_id}/testcases/set-status"' in page
     assert 'data-bulk-status' in page and '<option value="PASS">PASS</option>' in page
+    # its confirm button says what it does, not the dialog's default "Delete"
+    assert 'data-confirm-button="Set status"' in page

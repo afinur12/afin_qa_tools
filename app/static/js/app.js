@@ -26,10 +26,15 @@ function openConfirmDialog(message, form) {
     return;
   }
   dialog.querySelector("[data-confirm-message]").textContent = message;
+  // The OK button reads "Delete" (in red) unless the form names its own
+  // action with data-confirm-button="…" — e.g. "Set status".
+  const ok = dialog.querySelector("[data-confirm-ok]");
+  ok.textContent = form.dataset.confirmButton || "Delete";
+  ok.classList.toggle("danger", !form.dataset.confirmButton);
   pendingConfirmForm = form;
   dialog.hidden = false;
   document.body.style.overflow = "hidden";
-  dialog.querySelector("[data-confirm-ok]").focus();
+  ok.focus();
 }
 
 function closeConfirmDialog() {
