@@ -19,6 +19,7 @@ overwrite the existing value".
 
 import re
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import deletion
@@ -252,6 +253,18 @@ def _resolve(entry: dict, key: str, current):
     return current if _is_placeholder(value) else value
 
 
+def _user_by_jira_username(db: Session, username: str) -> "User | None":
+    """The user holding this Jira username, ignoring case and surrounding
+    spaces. When several do (an earlier name-only import could leave a
+    duplicate named after the username itself, e.g. "ADL.ANDRIF"), the one
+    with a real display name wins, then the oldest."""
+    key = username.strip().lower()
+    matches = db.query(User).filter(func.lower(func.trim(User.jira_username)) == key).all()
+    if not matches:
+        return None
+    return min(matches, key=lambda user: (user.name.strip().lower() == key, user.id))
+
+
 def _resolve_person_id(db: Session, entry: dict, key: str, user_type: "UserType", current_id: int | None) -> int | None:
     if key not in entry:
         return current_id
@@ -259,11 +272,19 @@ def _resolve_person_id(db: Session, entry: dict, key: str, user_type: "UserType"
     if person is None:
         return None  # explicitly cleared — null is not a placeholder
     name = person.get("name") if isinstance(person, dict) else None
+    username = person.get("username") if isinstance(person, dict) else None
+    username = username.strip() if isinstance(username, str) and not _is_placeholder(username) else ""
+    # A known Jira username decides who this is, whatever name came with it:
+    # Jira sometimes sends the username as the display name, and matching on
+    # the name alone then created a second user called e.g. "ADL.ANDRIF".
+    if username:
+        user = _user_by_jira_username(db, username)
+        if user is not None:
+            return user.id
     if not name or _is_placeholder(name):
         return current_id
     user = get_or_create(db, User, name, type=user_type)
-    username = person.get("username") if isinstance(person, dict) else None
-    if user is not None and username and not _is_placeholder(username):
+    if user is not None and username:
         user.jira_username = username
     return user.id if user else current_id
 

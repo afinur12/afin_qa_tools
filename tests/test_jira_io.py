@@ -798,3 +798,67 @@ def test_jira_import_updates_step_text_in_place_keeping_evidence(db_session):
     assert [row[0] for row in after] == [s.id for s in steps]  # same rows, not recreated
     assert after[1][1] == "Do B (edited in Jira)"
     assert after[1][3] == [("data 2", "value 2", "SQL")] and after[1][4] == [True]
+
+
+def _import_person_everywhere(db_session, subtask, person):
+    """Import one test case with `person` as assignee, developer and tester of
+    both the subtask and the test case; returns the test case."""
+    roles = {"assignee": person, "developer": person, "tester": person}
+    data = {"parent_ticket_info": dict(roles), "test_cases": [_base_test_case_entry(**roles)]}
+    apply_jira_json_to_subtask(db_session, subtask, data)
+    db_session.commit()
+    return next(tc for tc in subtask.testcases if tc.display_code == "SND-10055")
+
+
+def test_import_matches_a_person_by_jira_username_before_name(db_session):
+    subtask = _make_subtask(db_session, code="SND-9900")
+    andri = User(name="Andri Firman Nurvianto", type=UserType.TESTER, jira_username="ADL.ANDRIF")
+    db_session.add(andri)
+    db_session.flush()
+    users_before = db_session.query(User).count()
+
+    # Jira sometimes sends the username as the display name.
+    testcase = _import_person_everywhere(db_session, subtask, {"name": "ADL.ANDRIF", "username": " adl.andrif "})
+
+    assert testcase.assignee_id == testcase.developer_id == testcase.tester_id == andri.id
+    assert subtask.assignee_id == subtask.developer_id == subtask.tester_id == andri.id
+    assert db_session.query(User).count() == users_before, "no new user for a known username"
+    assert (andri.name, andri.jira_username) == ("Andri Firman Nurvianto", "ADL.ANDRIF")
+
+
+def test_import_prefers_the_real_user_over_a_duplicate_named_after_the_username(db_session):
+    subtask = _make_subtask(db_session, code="SND-9901")
+    # The duplicate is the older row, so this checks the display-name rule, not the age rule.
+    duplicate = User(name="FRIDAYANAB", type=UserType.DEVELOPER, jira_username="FRIDAYANAB")
+    db_session.add(duplicate)
+    db_session.flush()
+    real = User(name="Fridayana Baabullah", type=UserType.DEVELOPER, jira_username="FRIDAYANAB")
+    db_session.add(real)
+    db_session.flush()
+
+    testcase = _import_person_everywhere(db_session, subtask, {"name": "FRIDAYANAB", "username": "FRIDAYANAB"})
+
+    assert testcase.developer_id == subtask.developer_id == real.id
+
+
+def test_import_without_a_username_still_matches_by_name(db_session):
+    subtask = _make_subtask(db_session, code="SND-9902")
+    nur = User(name="Nur Azizah", type=UserType.TESTER)
+    db_session.add(nur)
+    db_session.flush()
+    users_before = db_session.query(User).count()
+
+    person = {"name": "nur azizah", "username": "{{placeholder_tester_username}}"}
+    testcase = _import_person_everywhere(db_session, subtask, person)
+
+    assert testcase.tester_id == subtask.tester_id == nur.id
+    assert db_session.query(User).count() == users_before
+    assert nur.jira_username is None
+
+
+def test_import_creates_an_unknown_person_with_their_username(db_session):
+    subtask = _make_subtask(db_session, code="SND-9903")
+    testcase = _import_person_everywhere(db_session, subtask, {"name": "New Person", "username": "ADL.NEWP"})
+
+    assert (testcase.tester_user.name, testcase.tester_user.jira_username) == ("New Person", "ADL.NEWP")
+    assert db_session.query(User).filter_by(jira_username="ADL.NEWP").count() == 1
