@@ -43,6 +43,14 @@ BULLET_FIELDS = {"data_test"}
 # Fields written as "<code> - <title>" where the code links to the tracker.
 LINKED_FIELDS = {"project", "scenario"}
 
+# Fields whose value is written in bold.
+BOLD_FIELDS = {"final_status"}
+
+# Final Status wording where the document differs from the app's own label
+# (the template's status choices read Passed / Failed); any other status is
+# written as the app shows it.
+FINAL_STATUS_WORDING = {"PASS": "PASSED", "FAIL": "FAILED"}
+
 # Screenshots are sized to the template's usable content width (A4 minus the
 # 1.27cm margins is 18.46cm, and the step tables are 18.44cm wide), so 18cm
 # fills the block without overflowing the page or the cell.
@@ -57,10 +65,12 @@ SCREENSHOT_MAX_HEIGHT = Cm(24)
 # The Remark row when the test case has none.
 EMPTY_REMARK = "-"
 
-# numId 1 in the template's numbering.xml is a real Word bullet list
-# (abstractNumId 0, numFmt "bullet"). Reusing it gives native bullets that
-# behave correctly in Word rather than a literal "-" typed into the text.
-BULLET_NUM_ID = 1
+# numId 7 in the template's numbering.xml is a real Word bullet list
+# (abstractNumId 3: Word's small square, Wingdings U+F0A7), the one the
+# template's own sample Data Test lines use. Reusing it gives native bullets
+# that behave correctly in Word rather than a literal "-" typed into the
+# text. (numId 1 is the template's round-bullet list.)
+BULLET_NUM_ID = 7
 
 
 def _use_theme_body_font(doc: Document) -> None:
@@ -397,6 +407,10 @@ def _fill_header(doc: Document, fields: dict) -> None:
             _write_linked_cell(target, value.get("code", ""), value.get("title", ""), value.get("url", ""))
             continue
         _write_cell(target, str(value or ""), bullet=field_name in BULLET_FIELDS)
+        if field_name in BOLD_FIELDS:
+            for paragraph in target.paragraphs:
+                for run in paragraph.runs:
+                    run.bold = True
 
 
 def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actual: str) -> None:
@@ -467,7 +481,7 @@ def build_docx(testcase, output_path: str) -> str:
         "balance_before": _format_rupiah(testcase.balance_before),
         "balance_after": _format_rupiah(testcase.balance_after),
         "usage": _format_rupiah(testcase.usage),
-        "final_status": testcase.status.label,
+        "final_status": FINAL_STATUS_WORDING.get(testcase.status.value, testcase.status.label),
         "remark": testcase.remark if testcase.remark and testcase.remark.strip() else EMPTY_REMARK,
         # Data Test lists the MSISDN Configuration lines first, then the
         # Data Test field's own lines — each becomes its own bullet.

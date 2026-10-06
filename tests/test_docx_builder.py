@@ -513,3 +513,51 @@ def test_remark_is_exported_as_written(tmp_path):
     output_path = str(tmp_path / "out_remark_text.docx")
     build_docx(tc, output_path)
     assert Document(output_path).tables[0].rows[13].cells[3].text == "Retest after the fix"
+
+
+def _header_value_runs(path, row):
+    cell = Document(path).tables[0].rows[row].cells[3]
+    return [r for p in cell.paragraphs for r in p.runs if r.text]
+
+
+def test_final_status_is_bold_and_says_passed_or_failed(tmp_path):
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    for value, shown in (("PASS", "PASSED"), ("FAIL", "FAILED"), ("BLOCKED", "BLOCKED"), ("IN_PROGRESS", "IN PROGRESS")):
+        tc.status = _Enum(value)
+        output_path = str(tmp_path / f"out_status_{value}.docx")
+        build_docx(tc, output_path)
+        runs = _header_value_runs(output_path, 12)
+        assert "".join(r.text for r in runs) == shown
+        assert runs and all(r.bold for r in runs), f"{shown} should be bold"
+    # Only Final Status is bold: e.g. Iteration and Remark stay regular.
+    for row in (8, 13):
+        assert not any(r.bold for r in _header_value_runs(output_path, row))
+
+
+def test_data_test_bullets_are_small_squares(tmp_path):
+    """The Data Test lines use the template's own small-square bullet list
+    (Wingdings U+F0A7, Word's standard "small square"), not the round one."""
+    import re
+    import zipfile
+
+    from docx.oxml.ns import qn
+
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a")]
+    tc.data_test = "msisdn: 62812\nSID: 8117369"
+    output_path = str(tmp_path / "out_square.docx")
+    build_docx(tc, output_path)
+
+    cell = Document(output_path).tables[0].rows[14].cells[3]
+    num_ids = {p._p.pPr.numPr.numId.get(qn("w:val")) for p in cell.paragraphs if p.text.strip()}
+    assert len(num_ids) == 1
+    numbering = zipfile.ZipFile(output_path).read("word/numbering.xml").decode("utf-8")
+    abstract_id = re.search(
+        rf'<w:num w:numId="{num_ids.pop()}"[^>]*>\s*<w:abstractNumId w:val="(\d+)"', numbering
+    ).group(1)
+    abstract = re.search(rf'<w:abstractNum [^>]*w:abstractNumId="{abstract_id}".*?</w:abstractNum>', numbering, re.S).group(0)
+    level0 = re.search(r'<w:lvl w:ilvl="0".*?</w:lvl>', abstract, re.S).group(0)
+    assert '<w:numFmt w:val="bullet"/>' in level0
+    assert '<w:lvlText w:val="\uf0a7"/>' in level0
+    assert 'w:ascii="Wingdings"' in level0
