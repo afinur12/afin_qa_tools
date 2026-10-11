@@ -935,15 +935,16 @@ def test_import_keeps_repeated_numbers_together_and_puts_too_high_ones_on_the_la
         zephyr_steps=[{
             "order_id": 2, "step_type": "MAIN TEST",
             "step": "*MAIN TEST*\n----\n- [1] Do A\n- [2] Do B",
-            "data": "- [1] *a*\n----\n{code}1{code}\n\n- [1] *b*\n----\n{code}2{code}\n\n- [5] *c*\n----\n{code}3{code}",
+            "data": "- [1] *q1*\n----\n{code}1{code}\n\n- [1] *q2*\n----\n{code}2{code}\n\n- [5] *q3*\n----\n{code}3{code}",
             "expected_result": "- [1] A\n- [2] B",
         }],
     )
     apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
     db_session.commit()
 
+    # Titles that name no step, so only the numbers decide.
     main = _sections_by_kind(subtask, "SND-10201")["MAIN"]
-    assert [[(d.order_no, d.title) for d in s.data_items] for s in main.steps] == [[(1, "a"), (2, "b")], [(1, "c")]]
+    assert [[(d.order_no, d.title) for d in s.data_items] for s in main.steps] == [[(1, "q1"), (2, "q2")], [(1, "q3")]]
 
 
 def _main_with_data(db_session, testcase, items_per_step):
@@ -984,3 +985,52 @@ def test_export_then_import_keeps_each_steps_own_data(db_session):
 
     main = _sections_by_kind(other, "SND-10203")["MAIN"]
     assert [[(d.title, d.value) for d in s.data_items] for s in main.steps] == [[("a", "1"), ("b", "2")], [], [("c", "3")]]
+
+
+# ── Test Data whose number doesn't fit: placed by the step it names ──────────
+
+def _import_one_section(db_session, code, issue_key, step_lines, data):
+    subtask = _make_subtask(db_session, code=code)
+    numbered = "\n".join(f"- [{i}] {line}" for i, line in enumerate(step_lines, start=1))
+    entry = _base_test_case_entry(
+        issue_key=issue_key,
+        zephyr_steps=[{
+            "order_id": 3, "step_type": "POST CONDITION",
+            "step": f"*POST CONDITION*\n----\n{numbered}",
+            "data": data,
+            "expected_result": "\n".join(f"- [{i}] ok" for i in range(1, len(step_lines) + 1)),
+        }],
+    )
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+    post = _sections_by_kind(subtask, issue_key)["POSTCONDITION"]
+    return [[d.title for d in s.data_items] for s in post.steps]
+
+
+def _item(no, title, value="v"):
+    return f"- [{no}] *{title}*\n----\n{{code}}{value}{{code}}"
+
+
+def test_data_numbered_for_the_wrong_step_goes_to_the_step_its_title_names(db_session):
+    placed = _import_one_section(db_session, "SND-9970", "SND-10210",
+                                 ["check balance after", "check log"], _item(1, "Query check log"))
+    assert placed == [[], ["Query check log"]]
+
+
+def test_data_stays_on_its_numbered_step_when_that_step_matches_its_title(db_session):
+    placed = _import_one_section(db_session, "SND-9971", "SND-10211",
+                                 ["check profile before", "check iccid before"],
+                                 _item(1, "URL profile") + "\n\n" + _item(2, "URL iccid"))
+    assert placed == [["URL profile"], ["URL iccid"]]
+
+
+def test_data_whose_title_names_no_step_keeps_its_number(db_session):
+    placed = _import_one_section(db_session, "SND-9972", "SND-10212",
+                                 ["check balance after", "check log"], _item(2, "Something else"))
+    assert placed == [[], ["Something else"]]
+
+
+def test_data_whose_title_fits_several_other_steps_equally_keeps_its_number(db_session):
+    placed = _import_one_section(db_session, "SND-9973", "SND-10213",
+                                 ["check balance", "check profile via comet", "check iccid via comet"], _item(1, "URL COMET"))
+    assert placed == [["URL COMET"], [], []]

@@ -354,15 +354,50 @@ def _sync_steps_in_place(db: Session, section: "TestCaseSection", rows: list[tup
     return steps
 
 
+# Words that say nothing about which step a Test Data item belongs to.
+_FILLER_WORDS = {
+    "a", "an", "and", "the", "is", "are", "of", "to", "in", "on", "for", "with", "by", "via", "from",
+    "check", "after", "before", "url", "curl", "step", "steps", "data", "test", "value",
+}
+
+
+def _meaningful_words(text: str | None) -> set[str]:
+    return {word for word in re.findall(r"[a-z0-9]+", (text or "").lower()) if word not in _FILLER_WORDS}
+
+
+def _step_named_by(title: str, steps: list["TestCaseStep"], numbered: int) -> int:
+    """Which of `steps` a Test Data item titled `title` belongs to, given
+    the index its "- [n]" number points at. A file written by hand (or by
+    an older export, which numbered items by count) can number an item for
+    the wrong step — "- [1] *URL check order log*" in a section whose
+    "check order log" step is the 3rd — so the title is compared with each
+    step's name: a step matches when all the meaningful words of one appear
+    in the other. The number stands when its step matches, or when no step
+    (or several equally) does; otherwise the step sharing the most words
+    with the title wins."""
+    title_words = _meaningful_words(title)
+    shared = {}
+    for index, step in enumerate(steps):
+        step_words = _meaningful_words(step.step_text)
+        if title_words and step_words and (title_words <= step_words or step_words <= title_words):
+            shared[index] = len(title_words & step_words)
+    if not shared or numbered in shared:
+        return numbered
+    best = max(shared.values())
+    named = [index for index, count in shared.items() if count == best]
+    return named[0] if len(named) == 1 else numbered
+
+
 def _seed_step_data(db: Session, entry: dict, steps: list["TestCaseStep"]) -> None:
     """Fill Test Data from Jira's "data" text only where the app has none
     yet (a test case first created from Jira). Existing items are never
     replaced: they're the per-step source of truth. A missing, placeholder,
     empty or unparseable "data" field adds nothing. Each item goes to the
     step its "- [n]" number names (several with one number keep their file
-    order; a number past the last step goes to the last step) — `language`
-    defaults to "TEXT" and is re-detected client-side the next time an item
-    is edited."""
+    order; a number past the last step goes to the last step) — unless its
+    title names a different step (see _step_named_by). `language` defaults
+    to "TEXT" and is re-detected client-side the next time an item is
+    edited."""
     if not steps or any(step.data_items for step in steps):
         return
     data_text = entry.get("data", "")
@@ -370,7 +405,7 @@ def _seed_step_data(db: Session, entry: dict, steps: list["TestCaseStep"]) -> No
         return
     counts = [0] * len(steps)
     for no, title, value in _parse_data_items(data_text):
-        index = min(max(no, 1), len(steps)) - 1
+        index = _step_named_by(title, steps, min(max(no, 1), len(steps)) - 1)
         counts[index] += 1
         db.add(TestCaseStepData(step_id=steps[index].id, order_no=counts[index], title=title, value=value, language="TEXT"))
 
