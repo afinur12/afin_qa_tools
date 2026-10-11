@@ -38,14 +38,37 @@
 
   // ── tables: cells are contenteditable; the whole grid saves as JSON ────
   let lastCell = null;
+  const L = window.KnowledgeLayout;
   const tableOf = (tableForm) => tableForm.querySelector("table");
+  // Dragged column widths live on <col>s and are all or nothing (see the
+  // table macro): once set, the table is laid out fixed at their total.
+  const DEFAULT_COL_WIDTH = 120;
+  const colsOf = (table) => [...table.querySelectorAll(":scope > colgroup > col")];
+  function newCol(width = DEFAULT_COL_WIDTH) {
+    const col = document.createElement("col");
+    col.style.width = `${width}px`;
+    return col;
+  }
+  function fitWidth(table) {
+    const cols = colsOf(table);
+    table.style.width = cols.length ? `${cols.reduce((sum, col) => sum + parseInt(col.style.width, 10), 0)}px` : "";
+  }
+  function addColumnAtEnd(table) {
+    [...table.rows].forEach((tr) => tr.appendChild(newCell()));
+    table.querySelector(":scope > colgroup")?.appendChild(newCol());
+  }
   function serializeTable(tableForm) {
     const table = tableOf(tableForm);
-    tableForm.querySelector("[data-km-table-value]").value = JSON.stringify({
+    const data = {
       head_row: table.classList.contains("has-head-row"),
       head_col: table.classList.contains("has-head-col"),
       rows: [...table.rows].map((tr) => [...tr.cells].map((td) => td.innerHTML)),
-    });
+    };
+    const cols = colsOf(table);
+    if (cols.length) data.col_widths = cols.map((col) => parseInt(col.style.width, 10) || null);
+    const heights = [...table.rows].map((tr) => parseInt(tr.style.height, 10) || null);
+    if (heights.some(Boolean)) data.row_heights = heights;
+    tableForm.querySelector("[data-km-table-value]").value = JSON.stringify(data);
   }
   // Structural edits fire no native "input" event — announce one so the
   // form's autosave picks them up.
@@ -84,6 +107,16 @@
     tableForm.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-km-tbl]");
       if (!button) return;
+      if (button.dataset.kmTbl === "copy") {
+        copyTable(tableForm, button);
+        return;
+      }
+      if (button.dataset.kmTbl === "title") {
+        const title = tableForm.querySelector("[data-km-table-title]");
+        title.hidden = false;
+        title.focus();
+        return;
+      }
       const table = tableOf(tableForm);
       const rows = [...table.rows];
       const cell = lastCell && table.contains(lastCell) ? lastCell : rows[rows.length - 1].cells[0];
@@ -91,7 +124,12 @@
       const col = cell.cellIndex;
       const action = button.dataset.kmTbl;
       if (action === "row") addRow(table, row).cells[0].focus();
-      else if (action === "col") rows.forEach((tr) => tr.cells[Math.min(col, tr.cells.length - 1)].after(newCell()));
+      else if (action === "col") {
+        rows.forEach((tr) => tr.cells[Math.min(col, tr.cells.length - 1)].after(newCell()));
+        const cols = colsOf(table);
+        cols[Math.min(col, cols.length - 1)]?.after(newCol());
+        fitWidth(table);
+      }
       else if (action === "del-row" && rows.length > 1) {
         // Keep working where you were: the row that takes its place, same column.
         const next = row.nextElementSibling || row.previousElementSibling;
@@ -100,6 +138,8 @@
         lastCell.focus();
       } else if (action === "del-col" && rows[0].cells.length > 1) {
         rows.forEach((tr) => tr.cells[col]?.remove());
+        colsOf(table)[col]?.remove();
+        fitWidth(table);
         lastCell = row.cells[Math.min(col, row.cells.length - 1)];
         lastCell.focus();
       } else {
@@ -130,28 +170,180 @@
         cells[next].focus();
       }
     });
-    // Pasting tab-separated text (from Excel / OneNote) fills cells from the
-    // focused one, adding rows and columns as needed.
+    // Pasting tab-separated text (from Excel / OneNote) or "A | B" lines (a
+    // table copied from a board) fills cells from the focused one, adding
+    // rows and columns as needed.
     tableForm.addEventListener("paste", (event) => {
       // The caret may sit inside formatting (<b>, <a>) within the cell.
       const cell = event.target.closest?.("td");
       if (!cell) return;
       const text = event.clipboardData?.getData("text/plain") || "";
-      if (!text.includes("\t")) return;
+      const grid = text.includes("\t") ? L.tsvToGrid(text) : L.pipeToGrid(text);
+      if (!grid) return;
       event.preventDefault();
       const table = tableOf(tableForm);
-      const grid = window.KnowledgeLayout.tsvToGrid(text);
       const r0 = cell.parentElement.rowIndex;
       const c0 = cell.cellIndex;
       grid.forEach((line, dr) => {
         while (table.rows.length <= r0 + dr) addRow(table);
         line.forEach((value, dc) => {
-          while (table.rows[r0 + dr].cells.length <= c0 + dc) [...table.rows].forEach((tr) => tr.appendChild(newCell()));
+          while (table.rows[r0 + dr].cells.length <= c0 + dc) addColumnAtEnd(table);
           table.rows[r0 + dr].cells[c0 + dc].textContent = value;
         });
       });
+      fitWidth(table);
       tableChanged(tableForm);
     });
+    // An untitled table keeps no room for a title: the Title button shows the
+    // field, and leaving it empty hides it again.
+    tableForm.addEventListener("focusout", (event) => {
+      const title = event.target.closest?.("[data-km-table-title]");
+      if (title && !title.value.trim()) title.hidden = true;
+    });
+    wireTableResize(tableForm);
+  }
+
+  // ── table column / row resize: drag a cell border ─────────────────────
+  // Drag a column's right edge or a row's bottom edge (a cell's left / top
+  // edge counts for the column / row before it). The first column drag fixes
+  // every column at its current width so the others stay put. A row height is
+  // a minimum: the row still grows with its text. Double-click a border to go
+  // back to automatic: all column widths, or that one row's height.
+  const EDGE = 5;
+  const MIN_COL = 40;
+  const MIN_ROW = 20;
+  const DOUBLE_MS = 400;
+  function edgeAt(table, event) {
+    const cell = event.target.closest?.("td");
+    if (!cell || !table.contains(cell)) return null;
+    const box = cell.getBoundingClientRect();
+    const tr = cell.parentElement;
+    if (event.clientX >= box.right - EDGE) return { kind: "col", index: cell.cellIndex };
+    if (event.clientX <= box.left + EDGE && cell.cellIndex > 0) return { kind: "col", index: cell.cellIndex - 1 };
+    if (event.clientY >= box.bottom - EDGE) return { kind: "row", index: tr.rowIndex };
+    if (event.clientY <= box.top + EDGE && tr.rowIndex > 0) return { kind: "row", index: tr.rowIndex - 1 };
+    return null;
+  }
+  function freezeWidths(table) {
+    if (colsOf(table).length) return;
+    const group = document.createElement("colgroup");
+    [...table.rows[0].cells].forEach((td) => group.appendChild(newCol(Math.max(MIN_COL, Math.round(td.getBoundingClientRect().width)))));
+    table.prepend(group);
+    table.classList.add("has-col-widths");
+    fitWidth(table);
+  }
+  function resetSize(table, edge) {
+    if (edge.kind === "col") {
+      table.querySelector(":scope > colgroup")?.remove();
+      table.classList.remove("has-col-widths");
+      fitWidth(table);
+    } else {
+      table.rows[edge.index].style.height = "";
+    }
+  }
+  function wireTableResize(tableForm) {
+    let drag = null;
+    let lastDown = null;
+    const markEdge = (table, edge) => {
+      table.classList.toggle("is-col-edge", edge?.kind === "col");
+      table.classList.toggle("is-row-edge", edge?.kind === "row");
+    };
+    tableForm.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const table = tableOf(tableForm);
+      const edge = edgeAt(table, event);
+      if (!edge) return;
+      event.preventDefault(); // no caret, no text selection
+      const now = Date.now();
+      if (lastDown && lastDown.kind === edge.kind && lastDown.index === edge.index && now - lastDown.at < DOUBLE_MS) {
+        lastDown = null;
+        resetSize(table, edge);
+        tableChanged(tableForm);
+        return;
+      }
+      lastDown = { ...edge, at: now };
+      drag = { ...edge, x: event.clientX, y: event.clientY, started: false };
+      table.setPointerCapture(event.pointerId);
+    });
+    tableForm.addEventListener("pointermove", (event) => {
+      const table = tableOf(tableForm);
+      if (!drag) {
+        markEdge(table, event.buttons ? null : edgeAt(table, event));
+        return;
+      }
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.started) {
+        if (Math.abs(drag.kind === "col" ? dx : dy) < 3) return; // a click, not a drag
+        drag.started = true;
+        lastDown = null; // a drag is never the first half of a double-click
+        if (drag.kind === "col") {
+          freezeWidths(table);
+          drag.target = colsOf(table)[drag.index];
+          drag.start = parseInt(drag.target.style.width, 10);
+        } else {
+          drag.target = table.rows[drag.index];
+          drag.start = drag.target.getBoundingClientRect().height;
+        }
+      }
+      if (drag.kind === "col") {
+        drag.target.style.width = `${Math.max(MIN_COL, Math.round(drag.start + dx))}px`;
+        fitWidth(table);
+      } else {
+        drag.target.style.height = `${Math.max(MIN_ROW, Math.round(drag.start + dy))}px`;
+      }
+    });
+    const endDrag = (event) => {
+      if (!drag) return;
+      const table = tableOf(tableForm);
+      if (table.hasPointerCapture?.(event.pointerId)) table.releasePointerCapture(event.pointerId);
+      const moved = drag.started;
+      drag = null;
+      markEdge(table, null);
+      if (moved) tableChanged(tableForm);
+    };
+    tableForm.addEventListener("pointerup", endDrag);
+    tableForm.addEventListener("pointercancel", endDrag);
+    tableForm.addEventListener("pointerleave", () => {
+      if (!drag) markEdge(tableOf(tableForm), null);
+    });
+  }
+
+  // ── Copy: the table as "A | B" text (and as HTML for Excel / Word) ─────
+  const escapeHtml = (value) => {
+    const holder = document.createElement("div");
+    holder.textContent = value;
+    return holder.innerHTML;
+  };
+  async function copyTable(tableForm, button) {
+    const rows = [...tableOf(tableForm).rows].map((tr) => [...tr.cells].map((td) => td.innerText.replace(/\n+$/, "")));
+    const text = L.gridToPipe(rows);
+    const html = `<table>${rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value).replace(/\n/g, "<br>")}</td>`).join("")}</tr>`).join("")}</table>`;
+    // A copy event carries both formats and works without a secure context.
+    let copied = false;
+    const onCopy = (event) => {
+      event.clipboardData.setData("text/plain", text);
+      event.clipboardData.setData("text/html", html);
+      event.preventDefault();
+      copied = true;
+    };
+    document.addEventListener("copy", onCopy);
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.removeEventListener("copy", onCopy);
+    }
+    if (!copied) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        toast("Couldn't copy the table.", "danger");
+        return;
+      }
+    }
+    button.textContent = "Copied";
+    setTimeout(() => { button.textContent = "Copy"; }, 1200);
   }
 
   const wirers = [["[data-km-text]", wireText], ["[data-km-code]", wireCode], ["[data-km-table-form]", wireTable]];
@@ -159,11 +351,12 @@
     wirers.forEach(([selector, wire]) => scope.querySelectorAll(selector).forEach(wire));
   }
 
-  function insertBlock(board, html) {
+  function insertBlock(board, html, after = null) {
     const holder = document.createElement("div");
     holder.innerHTML = html.trim();
     const block = holder.firstElementChild;
-    board.querySelector("[data-km-blocks]").appendChild(block);
+    if (after) after.after(block);
+    else board.querySelector("[data-km-blocks]").appendChild(block);
     block.querySelectorAll("form[data-autosave]").forEach(wireAutosaveForm);
     wireBlocks(block);
     return block;
@@ -271,7 +464,7 @@
   // Enter in a snippet title or an image caption would submit its form natively (a full page
   // reload); leave the field instead, which flushes the autosave.
   canvas.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && event.target.matches(".km-code input[name='title'], .km-caption")) {
+    if (event.key === "Enter" && event.target.matches(".km-code input[name='title'], .km-caption, [data-km-table-title]")) {
       event.preventDefault();
       event.target.blur();
     }
@@ -330,6 +523,39 @@
     if (!board) return;
     event.preventDefault();
     images.forEach((file) => upload(board, file));
+  });
+
+  // Text that reads as a table ("A | B" lines or a Markdown table) pasted
+  // into a text block becomes a table block right after it, replacing the
+  // text block if that was empty; pasted with a board selected and no field
+  // focused, it goes at the end of that board. A cell fills itself (see
+  // wireTable); code, titles and captions keep plain text.
+  async function addTableFromGrid(board, grid, afterBlock) {
+    const content = JSON.stringify({ head_row: true, head_col: false, rows: grid.map((row) => row.map(escapeHtml)) });
+    const fields = { kind: "table", content };
+    if (afterBlock) fields.after_block_id = afterBlock.dataset.blockId;
+    const response = await post(`/knowledge/boards/${board.dataset.boardId}/blocks`, form(fields));
+    if (!response || !response.ok) return;
+    insertBlock(board, await response.text(), afterBlock);
+    const text = afterBlock?.querySelector("[data-km-text]");
+    if (text && !text.textContent.trim() && !text.querySelector("img")) {
+      const removed = await post(`/knowledge/blocks/${afterBlock.dataset.blockId}/delete`, form({}));
+      if (removed && removed.ok) afterBlock.remove();
+    }
+    toast(`Pasted as a table (${grid.length} row${grid.length === 1 ? "" : "s"}).`);
+  }
+  document.addEventListener("paste", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("td, input, textarea, select")) return;
+    const grid = L.pipeToGrid(event.clipboardData?.getData("text/plain") || "");
+    if (!grid) return;
+    const textBlock = target?.closest(".km-text")?.closest(".km-block") || null;
+    let board = null;
+    if (textBlock) board = textBlock.closest(".km-board");
+    else if (!target?.closest("[contenteditable]")) board = canvas.querySelector(".km-board.is-selected");
+    if (!board) return;
+    event.preventDefault();
+    addTableFromGrid(board, grid, textBlock);
   });
 
   // File drags are accepted anywhere on the canvas, so a drop that misses a

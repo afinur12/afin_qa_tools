@@ -378,7 +378,13 @@ def _next_block_position(board: KnowledgeBoard) -> int:
 
 
 @router.post("/knowledge/boards/{board_id}/blocks")
-def create_block(request: Request, board_id: int, kind: str = Form(...), db: Session = Depends(get_db)):
+def create_block(
+    request: Request, board_id: int, kind: str = Form(...), content: str = Form(""), after_block_id: int = Form(0),
+    db: Session = Depends(get_db),
+):
+    """A new block at the end of the board, or right after `after_block_id`
+    when that block is on this board. A table can start from `content` (a
+    table pasted as "A | B" text); other kinds always start empty."""
     board = db.get(KnowledgeBoard, board_id)
     if board is None:
         return _not_found(request)
@@ -388,10 +394,16 @@ def create_block(request: Request, board_id: int, kind: str = Form(...), db: Ses
         return JSONResponse({"error": f"Unknown block kind {kind!r}."}, status_code=400)
     if block_kind not in CREATABLE_KINDS:
         return JSONResponse({"error": "Images and files are added by uploading."}, status_code=400)
-    block = KnowledgeBlock(
-        board_id=board.id, position=_next_block_position(board), kind=block_kind,
-        content=EMPTY_TABLE_JSON if block_kind == KnowledgeBlockKind.TABLE else "",
-    )
+    initial = ""
+    if block_kind == KnowledgeBlockKind.TABLE:
+        initial = sanitize_table_json(content) if content.strip() else EMPTY_TABLE_JSON
+    block = KnowledgeBlock(board_id=board.id, position=_next_block_position(board), kind=block_kind, content=initial)
+    anchor = next((b for b in board.blocks if b.id == after_block_id), None)
+    if anchor is not None:
+        ordered = sorted(board.blocks, key=lambda b: (b.position, b.id))
+        ordered.insert(ordered.index(anchor) + 1, block)
+        for position, each in enumerate(ordered):
+            each.position = position
     db.add(block)
     _touch(board.page)
     db.commit()
@@ -418,7 +430,7 @@ async def edit_block(request: Request, block_id: int, db: Session = Depends(get_
             block.content = content
         elif kind == KnowledgeBlockKind.IMAGE:
             block.content = content.strip()[:500]
-    if kind == KnowledgeBlockKind.CODE and "title" in data:
+    if kind in (KnowledgeBlockKind.CODE, KnowledgeBlockKind.TABLE) and "title" in data:
         block.title = str(data["title"]).strip()[:300]
     if kind == KnowledgeBlockKind.CODE and "language" in data:
         language = str(data["language"]).strip().upper()

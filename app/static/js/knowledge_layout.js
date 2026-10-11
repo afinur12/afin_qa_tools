@@ -144,7 +144,37 @@
     return lines.map((line) => line.split("\t"));
   }
 
-  const api = { GAP, NEW_BOARD_GAP, MIN_W, MIN_H, SNAP, pushDown, nextBoardY, canvasExtent, bestCut, snapMove, snapResize, tsvToGrid };
+  // A table as "A | B" text, one line per row: what the table's Copy button
+  // writes. A line break inside a cell becomes a space and a "|" is written
+  // as "\|", so pipeToGrid reads it back cell for cell.
+  function gridToPipe(rows) {
+    const cell = (value) => String(value ?? "").replace(/\s*\n\s*/g, " ").trim().replace(/\|/g, "\\|");
+    return rows.map((row) => row.map(cell).join(" | ").trimEnd()).join("\n");
+  }
+
+  // "A | B" text (or a Markdown table) -> rows of cell text, or null when the
+  // text isn't a table: at least two non-empty lines, every one with a "|".
+  // Markdown's outer pipes are dropped only when every line has both, so a
+  // copied row whose first cell is empty ("| x") keeps that cell.
+  function pipeToGrid(text) {
+    const lines = String(text ?? "").replace(/\r/g, "").split("\n").map((line) => line.trim()).filter(Boolean);
+    const split = (line) => line.split(/(?<!\\)\|/);
+    if (lines.length < 2 || !lines.every((line) => split(line).length > 1)) return null;
+    const outer = lines.every((line) => /^\|/.test(line) && /(?<!\\)\|$/.test(line));
+    let rows = lines.map((line) => {
+      const cells = split(outer ? line.slice(1, -1) : line);
+      return cells.map((value) => value.trim().replace(/\\\|/g, "|"));
+    });
+    rows = rows.filter((row) => !row.every((value) => /^:?-+:?$/.test(value)));
+    if (!rows.length) return null;
+    const width = Math.max(...rows.map((row) => row.length));
+    return rows.map((row) => row.concat(Array(width - row.length).fill("")));
+  }
+
+  const api = {
+    GAP, NEW_BOARD_GAP, MIN_W, MIN_H, SNAP, pushDown, nextBoardY, canvasExtent, bestCut, snapMove, snapResize, tsvToGrid,
+    gridToPipe, pipeToGrid,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.KnowledgeLayout = api;
 })(typeof window !== "undefined" ? window : globalThis);

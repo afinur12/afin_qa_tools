@@ -155,3 +155,35 @@ def test_snap_resize_leaves_an_edge_further_than_the_threshold_alone():
 def test_snap_move_draws_one_guide_across_every_board_on_the_line():
     others = [box(1, 100, 20, 300, 100), box(2, 100, 200, 250, 100)]
     assert call("snapMove", moving(103, 500), others)["guides"] == [{"axis": "x", "at": 100, "from": 20, "to": 600}]
+
+
+# ── tables as "A | B" text: copy out, paste back in ─────────────────────────
+
+def test_grid_to_pipe_writes_one_line_per_row():
+    assert call("gridToPipe", [["MSISDN", "STATUS"], ["6281944223954", "ACTIVE"]]) == "MSISDN | STATUS\n6281944223954 | ACTIVE"
+
+
+def test_grid_to_pipe_flattens_line_breaks_and_escapes_pipes():
+    assert call("gridToPipe", [["two\nlines", "a|b"], ["", "x"]]) == "two lines | a\|b\n | x"
+
+
+def test_pipe_to_grid_reads_the_copied_format_back():
+    rows = [["MSISDN", "STATUS"], ["6281944223954", "ACTIVE"], ["", "x"], ["a|b", ""]]
+    assert call("pipeToGrid", call("gridToPipe", rows)) == rows
+
+
+def test_pipe_to_grid_reads_a_markdown_table():
+    text = "| MSISDN | STATUS |\r\n|---|:---:|\r\n| 628 | ACTIVE |\r\n"
+    assert call("pipeToGrid", text) == [["MSISDN", "STATUS"], ["628", "ACTIVE"]]
+
+
+def test_pipe_to_grid_pads_short_rows():
+    assert call("pipeToGrid", "A | B | C\n1 | 2\n\n3") is None
+    assert call("pipeToGrid", "A | B | C\n1 | 2") == [["A", "B", "C"], ["1", "2", ""]]
+
+
+def test_pipe_to_grid_leaves_ordinary_text_alone():
+    assert call("pipeToGrid", "just one | line") is None
+    assert call("pipeToGrid", "Hello\nA | B") is None
+    assert call("pipeToGrid", "no pipes\nat all") is None
+    assert call("pipeToGrid", "") is None

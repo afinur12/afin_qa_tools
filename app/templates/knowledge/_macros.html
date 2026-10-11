@@ -39,7 +39,7 @@
   {% elif blk.kind.value == "CODE" %}{{ code_block(blk, paper) }}
   {% elif blk.kind.value == "IMAGE" %}{{ image_block(blk) }}
   {% elif blk.kind.value == "FILE" %}{{ file_block(blk) }}
-  {% elif blk.kind.value == "TABLE" %}{{ table_block(blk) }}
+  {% elif blk.kind.value == "TABLE" %}{{ table_block(blk, paper) }}
   {% endif %}
 </div>
 {% endmacro %}
@@ -110,21 +110,32 @@
 </div>
 {% endmacro %}
 
-{% macro table_block(blk) %}
+{# Column widths and row heights come from dragging a cell border
+   (knowledge_blocks.js). With widths set the table is laid out fixed at
+   their total, so a column never takes space from its neighbours. #}
+{% macro table_block(blk, paper=False) %}
 {% set t = blk.content | km_table %}
 <form method="post" action="/knowledge/blocks/{{ blk.id }}/edit" data-autosave data-km-table-form>
   <input type="hidden" name="content" value="{{ blk.content | km_table_json }}" data-km-table-value>
   <div class="km-table-tools">
+    <button type="button" data-km-tbl="title" title="Add or edit the table's title">Title</button>
     <button type="button" data-km-tbl="row" title="Add a row below">+ Row</button>
     <button type="button" data-km-tbl="col" title="Add a column to the right">+ Col</button>
     <button type="button" data-km-tbl="del-row" title="Delete this row">&minus; Row</button>
     <button type="button" data-km-tbl="del-col" title="Delete this column">&minus; Col</button>
     <label title="Header row"><input type="checkbox" data-km-tbl="head-row"{% if t.head_row %} checked{% endif %}> Head row</label>
     <label title="Header column"><input type="checkbox" data-km-tbl="head-col"{% if t.head_col %} checked{% endif %}> Head col</label>
+    <button type="button" data-km-tbl="copy" title="Copy the table as text (one row per line, cells split by |)">Copy</button>
   </div>
-  <table class="km-grid{% if t.head_row %} has-head-row{% endif %}{% if t.head_col %} has-head-col{% endif %}">
+  {# The title sits under the tools row (always laid out, shown on hover), right on top of the table. #}
+  {% if paper %}{% if blk.title %}<div class="km-table-title is-static">{{ blk.title }}</div>{% endif %}
+  {% else %}<input class="km-table-title" name="title" value="{{ blk.title or '' }}" placeholder="Table title" aria-label="Table title" autocomplete="off" maxlength="300" data-km-table-title{% if not blk.title %} hidden{% endif %}>
+  {% endif %}
+  <table class="km-grid{% if t.head_row %} has-head-row{% endif %}{% if t.head_col %} has-head-col{% endif %}{% if t.col_widths %} has-col-widths{% endif %}"
+    {%- if t.col_widths %} style="width:{{ t.col_widths | sum }}px"{% endif %}>
+    {% if t.col_widths %}<colgroup>{% for w in t.col_widths %}<col style="width:{{ w }}px">{% endfor %}</colgroup>{% endif %}
     <tbody>
-      {% for row in t.rows %}<tr>{% for cell in row %}<td contenteditable="true">{{ cell | km_cell }}</td>{% endfor %}</tr>{% endfor %}
+      {% for row in t.rows %}{% set h = t.row_heights[loop.index0] if t.row_heights else None %}<tr{% if h %} style="height:{{ h }}px"{% endif %}>{% for cell in row %}<td contenteditable="true">{{ cell | km_cell }}</td>{% endfor %}</tr>{% endfor %}
     </tbody>
   </table>
 </form>
