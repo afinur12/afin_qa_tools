@@ -73,16 +73,17 @@ def _numbered_block(lines: list[str]) -> str:
 
 
 def _bundle_step_data(steps: list["TestCaseStep"]) -> str:
-    """All of a section's steps' Test Data items, flattened into one
-    continuously-numbered block — "- [1] *title*\\r\\n----\\r\\n{code}value
-    {code}", items separated by a blank line. Numbered across every step in
-    the section (not restarted per step) since Jira/Zephyr's own data model
-    has no concept of "which step" a data item belongs to — the same
-    simplification _numbered_block already applies to step/expected_result,
-    just more visible here since a step can hold any number of data items
-    (0, 1, or many) rather than exactly one value."""
-    items = [item for step in steps for item in step.data_items]
-    parts = [f"- [{i}] *{item.title}*\r\n----\r\n{{code}}{item.value}{{code}}" for i, item in enumerate(items, start=1)]
+    """All of a section's steps' Test Data items in one block — "- [n]
+    *title*\\r\\n----\\r\\n{code}value{code}", items separated by a blank
+    line — where n is the number of the step the item belongs to, matching
+    the "- [n]" step lines. A step with several items repeats its number; a
+    step with none is skipped. Import reads the numbers back the same way
+    (_seed_step_data), so each step keeps its own data across a round trip."""
+    parts = [
+        f"- [{no}] *{item.title}*\r\n----\r\n{{code}}{item.value}{{code}}"
+        for no, step in enumerate(steps, start=1)
+        for item in step.data_items
+    ]
     return "\r\n\r\n".join(parts)
 
 
@@ -226,20 +227,30 @@ def _split_numbered_block(text: str) -> list[str]:
 
 
 _DATA_ITEM_RE = re.compile(
-    r"-\s*\[\d+\]\s*\*(?P<title>.*?)\*\s*\r?\n-{2,}\r?\n\{code(?::[^}]*)?\}(?P<value>.*?)\{code\}",
+    r"-\s*\[(?P<no>\d+)\]\s*\*(?P<title>.*?)\*\s*\r?\n-{2,}\r?\n\{code(?::[^}]*)?\}(?P<value>.*?)\{code\}",
     re.DOTALL,
 )
 
 
-def _parse_data_items(data_text: str) -> list[tuple[str, str]]:
+def _parse_data_items(data_text: str) -> list[tuple[int, str, str]]:
     """Reverse of _bundle_step_data: "- [n] *title*\\r\\n----\\r\\n{code}
-    value{code}" -> [(title, value), ...]. Tolerant of hand-edited Jira
-    text: accepts \\n as well as \\r\\n line endings, and a language-suffixed
-    `{code:xml}`-style macro (Jira supports both {code} and {code:lang})
-    even though this app only ever emits the bare form."""
+    value{code}" -> [(n, title, value), ...], n being the step the item
+    belongs to. Tolerant of hand-edited Jira text: accepts \\n as well as
+    \\r\\n line endings, and a language-suffixed `{code:xml}`-style macro
+    (Jira supports both {code} and {code:lang}) even though this app only
+    ever emits the bare form."""
     if not data_text or _is_placeholder(data_text):
         return []
-    return [(m.group("title").strip(), m.group("value")) for m in _DATA_ITEM_RE.finditer(data_text)]
+    return [(int(m.group("no")), m.group("title").strip(), m.group("value")) for m in _DATA_ITEM_RE.finditer(data_text)]
+
+
+def _crlf(value):
+    """Jira text with its line breaks as "\\r\\n", the form the step parsing
+    below expects: this app's export writes "\\r\\n", but a file written by
+    hand or by another tool usually has plain "\\n" — which used to make a
+    whole "*LABEL*" / "----" / "- [1] a" / "- [2] b" section import as a
+    single step."""
+    return re.sub(r"\r\n|\r|\n", "\r\n", value) if isinstance(value, str) else value
 
 
 def _resolve(entry: dict, key: str, current):
@@ -346,19 +357,22 @@ def _sync_steps_in_place(db: Session, section: "TestCaseSection", rows: list[tup
 def _seed_step_data(db: Session, entry: dict, steps: list["TestCaseStep"]) -> None:
     """Fill Test Data from Jira's "data" text only where the app has none
     yet (a test case first created from Jira). Existing items are never
-    replaced: they're the per-step source of truth, while Jira's "data" is
-    a flattened copy with no per-step attribution (see _bundle_step_data),
-    so overwriting from it could only lose or misplace data. A missing,
-    placeholder, empty or unparseable "data" field adds nothing. New items
-    attach to the first of `steps` — `language` defaults to "TEXT" and is
-    re-detected client-side the next time an item is edited."""
+    replaced: they're the per-step source of truth. A missing, placeholder,
+    empty or unparseable "data" field adds nothing. Each item goes to the
+    step its "- [n]" number names (several with one number keep their file
+    order; a number past the last step goes to the last step) — `language`
+    defaults to "TEXT" and is re-detected client-side the next time an item
+    is edited."""
     if not steps or any(step.data_items for step in steps):
         return
     data_text = entry.get("data", "")
     if _is_placeholder(data_text):
         return
-    for i, (title, value) in enumerate(_parse_data_items(data_text), start=1):
-        db.add(TestCaseStepData(step_id=steps[0].id, order_no=i, title=title, value=value, language="TEXT"))
+    counts = [0] * len(steps)
+    for no, title, value in _parse_data_items(data_text):
+        index = min(max(no, 1), len(steps)) - 1
+        counts[index] += 1
+        db.add(TestCaseStepData(step_id=steps[index].id, order_no=counts[index], title=title, value=value, language="TEXT"))
 
 
 def _apply_zephyr_entry(db: Session, section: "TestCaseSection", entry: dict, label: str) -> None:
@@ -433,8 +447,8 @@ def _apply_zephyr_steps_individually(db: Session, section: "TestCaseSection", en
         new_rows.append((step_value, expected_value))
 
     steps = _sync_steps_in_place(db, section, new_rows)
-    # Each entry here is exactly one step, so its "data" belongs to THAT
-    # step (unlike the bundled shape, where it can only go on the first).
+    # Each entry here is exactly one step, so all of its "data" belongs to
+    # THAT step, whatever numbers its items carry.
     for entry, step in zip(entries, steps):
         _seed_step_data(db, entry, [step])
 
@@ -484,7 +498,10 @@ def _apply_testcase_from_jira(db: Session, testcase: "TestCase", entry: dict) ->
             continue
         applied_kinds.add(section.kind)
         label = _SECTION_LABEL[section.kind]
-        matches = [z for z in zephyr_steps if isinstance(z, dict) and z.get("step_type") == label]
+        matches = [
+            {**z, **{key: _crlf(z[key]) for key in ("step", "expected_result") if key in z}}
+            for z in zephyr_steps if isinstance(z, dict) and z.get("step_type") == label
+        ]
         if not matches:
             continue
         if len(matches) == 1 and _is_bundled_entry(matches[0], label):

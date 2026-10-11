@@ -616,7 +616,7 @@ def test_export_then_import_round_trips_data_onto_the_sections_first_step(db_ses
     assert first_step.data_items[0].value == 'SELECT * FROM "x"'
 
 
-def test_import_with_multiple_data_items_attaches_all_to_the_first_step(db_session):
+def test_import_with_multiple_data_items_puts_each_on_its_numbered_step(db_session):
     subtask = _make_subtask(db_session, code="SND-9904")
     testcase = _make_testcase(db_session, subtask, code="SND-10083")
     main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
@@ -644,8 +644,8 @@ def test_import_with_multiple_data_items_attaches_all_to_the_first_step(db_sessi
 
     db_session.refresh(main_section)
     first_step, second_step = main_section.steps
-    assert [item.title for item in first_step.data_items] == ["Query A", "Query B"]
-    assert second_step.data_items == []
+    assert [item.title for item in first_step.data_items] == ["Query A"]
+    assert [item.title for item in second_step.data_items] == ["Query B"]
 
 
 def test_import_preserves_old_data_items_when_data_field_is_a_placeholder(db_session):
@@ -862,3 +862,125 @@ def test_import_creates_an_unknown_person_with_their_username(db_session):
 
     assert (testcase.tester_user.name, testcase.tester_user.jira_username) == ("New Person", "ADL.NEWP")
     assert db_session.query(User).filter_by(jira_username="ADL.NEWP").count() == 1
+
+
+# ── Hand-written Jira files: "\n" line breaks, Test Data numbered by step ──
+
+def _hand_written_entry(issue_key="SND-10200"):
+    """Shaped like a Jira file written by hand (or by another tool): "\n"
+    line breaks instead of this app's "\r\n", "- [n]" steps under a
+    "*LABEL*" / "----" header, and each Test Data item numbered by the step
+    it belongs to."""
+    return _base_test_case_entry(
+        issue_key=issue_key,
+        zephyr_steps=[
+            {
+                "order_id": 1, "step_type": "PRE CONDITION",
+                "step": "*PRE CONDITION*\n----\n- [1] check profile before\n- [2] check iccid before",
+                "data": "- [1] *URL profile*\n----\n{code}https://example.test/profile{code}\n\n"
+                        "- [2] *URL iccid*\n----\n{code}https://example.test/iccid{code}",
+                "expected_result": "- [1] status is ACTIVE\n- [2] ICCID is free",
+            },
+            {
+                "order_id": 2, "step_type": "MAIN TEST",
+                "step": "*MAIN TEST*\n----\n- [1] perform change sim",
+                "data": "- [1] *STEP change sim*\n----\n{code}- Go to menu replacement\n- Input MSISDN{code}",
+                "expected_result": "- [1] success change sim",
+            },
+            {
+                "order_id": 3, "step_type": "POST CONDITION",
+                "step": "*POST CONDITION*\n----\n- [1] check profile after\n- [2] check iccid after\n- [3] check order log",
+                "data": "- [3] *URL order log*\n----\n{code}https://example.test/log{code}",
+                "expected_result": "- [1] msisdn is active\n- [2] iccid updated\n- [3] order log recorded",
+            },
+        ],
+    )
+
+
+def _sections_by_kind(subtask, code):
+    testcase = next(tc for tc in subtask.testcases if tc.display_code == code)
+    return {section.kind.value: section for section in testcase.sections}
+
+
+def test_import_splits_a_section_written_with_plain_newlines_into_its_steps(db_session):
+    subtask = _make_subtask(db_session, code="SND-9960")
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [_hand_written_entry()]})
+    db_session.commit()
+
+    sections = _sections_by_kind(subtask, "SND-10200")
+    rows = {kind: [(s.step_text, s.expected_result) for s in section.steps] for kind, section in sections.items()}
+    assert rows["PRECONDITION"] == [("check profile before", "status is ACTIVE"), ("check iccid before", "ICCID is free")]
+    assert rows["MAIN"] == [("perform change sim", "success change sim")]
+    assert rows["POSTCONDITION"] == [
+        ("check profile after", "msisdn is active"), ("check iccid after", "iccid updated"), ("check order log", "order log recorded"),
+    ]
+
+
+def test_import_puts_each_data_item_on_the_step_its_number_names(db_session):
+    subtask = _make_subtask(db_session, code="SND-9961")
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [_hand_written_entry()]})
+    db_session.commit()
+
+    sections = _sections_by_kind(subtask, "SND-10200")
+    data = {kind: [[(d.title, d.value) for d in s.data_items] for s in section.steps] for kind, section in sections.items()}
+    assert data["PRECONDITION"] == [[("URL profile", "https://example.test/profile")], [("URL iccid", "https://example.test/iccid")]]
+    assert data["MAIN"] == [[("STEP change sim", "- Go to menu replacement\n- Input MSISDN")]]
+    assert data["POSTCONDITION"] == [[], [], [("URL order log", "https://example.test/log")]]
+
+
+def test_import_keeps_repeated_numbers_together_and_puts_too_high_ones_on_the_last_step(db_session):
+    subtask = _make_subtask(db_session, code="SND-9962")
+    entry = _base_test_case_entry(
+        issue_key="SND-10201",
+        zephyr_steps=[{
+            "order_id": 2, "step_type": "MAIN TEST",
+            "step": "*MAIN TEST*\n----\n- [1] Do A\n- [2] Do B",
+            "data": "- [1] *a*\n----\n{code}1{code}\n\n- [1] *b*\n----\n{code}2{code}\n\n- [5] *c*\n----\n{code}3{code}",
+            "expected_result": "- [1] A\n- [2] B",
+        }],
+    )
+    apply_jira_json_to_subtask(db_session, subtask, {"test_cases": [entry]})
+    db_session.commit()
+
+    main = _sections_by_kind(subtask, "SND-10201")["MAIN"]
+    assert [[(d.order_no, d.title) for d in s.data_items] for s in main.steps] == [[(1, "a"), (2, "b")], [(1, "c")]]
+
+
+def _main_with_data(db_session, testcase, items_per_step):
+    from app.models import TestCaseStepData
+
+    main_section = next(s for s in testcase.sections if s.kind.value == "MAIN")
+    for no, items in enumerate(items_per_step, start=1):
+        step = TestCaseStep(section_id=main_section.id, step_no=no, step_text=f"Do {no}", expected_result=f"{no} ok", actual_result="")
+        db_session.add(step)
+        db_session.flush()
+        for order, (title, value) in enumerate(items, start=1):
+            db_session.add(TestCaseStepData(step_id=step.id, order_no=order, title=title, value=value, language="TEXT"))
+    db_session.commit()
+    return main_section
+
+
+def test_export_numbers_each_data_item_by_its_step(db_session):
+    subtask = _make_subtask(db_session, code="SND-9963")
+    testcase = _make_testcase(db_session, subtask, code="SND-10202")
+    _main_with_data(db_session, testcase, [[("a", "1"), ("b", "2")], [("c", "3")]])
+
+    main_entry = next(z for z in dump_testcase_jira(testcase, db_session)["zephyr_steps"] if z["step_type"] == "MAIN TEST")
+    assert main_entry["data"] == (
+        "- [1] *a*\r\n----\r\n{code}1{code}\r\n\r\n"
+        "- [1] *b*\r\n----\r\n{code}2{code}\r\n\r\n"
+        "- [2] *c*\r\n----\r\n{code}3{code}"
+    )
+
+
+def test_export_then_import_keeps_each_steps_own_data(db_session):
+    subtask = _make_subtask(db_session, code="SND-9964")
+    testcase = _make_testcase(db_session, subtask, code="SND-10203")
+    _main_with_data(db_session, testcase, [[("a", "1"), ("b", "2")], [], [("c", "3")]])
+
+    other = _make_subtask(db_session, code="SND-9965")
+    apply_jira_json_to_subtask(db_session, other, subtask_to_jira_json(subtask, db_session))
+    db_session.commit()
+
+    main = _sections_by_kind(other, "SND-10203")["MAIN"]
+    assert [[(d.title, d.value) for d in s.data_items] for s in main.steps] == [[("a", "1"), ("b", "2")], [], [("c", "3")]]
