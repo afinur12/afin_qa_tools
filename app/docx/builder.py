@@ -8,7 +8,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml.ns import qn
-from docx.shared import Cm
+from docx.shared import Cm, Emu
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
@@ -55,12 +55,15 @@ FINAL_STATUS_WORDING = {"PASS": "PASSED", "FAIL": "FAILED"}
 # 1.27cm margins is 18.46cm, and the step tables are 18.44cm wide), so 18cm
 # fills the block without overflowing the page or the cell.
 SCREENSHOT_WIDTH = Cm(18)
-# ...but a tall screenshot (a long response payload) at that width would run
-# over several pages, so anything taller than this is cropped from the
-# bottom, keeping the full width. A4 minus the 1.27cm margins leaves
-# ~27cm; 24cm leaves room for the step block's No/Step, Actual/Expected and
-# "Screenshot" rows above it on the same page.
+# ...but a tall screenshot (a phone screen, a long response payload) at that
+# width would run past the page. Such a screenshot is drawn
+# SCREENSHOT_TALL_WIDTH wide instead, whole, and one still taller than
+# SCREENSHOT_MAX_HEIGHT at that width (a long scrolling capture) is shrunk
+# until it fits that height. Nothing is ever cropped. A4 minus the 1.27cm
+# margins leaves ~27cm; 24cm leaves room for the step block's No/Step,
+# Actual/Expected and "Screenshot" rows above it on the same page.
 SCREENSHOT_MAX_HEIGHT = Cm(24)
+SCREENSHOT_TALL_WIDTH = Cm(7)
 
 # The Remark row when the test case has none.
 EMPTY_REMARK = "-"
@@ -421,20 +424,17 @@ def _fill_step_block(table: Table, step_no, step_text: str, expected: str, actua
 
 
 def _add_screenshot(paragraph, path: str) -> None:
-    """Add the image at SCREENSHOT_WIDTH; if that makes it taller than
-    SCREENSHOT_MAX_HEIGHT, crop the bottom off. The crop is Word's own
-    (<a:srcRect b=...> on the picture's fill, in 1/1000ths of a percent), so
-    the full image is still embedded and can be un-cropped in Word."""
+    """Add the image SCREENSHOT_WIDTH wide or, when that would make it
+    taller than SCREENSHOT_MAX_HEIGHT, SCREENSHOT_TALL_WIDTH wide (narrower
+    still if it doesn't fit that height even then), keeping its proportions:
+    the whole screenshot always shows."""
     shape = paragraph.add_run().add_picture(path, width=SCREENSHOT_WIDTH)
     if shape.height <= SCREENSHOT_MAX_HEIGHT:
         return
-    crop_bottom = round((1 - SCREENSHOT_MAX_HEIGHT / shape.height) * 100000)
-    shape.height = SCREENSHOT_MAX_HEIGHT
-    blip_fill = shape._inline.graphic.graphicData.pic.blipFill
-    src_rect = OxmlElement("a:srcRect")
-    src_rect.set("b", str(crop_bottom))
-    # Schema order inside blipFill is blip, srcRect, stretch/tile.
-    blip_fill.blip.addnext(src_rect)
+    ratio = shape.height / shape.width
+    width = min(SCREENSHOT_TALL_WIDTH, SCREENSHOT_MAX_HEIGHT / ratio)
+    shape.width = Emu(round(width))
+    shape.height = Emu(round(width * ratio))
 
 
 def _insert_screenshots(table: Table, screenshot_paths: list[str]) -> None:

@@ -432,28 +432,45 @@ def test_not_applicable_money_placeholder_is_left_as_is(tmp_path):
     assert Document(output_path).tables[0].rows[11].cells[3].text == "Rp. -"
 
 
-def test_tall_screenshot_keeps_full_width_and_is_cropped_to_one_page(tmp_path):
+def test_tall_screenshots_shrink_to_7cm_wide_and_are_never_cropped(tmp_path):
     from docx.shared import Cm
 
-    tall = tmp_path / "tall.png"
-    tall.write_bytes(_png_bytes(w=100, h=400))  # 18cm wide -> 72cm tall uncropped
+    phone = tmp_path / "phone.png"
+    phone.write_bytes(_png_bytes(w=108, h=240))  # a phone screen: 18cm wide would be 40cm tall
+    scroll = tmp_path / "scroll.png"
+    scroll.write_bytes(_png_bytes(w=100, h=400))  # a long capture: still 28cm tall at 7cm wide
     wide = tmp_path / "wide.png"
     wide.write_bytes(_png_bytes(w=1000, h=500))
     tc, StepSection = _make_testcase([])
-    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a", screenshots=[_Screenshot(str(tall)), _Screenshot(str(wide))])]
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a",
+                      screenshots=[_Screenshot(str(phone)), _Screenshot(str(scroll)), _Screenshot(str(wide))])]
     output_path = str(tmp_path / "out_sizes.docx")
     build_docx(tc, output_path)
 
-    tall_shape, wide_shape = Document(output_path).inline_shapes
-    assert abs(tall_shape.width - Cm(18)) < Cm(0.01)
-    assert abs(tall_shape.height - Cm(24)) < Cm(0.01)
-    ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
-    src_rect = tall_shape._inline.graphic.graphicData.pic.blipFill.find(ns + "srcRect")
-    assert src_rect is not None and src_rect.get("b") == "66667"  # bottom 2/3 cropped
-
+    phone_shape, scroll_shape, wide_shape = Document(output_path).inline_shapes
+    assert abs(phone_shape.width - Cm(7)) < Cm(0.01)
+    assert abs(phone_shape.height - Cm(7 * 240 / 108)) < Cm(0.01)  # 15.6cm: the whole screen
+    assert abs(scroll_shape.height - Cm(24)) < Cm(0.01)  # shrunk further to fit one page
+    assert abs(scroll_shape.width - Cm(6)) < Cm(0.01)
     assert abs(wide_shape.width - Cm(18)) < Cm(0.01)
     assert abs(wide_shape.height - Cm(9)) < Cm(0.01)
-    assert wide_shape._inline.graphic.graphicData.pic.blipFill.find(ns + "srcRect") is None
+    ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+    for shape in (phone_shape, scroll_shape, wide_shape):
+        assert shape._inline.graphic.graphicData.pic.blipFill.find(ns + "srcRect") is None  # nothing cropped
+
+
+def test_a_screenshot_exactly_one_page_tall_at_18cm_stays_18cm_wide(tmp_path):
+    from docx.shared import Cm
+
+    exact = tmp_path / "exact.png"
+    exact.write_bytes(_png_bytes(w=300, h=400))  # 18cm wide -> exactly 24cm tall
+    tc, StepSection = _make_testcase([])
+    tc.steps = [_Step(1, StepSection.MAIN, "step", "e", "a", screenshots=[_Screenshot(str(exact))])]
+    output_path = str(tmp_path / "out_exact.docx")
+    build_docx(tc, output_path)
+
+    (shape,) = Document(output_path).inline_shapes
+    assert abs(shape.width - Cm(18)) < Cm(0.01) and abs(shape.height - Cm(24)) < Cm(0.01)
 
 
 def test_data_test_row_lists_msisdn_configuration_then_data_test(tmp_path):
