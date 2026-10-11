@@ -2800,8 +2800,19 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 /* Copy steps dialog: "One section" can't take a destination without sections. */
 .choice.is-disabled { opacity: .5; cursor: not-allowed; }
 
-/* Subtask page: bulk "Set status" picker in the selection bar. */
-.selection-actions select.bulk-status { width: auto; height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+/* Subtask page: "Edit selected" in the selection bar, and its dialog. */
+.btn.sm.edit-selected { background: var(--indigo-soft); color: var(--indigo-ink); border-color: transparent; }
+.btn.sm.edit-selected:hover { background: #e2e0fb; color: var(--indigo-ink); opacity: 1; }
+#bulk-edit .modal { max-width: 640px; }
+.bulk-edit-intro { margin: -8px 0 16px; color: var(--ink-3); font-size: 12.5px; }
+.bulk-now { display: block; margin-top: 5px; color: var(--ink-3); font-size: 11.5px; }
+.bulk-now b { color: var(--ink-2); font-weight: 650; }
+.bulk-error { display: block; margin-top: 4px; color: var(--fail); font-size: 11.5px; }
+.bulk-error[hidden] { display: none; }
+#bulk-edit .field.is-set select, #bulk-edit .field.is-set input { border-color: var(--lime-deep); box-shadow: 0 0 0 3px var(--lime-soft); }
+.bulk-edit-foot { flex-wrap: wrap; }
+.bulk-summary { flex: 1 0 100%; color: var(--ink-2); font-size: 13px; }
+.bulk-summary b { color: var(--ink); }
 
 /* Labels picker: toggle chips that wrap, so even a long label list stays a
    couple of rows tall. The checkbox inside stays real and focusable — it is

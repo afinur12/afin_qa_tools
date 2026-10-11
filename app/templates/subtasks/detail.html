@@ -196,17 +196,59 @@
         <button class="btn act remove" type="button" data-submit-selected="delete-selected-form" data-selection-name="testcase_ids"
                 title="Delete selected test cases" aria-label="Delete selected test cases">{{ icon_trash() }}</button>
       </form>
-      {# app.js copies the ticked cases in and asks to confirm before it submits. #}
-      <form id="set-status-selected-form" class="inline-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/set-status"
-            data-confirm="Set the selected test cases to this status?" data-confirm-button="Set status">
-        <input type="hidden" name="status" value="" data-bulk-status-value>
-        <select class="bulk-status" data-bulk-status data-selection-name="testcase_ids"
-                title="Set the status of the selected test cases" aria-label="Set the status of the selected test cases">
-          <option value="">Set status&hellip;</option>
-          {% for s in testcase_statuses %}<option value="{{ s.value }}">{{ s.label }}</option>{% endfor %}
-        </select>
-      </form>
+      <button class="btn sm edit-selected" type="button" data-bulk-edit-open
+              title="Set status, assignee, iteration or costs on the selected test cases">{{ icon_pencil() }} Edit selected</button>
     </div>
+    {# Opened by "Edit selected": app.js copies the ticked test cases in, fills
+       each "Now:" hint from their rows and keeps the summary and the Apply
+       button current. A field left on "Keep" (or empty) changes nothing. #}
+    {% call modal('bulk-edit', 'Edit selected test cases', '/subtasks/' ~ subtask.id ~ '/testcases/bulk-edit', wide=True) %}
+      <p class="bulk-edit-intro">Set only what you want to change. Anything left on &ldquo;Keep&rdquo; stays as each test case has it.</p>
+      <div class="grid-2">
+        <div class="field">
+          <label for="bulk-status">Status</label>
+          <select id="bulk-status" name="status" data-bulk-input data-bulk-label="Status">
+            <option value="">Keep</option>
+            {% for s in testcase_statuses %}<option value="{{ s.value }}">{{ s.label }}</option>{% endfor %}
+          </select>
+          <span class="bulk-now" data-bulk-now="status"></span>
+        </div>
+        <div class="field">
+          <label for="bulk-assignee">Assignee</label>
+          <select id="bulk-assignee" name="assignee_id" data-bulk-input data-bulk-label="Assignee">
+            <option value="">Keep</option>
+            <option value="none">&mdash; Nobody &mdash;</option>
+            {% for u in assignees %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+          </select>
+          <span class="bulk-now" data-bulk-now="assignee"></span>
+        </div>
+        <div class="field">
+          <label for="bulk-iteration">Iteration</label>
+          <input id="bulk-iteration" name="iteration" inputmode="numeric" placeholder="Keep" autocomplete="off" data-bulk-input data-bulk-label="Iteration">
+          <span class="bulk-now" data-bulk-now="iteration"></span>
+          <span class="bulk-error" data-bulk-iteration-error hidden>Enter a whole number, 1 or more.</span>
+        </div>
+        <div aria-hidden="true"></div>
+        <div class="field">
+          <label for="bulk-planned">Planned cost</label>
+          <input id="bulk-planned" name="planned_cost" inputmode="numeric" placeholder="Keep" autocomplete="off" maxlength="64" data-bulk-input data-bulk-label="Planned cost">
+          <span class="bulk-now" data-bulk-now="planned"></span>
+        </div>
+        <div class="field">
+          <label for="bulk-actual">Actual cost</label>
+          <input id="bulk-actual" name="actual_cost" inputmode="numeric" placeholder="Keep" autocomplete="off" maxlength="64" data-bulk-input data-bulk-label="Actual cost">
+          <span class="bulk-now" data-bulk-now="actual"></span>
+        </div>
+      </div>
+      {# After the fields, so opening the dialog focuses Status, not these. #}
+      <div data-bulk-edit-ids></div>
+      <div class="form-actions bulk-edit-foot">
+        <span class="bulk-summary" data-bulk-summary aria-live="polite"></span>
+        <div class="spacer"></div>
+        <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+        <button class="btn" type="submit" data-bulk-apply disabled>Apply</button>
+      </div>
+    {% endcall %}
     {% endif %}
     <a class="btn act add" href="/subtasks/{{ subtask.id }}/testcases/new" data-modal-open="new-testcase"
        title="New test case" aria-label="New test case">{{ icon_plus() }}</a>
@@ -261,7 +303,9 @@
           data-sort-test-type="{{ (tc.test_type_ref.name if tc.test_type_ref else '') | lower }}"
           {% set cov = screenshot_coverage.get(tc.id, (0, 0)) %}data-sort-evidence="{{ (cov[1] / cov[0]) if cov[0] else 0.0 }}"
           {% set td = test_data_coverage.get(tc.id, (0, 0, 0, 0)) %}data-sort-test-data="{{ (td[1] / td[0]) if td[0] else (1.0 if td[3] else 0.0) }}"
-          data-sort-title="{{ tc.title }}" data-sort-status="{{ tc.status.label }}">
+          data-sort-title="{{ tc.title }}" data-sort-status="{{ tc.status.label }}"
+          data-bulk-status="{{ tc.status.label }}" data-bulk-assignee="{{ tc.assignee.name if tc.assignee else '' }}"
+          data-bulk-iteration="{{ tc.iteration }}" data-bulk-planned="{{ tc.planned_cost or '' }}" data-bulk-actual="{{ tc.actual_cost or '' }}">
         <td><input type="checkbox" data-selection-name="testcase_ids" value="{{ tc.id }}" aria-label="Select {{ tc.display_code }}"></td>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>
         <td>

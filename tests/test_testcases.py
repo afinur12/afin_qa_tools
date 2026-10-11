@@ -203,7 +203,28 @@ def test_status_can_be_set_to_back_log(client):
     assert "BACK LOG" in client.get(f"/subtasks/{subtask_id}").text
 
 
-def test_set_status_on_selected_test_cases(client, db_session):
+def _bulk_edit(client, subtask_id, ids, **fields):
+    return client.post(
+        f"/subtasks/{subtask_id}/testcases/bulk-edit",
+        data={"testcase_ids": [str(i) for i in ids], **fields}, follow_redirects=False,
+    )
+
+
+def _flash(response):
+    from urllib.parse import unquote
+
+    return unquote(response.cookies.get("flash", "")), response.cookies.get("flash_type", "")
+
+
+def _user(client, db_session, name, kind="TESTER"):
+    import app.models as m
+
+    client.post("/settings/users", data={"name": name, "type": kind})
+    db_session.expire_all()
+    return db_session.query(m.User).filter_by(name=name).one().id
+
+
+def test_bulk_edit_sets_the_status_of_selected_test_cases(client, db_session):
     import app.models as m
 
     subtask_id = _create_execution_subtask(client, "EX-340")
@@ -211,50 +232,116 @@ def test_set_status_on_selected_test_cases(client, db_session):
     tc2 = _add_testcase(client, db_session, subtask_id, "TC-2")
     tc3 = _add_testcase(client, db_session, subtask_id, "TC-3")
 
-    response = client.post(
-        f"/subtasks/{subtask_id}/testcases/set-status",
-        data={"testcase_ids": [str(tc1), str(tc3)], "status": "PASS"}, follow_redirects=False,
-    )
+    response = _bulk_edit(client, subtask_id, [tc1, tc3], status="PASS")
     assert response.status_code == 303
     assert response.headers["location"].rstrip("/") == f"/subtasks/{subtask_id}"
-    assert "Set%202%20test%20cases%20to%20PASS" in response.cookies.get("flash", "")
+    assert _flash(response) == ("Updated 2 test cases: status PASS.", "success")
 
     db_session.expire_all()
     status = {t.id: t.status for t in db_session.query(m.TestCase).filter_by(subtask_id=int(subtask_id))}
     assert status == {tc1: m.TestCaseStatus.PASS, tc2: m.TestCaseStatus.TO_DO, tc3: m.TestCaseStatus.PASS}
 
 
-def test_set_status_ignores_ids_from_another_subtask(client, db_session):
+def test_bulk_edit_sets_assignee_iteration_and_costs_together(client, db_session):
     import app.models as m
 
-    subtask_a = _create_execution_subtask(client, "EX-341")
-    subtask_b = _create_execution_subtask(client, "EX-342")
-    own = _add_testcase(client, db_session, subtask_a, "TC-1")
-    other = _add_testcase(client, db_session, subtask_b, "TC-2")
-    client.post(f"/subtasks/{subtask_a}/testcases/set-status",
-                data={"testcase_ids": [str(own), str(other)], "status": "IN_PROGRESS"})
+    subtask_id = _create_execution_subtask(client, "EX-341")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    tess = _user(client, db_session, "Tess Tester")
+
+    response = _bulk_edit(client, subtask_id, [tc1], assignee_id=str(tess), iteration=" 3 ",
+                          planned_cost="15000", actual_cost="12000")
+    assert _flash(response) == (
+        "Updated 1 test case: assignee Tess Tester, iteration 3, planned cost 15000, actual cost 12000.", "success",
+    )
     db_session.expire_all()
-    assert db_session.get(m.TestCase, own).status == m.TestCaseStatus.IN_PROGRESS
-    assert db_session.get(m.TestCase, other).status == m.TestCaseStatus.TO_DO
+    tc = db_session.get(m.TestCase, tc1)
+    assert (tc.assignee_id, tc.iteration, tc.number_of_iteration, tc.planned_cost, tc.actual_cost) == (tess, "3", 3, "15000", "12000")
+    assert tc.status == m.TestCaseStatus.TO_DO  # left on "keep"
 
 
-def test_set_status_with_an_unknown_status_changes_nothing(client, db_session):
+def test_bulk_edit_leaves_every_field_left_on_keep_alone(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-342")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    tess = _user(client, db_session, "Tess Tester")
+    tc = db_session.get(m.TestCase, tc1)
+    tc.assignee_id, tc.iteration, tc.number_of_iteration, tc.planned_cost, tc.actual_cost = tess, "2", 2, "500", "400"
+    db_session.commit()
+
+    _bulk_edit(client, subtask_id, [tc1], status="FAIL", assignee_id="", iteration="", planned_cost="  ", actual_cost="")
+    db_session.expire_all()
+    tc = db_session.get(m.TestCase, tc1)
+    assert tc.status == m.TestCaseStatus.FAIL
+    assert (tc.assignee_id, tc.iteration, tc.number_of_iteration, tc.planned_cost, tc.actual_cost) == (tess, "2", 2, "500", "400")
+
+
+def test_bulk_edit_can_clear_the_assignee(client, db_session):
     import app.models as m
 
     subtask_id = _create_execution_subtask(client, "EX-343")
     tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
-    response = client.post(f"/subtasks/{subtask_id}/testcases/set-status",
-                           data={"testcase_ids": [str(tc1)], "status": "DONE"}, follow_redirects=False)
-    assert response.status_code == 303
+    tc = db_session.get(m.TestCase, tc1)
+    tc.assignee_id = _user(client, db_session, "Tess Tester")
+    db_session.commit()
+
+    response = _bulk_edit(client, subtask_id, [tc1], assignee_id="none")
+    assert _flash(response) == ("Updated 1 test case: assignee nobody.", "success")
     db_session.expire_all()
-    assert db_session.get(m.TestCase, tc1).status == m.TestCaseStatus.TO_DO
+    assert db_session.get(m.TestCase, tc1).assignee_id is None
 
 
-def test_subtask_page_offers_bulk_set_status(client, db_session):
+def test_bulk_edit_refuses_bad_input_and_changes_nothing(client, db_session):
+    import app.models as m
+
     subtask_id = _create_execution_subtask(client, "EX-344")
-    _add_testcase(client, db_session, subtask_id, "TC-1")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    cases = [
+        ({"status": "PASS", "iteration": "abc"}, "Iteration must be a whole number, 1 or more."),
+        ({"status": "PASS", "iteration": "0"}, "Iteration must be a whole number, 1 or more."),
+        ({"status": "DONE"}, "Pick a valid status."),
+        ({"assignee_id": "999999"}, "That assignee no longer exists."),
+        ({"planned_cost": "x" * 65}, "Costs can be at most 64 characters."),
+        ({}, "Pick at least one thing to change."),
+    ]
+    for fields, message in cases:
+        response = _bulk_edit(client, subtask_id, [tc1], **fields)
+        assert response.status_code == 303
+        assert _flash(response) == (message, "danger"), fields
+    db_session.expire_all()
+    tc = db_session.get(m.TestCase, tc1)
+    assert (tc.status, tc.assignee_id, tc.iteration, tc.planned_cost) == (m.TestCaseStatus.TO_DO, None, "1", None)
+
+
+def test_bulk_edit_ignores_ids_from_another_subtask(client, db_session):
+    import app.models as m
+
+    subtask_a = _create_execution_subtask(client, "EX-345")
+    subtask_b = _create_execution_subtask(client, "EX-346")
+    own = _add_testcase(client, db_session, subtask_a, "TC-1")
+    other = _add_testcase(client, db_session, subtask_b, "TC-2")
+    _bulk_edit(client, subtask_a, [own, other], status="IN_PROGRESS")
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, own).status == m.TestCaseStatus.IN_PROGRESS
+    assert db_session.get(m.TestCase, other).status == m.TestCaseStatus.TO_DO
+    assert _flash(_bulk_edit(client, subtask_a, [other], status="PASS")) == ("No test cases selected.", "danger")
+
+
+def test_subtask_page_offers_edit_selected(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-347")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    tc = db_session.get(m.TestCase, tc1)
+    tc.planned_cost, tc.iteration = "15000", "2"
+    db_session.commit()
+
     page = client.get(f"/subtasks/{subtask_id}").text
-    assert f'action="/subtasks/{subtask_id}/testcases/set-status"' in page
-    assert 'data-bulk-status' in page and '<option value="PASS">PASS</option>' in page
-    # its confirm button says what it does, not the dialog's default "Delete"
-    assert 'data-confirm-button="Set status"' in page
+    assert "data-bulk-edit-open" in page and 'id="bulk-edit"' in page
+    assert f'action="/subtasks/{subtask_id}/testcases/bulk-edit"' in page
+    assert '<option value="PASS">PASS</option>' in page and '<option value="none">' in page
+    # each row carries what the dialog's "Now:" hints summarise
+    assert 'data-bulk-status="TO DO"' in page and 'data-bulk-iteration="2"' in page
+    assert 'data-bulk-planned="15000"' in page and 'data-bulk-assignee=""' in page
+    assert "/testcases/set-status" not in page and "data-bulk-status-value" not in page

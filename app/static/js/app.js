@@ -1121,34 +1121,96 @@ document.addEventListener("click", (event) => {
   else form.submit();
 });
 
-// A <select data-bulk-status data-selection-name="<name>"> sets one value on
-// every ticked item: picking an option copies the ticked checkboxes into its
-// form, names the choice in the confirm message and submits through the
-// confirm dialog. The picker resets either way.
-document.addEventListener("change", (event) => {
-  const picker = event.target.closest("select[data-bulk-status]");
-  if (!picker || !picker.value) return;
-  const value = picker.value;
-  const label = picker.selectedOptions[0].textContent.trim();
-  picker.value = "";
-  const form = picker.form;
-  const name = picker.dataset.selectionName;
-  const checked = document.querySelectorAll(`input[data-selection-name="${name}"]:checked`);
-  if (!form || checked.length === 0) return;
-  form.querySelector("[data-bulk-status-value]").value = value;
-  form.querySelectorAll('input[data-generated="1"]').forEach((el) => el.remove());
-  checked.forEach((cb) => {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = cb.value;
-    input.dataset.generated = "1";
-    form.appendChild(input);
+// "Edit selected" on a subtask page: one dialog sets status, assignee,
+// iteration and costs on every ticked test case. A field left on "Keep" (or
+// empty) changes nothing, the "Now:" hints sum up what the ticked rows have
+// (from their data-bulk-* attributes), and Apply stays off until something
+// would change. The dialog itself is the confirmation.
+(function () {
+  const dialog = document.getElementById("bulk-edit");
+  if (!dialog) return;
+  const form = dialog.querySelector("form");
+  const inputs = [...form.querySelectorAll("[data-bulk-input]")];
+  const summary = form.querySelector("[data-bulk-summary]");
+  const apply = form.querySelector("[data-bulk-apply]");
+  const iterationError = form.querySelector("[data-bulk-iteration-error]");
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const escape = (text) => {
+    const span = document.createElement("span");
+    span.textContent = text;
+    return span.innerHTML;
+  };
+  // hint key -> [row data attribute, what an empty value means]
+  const NOW = {
+    status: ["bulkStatus", "TO DO"], assignee: ["bulkAssignee", "Nobody"], iteration: ["bulkIteration", "1"],
+    planned: ["bulkPlanned", "empty"], actual: ["bulkActual", "empty"],
+  };
+  function nowHint(rows, key) {
+    const [attribute, blank] = NOW[key];
+    const counts = new Map();
+    rows.forEach((row) => {
+      const value = row.dataset[attribute] || blank;
+      counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    if (counts.size === 1) return `Now: <b>${escape([...counts.keys()][0])}</b> on all`;
+    return "Now: " + [...counts].sort((a, b) => b[1] - a[1]).map(([value, n]) => `<b>${escape(value)}</b> ${n}`).join(" &middot; ");
+  }
+  // Costs are Rupiah-formatted when their field is left (see formatRupiah),
+  // the same as on the test case page.
+  const COSTS = ["planned_cost", "actual_cost"];
+  const badIteration = () => {
+    const value = form.elements.iteration.value.trim();
+    return value !== "" && !/^[1-9]\d{0,3}$/.test(value);
+  };
+  function changes() {
+    return inputs
+      .filter((el) => el.value.trim() && !(el.name === "iteration" && badIteration()))
+      .map((el) => {
+        let value = el.value.trim();
+        if (el.tagName === "SELECT") value = el.value === "none" ? "Nobody" : el.selectedOptions[0].textContent.trim();
+        else if (COSTS.includes(el.name)) value = formatRupiah(value); // what leaving the field turns it into
+        return [el.dataset.bulkLabel, value];
+      });
+  }
+  function refresh() {
+    inputs.forEach((el) => el.closest(".field").classList.toggle("is-set", Boolean(el.value.trim())));
+    iterationError.hidden = !badIteration();
+    const list = changes();
+    summary.innerHTML = list.length
+      ? "Will change: " + list.map(([label, value]) => `${escape(label)} &rarr; <b>${escape(value)}</b>`).join(" &middot; ")
+      : '<span class="muted">Nothing to change yet: pick a value in at least one field.</span>';
+    apply.disabled = list.length === 0 || badIteration();
+  }
+  document.addEventListener("click", (event) => {
+    const opener = event.target.closest("[data-bulk-edit-open]");
+    if (!opener) return;
+    const boxes = [...document.querySelectorAll('input[data-selection-name="testcase_ids"]:checked')];
+    if (!boxes.length) return;
+    form.reset();
+    form.querySelector("[data-bulk-edit-ids]").replaceChildren(...boxes.map((box) =>
+      Object.assign(document.createElement("input"), { type: "hidden", name: "testcase_ids", value: box.value })));
+    const rows = boxes.map((box) => box.closest("tr"));
+    Object.keys(NOW).forEach((key) => {
+      form.querySelector(`[data-bulk-now="${key}"]`).innerHTML = nowHint(rows, key);
+    });
+    dialog.querySelector(".modal-title").textContent = `Edit ${plural(boxes.length, "selected test case")}`;
+    apply.textContent = `Apply to ${plural(boxes.length, "test case")}`;
+    refresh();
+    openModal(dialog, opener);
   });
-  form.dataset.confirm = `Set ${checked.length} selected test case${checked.length === 1 ? "" : "s"} to ${label}?`;
-  if (form.requestSubmit) form.requestSubmit();
-  else form.submit();
-});
+  form.addEventListener("input", refresh);
+  form.addEventListener("change", refresh);
+  form.addEventListener("submit", (event) => {
+    if (apply.disabled) {
+      event.preventDefault();
+      return;
+    }
+    // Enter in a cost field submits before the field is left: format it here too.
+    COSTS.forEach((name) => {
+      if (form.elements[name].value.trim()) form.elements[name].value = formatRupiah(form.elements[name].value.trim());
+    });
+  });
+})();
 
 document.querySelectorAll("[data-snippet-code]").forEach((block) => {
   if (!window.hljs) return; // vendored bundle failed to load — plain text is still readable

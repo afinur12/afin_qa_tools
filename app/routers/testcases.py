@@ -12,7 +12,7 @@ from app.flash import redirect_with_flash
 from app.jira_io import apply_jira_json_to_subtask
 from app.templating import templates
 from app.models import (
-    DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep,
+    DEFAULT_SECTION_KINDS, PrebuiltTestCase, Subtask, TestCase, TestCaseSection, TestCaseStatus, TestCaseStep, User,
     generate_internal_key,
 )
 from app import testcase_io
@@ -305,27 +305,78 @@ def delete_selected_testcases(
     return redirect_with_flash(f"/subtasks/{subtask_id}", message, category="danger")
 
 
-@router.post("/subtasks/{subtask_id}/testcases/set-status")
-def set_status_of_selected_testcases(
-    request: Request, subtask_id: int, testcase_ids: list[int] = Form([]), status: str = Form(""),
+# "Edit selected" on the subtask page: an iteration is a whole number (the
+# test case page accepts any text, but a bulk value lands on every case), and
+# costs are kept as typed, within their column's width.
+BULK_ITERATION = re.compile(r"[1-9]\d{0,3}")
+MAX_COST_CHARS = 64
+
+
+@router.post("/subtasks/{subtask_id}/testcases/bulk-edit")
+def bulk_edit_selected_testcases(
+    request: Request, subtask_id: int, testcase_ids: list[int] = Form([]),
+    status: str = Form(""), assignee_id: str = Form(""), iteration: str = Form(""),
+    planned_cost: str = Form(""), actual_cost: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    """Set the same values on every selected test case of this subtask. Each
+    field is optional: left empty it keeps every test case's own value. An
+    assignee of "none" clears it. Nothing changes unless every value given
+    is valid."""
     subtask = db.get(Subtask, subtask_id)
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
     back = f"/subtasks/{subtask_id}"
-    try:
-        new_status = TestCaseStatus(status)
-    except ValueError:
-        return redirect_with_flash(back, "Pick a status to set.", category="danger")
+
+    def refuse(message: str):
+        return redirect_with_flash(back, message, category="danger")
+
+    changes: dict = {}
+    described: list[str] = []
+    if status.strip():
+        try:
+            new_status = TestCaseStatus(status.strip())
+        except ValueError:
+            return refuse("Pick a valid status.")
+        changes["status"] = new_status
+        described.append(f"status {new_status.label}")
+    assignee = assignee_id.strip()
+    if assignee == "none":
+        changes["assignee_id"] = None
+        described.append("assignee nobody")
+    elif assignee:
+        user = db.get(User, int(assignee)) if assignee.isdecimal() else None
+        if user is None:
+            return refuse("That assignee no longer exists.")
+        changes["assignee_id"] = user.id
+        described.append(f"assignee {user.name}")
+    iteration = iteration.strip()
+    if iteration:
+        if not BULK_ITERATION.fullmatch(iteration):
+            return refuse("Iteration must be a whole number, 1 or more.")
+        # Same pair the test case page keeps in step (see update_section1).
+        changes["iteration"] = iteration
+        changes["number_of_iteration"] = int(iteration)
+        described.append(f"iteration {iteration}")
+    for field, label, value in (("planned_cost", "planned cost", planned_cost.strip()),
+                                ("actual_cost", "actual cost", actual_cost.strip())):
+        if value:
+            if len(value) > MAX_COST_CHARS:
+                return refuse(f"Costs can be at most {MAX_COST_CHARS} characters.")
+            changes[field] = value
+            described.append(f"{label} {value}")
+    if not changes:
+        return refuse("Pick at least one thing to change.")
+
     # Only this subtask's own cases — an id from elsewhere is ignored.
     wanted = set(testcase_ids)
     chosen = [tc for tc in subtask.testcases if tc.id in wanted]
     if not chosen:
-        return redirect_with_flash(back, "No test cases selected.", category="danger")
+        return refuse("No test cases selected.")
     for testcase in chosen:
-        testcase.status = new_status
+        for attribute, value in changes.items():
+            setattr(testcase, attribute, value)
     db.commit()
     return redirect_with_flash(
-        back, f"Set {len(chosen)} test case{'' if len(chosen) == 1 else 's'} to {new_status.label}."
+        back, f"Updated {len(chosen)} test case{'' if len(chosen) == 1 else 's'}: {', '.join(described)}."
     )
