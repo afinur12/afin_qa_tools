@@ -133,3 +133,10 @@ def test_content_is_ignored_for_non_table_blocks(client, db_session):
     client.post(f"/knowledge/boards/{board.id}/blocks", data={"kind": "text", "content": "<script>x</script>"}, headers=FETCH)
     db_session.refresh(board)
     assert board.blocks[0].content == ""
+
+
+def test_table_tools_offer_top_or_side_placement(client, db_session):
+    board = _board(db_session)
+    _block(db_session, board, KnowledgeBlockKind.TABLE, _table([["a"]]))
+    html = client.get(f"/knowledge/pages/{board.page_id}").text
+    assert 'data-km-tbl="dock"' in html

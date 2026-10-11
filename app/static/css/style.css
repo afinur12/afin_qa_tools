@@ -2718,16 +2718,22 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-grid a { color: #3a7bd5; }
 .km-grid.has-head-row tr:first-child td { background: var(--surface-sunk); font-weight: 700; }
 .km-grid.has-head-col td:first-child { width: 1%; background: var(--surface-sunk); color: var(--ink-2); font-weight: 600; white-space: nowrap; }
-/* The tools row is always laid out and only shown on hover / while editing:
-   showing it must never change the board's height, or the canvas would push
-   (and save) the boards below. The block's up / down / delete buttons move to
-   its bottom corner so they don't cover the row. */
-.km-table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; font-size: 11.5px; visibility: hidden; }
-.km-block--table:hover .km-table-tools, .km-block--table:focus-within .km-table-tools { visibility: visible; }
+/* The tools float on top of or beside the table (position: fixed, placed by
+   knowledge_blocks.js) and take no room in the board: showing them must never
+   change the board's height, or the canvas would push (and save) the boards
+   below. They show while the table is hovered or being edited; hiding waits a
+   moment so the pointer can cross over to them. The block's up / down /
+   delete buttons sit in its bottom corner. */
+.km-table-tools { position: fixed; z-index: 30; display: flex; align-items: center; gap: 4px; padding: 5px 6px;
+  border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); box-shadow: var(--shadow-pop);
+  font-size: 11.5px; white-space: nowrap; visibility: hidden; transition: visibility 0s linear .4s; }
+.km-block--table:hover .km-table-tools, .km-block--table:focus-within .km-table-tools { visibility: visible; transition-delay: 0s; }
+.km-table-tools.is-side { flex-direction: column; align-items: stretch; }
 .km-block--table > .km-block-tools { top: auto; bottom: -10px; }
 .km-table-tools button { padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink-2); font: inherit; cursor: pointer; }
 .km-table-tools button:hover { color: var(--ink); }
 .km-table-tools label { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: var(--ink-2); }
+.km-table-tools.is-side label { margin: 2px 0 0 2px; }
 .km-links { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .km-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 380px; padding: 4px 6px 4px 10px; border-radius: var(--r-pill); background: var(--indigo-soft); color: var(--indigo-ink); font-size: 12.5px; font-weight: 600; }
 .km-chip a { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: inherit; text-decoration: none; }

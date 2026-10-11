@@ -104,11 +104,26 @@
       tableOf(tableForm).classList.toggle(box.dataset.kmTbl === "head-row" ? "has-head-row" : "has-head-col", box.checked);
       tableChanged(tableForm);
     });
+    // The floating tools never take focus: a cell being edited stays focused
+    // (+ Row / − Col act on it), and the bar hides once the pointer leaves.
+    tableForm.addEventListener("mousedown", (event) => {
+      if (event.target.closest(".km-table-tools")) event.preventDefault();
+    });
     tableForm.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-km-tbl]");
       if (!button) return;
       if (button.dataset.kmTbl === "copy") {
         copyTable(tableForm, button);
+        return;
+      }
+      if (button.dataset.kmTbl === "dock") {
+        toolsBeside = !toolsBeside;
+        try {
+          localStorage.setItem(TOOLS_BESIDE_KEY, toolsBeside ? "1" : "0");
+        } catch {
+          // storage unavailable (private window): the choice lasts this page only
+        }
+        placeTableTools(tableForm.closest(".km-block"));
         return;
       }
       if (button.dataset.kmTbl === "title") {
@@ -202,6 +217,72 @@
     });
     wireTableResize(tableForm);
   }
+
+  // ── table tools: a floating bar on top of or beside the table ────────
+  // The bar is the table's own .km-table-tools (so its buttons keep working
+  // through the form's handlers), fixed-positioned so it takes no room. On
+  // top it sits just above the table, or above the whole board when that
+  // would cover the board's top bar; beside, it sits to the table's right
+  // (left when there's no room). The ⇄ button switches, for every table, and
+  // the browser remembers it.
+  const TOOLS_BESIDE_KEY = "km-table-tools-beside";
+  const TOOLS_GAP = 4;
+  let toolsBeside = false;
+  try {
+    toolsBeside = localStorage.getItem(TOOLS_BESIDE_KEY) === "1";
+  } catch {
+    // storage unavailable: tools start on top
+  }
+  let toolsFor = null;
+  function placeTableTools(block) {
+    const tools = block?.querySelector(".km-table-tools");
+    if (!tools) return;
+    toolsFor = block;
+    tools.classList.toggle("is-side", toolsBeside);
+    const dock = tools.querySelector('[data-km-tbl="dock"]');
+    const label = toolsBeside ? "Move these tools above the table" : "Move these tools beside the table";
+    dock.title = label;
+    dock.setAttribute("aria-label", label);
+    // Beside the table itself (narrower than the board once its columns have
+    // widths, wider when it scrolls), kept to the board's visible width.
+    const table = block.querySelector("table").getBoundingClientRect();
+    const body = block.closest("[data-km-blocks]")?.getBoundingClientRect() || table;
+    const rect = {
+      top: tools.closest("form").getBoundingClientRect().top, // the title, when shown
+      left: Math.max(table.left, body.left),
+      right: Math.min(table.right, body.right),
+    };
+    const width = tools.offsetWidth;
+    const height = tools.offsetHeight;
+    let left;
+    let top;
+    if (toolsBeside) {
+      left = rect.right + TOOLS_GAP;
+      if (left + width > window.innerWidth - 4) left = rect.left - width - TOOLS_GAP;
+      top = rect.top;
+    } else {
+      left = rect.left;
+      top = rect.top - height - TOOLS_GAP;
+      const bar = block.closest(".km-board")?.querySelector("[data-km-board-bar]")?.getBoundingClientRect();
+      if (bar && top < bar.bottom) top = bar.top - height - TOOLS_GAP;
+    }
+    tools.style.left = `${Math.max(4, Math.min(left, window.innerWidth - width - 4))}px`;
+    tools.style.top = `${Math.max(4, Math.min(top, window.innerHeight - height - 4))}px`;
+  }
+  const tableBlockOf = (event) => event.target.closest?.(".km-block--table") || null;
+  canvas.addEventListener("pointerover", (event) => {
+    const block = tableBlockOf(event);
+    if (block) placeTableTools(block); // again on each entry: the table may have changed size
+  });
+  canvas.addEventListener("focusin", (event) => {
+    const block = tableBlockOf(event);
+    if (block) placeTableTools(block);
+  });
+  const replaceTools = () => {
+    if (toolsFor?.isConnected) placeTableTools(toolsFor);
+  };
+  document.addEventListener("scroll", replaceTools, true);
+  window.addEventListener("resize", replaceTools);
 
   // ── table column / row resize: drag a cell border ─────────────────────
   // Drag a column's right edge or a row's bottom edge (a cell's left / top

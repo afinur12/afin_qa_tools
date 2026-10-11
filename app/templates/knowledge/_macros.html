@@ -126,8 +126,9 @@
     <label title="Header row"><input type="checkbox" data-km-tbl="head-row"{% if t.head_row %} checked{% endif %}> Head row</label>
     <label title="Header column"><input type="checkbox" data-km-tbl="head-col"{% if t.head_col %} checked{% endif %}> Head col</label>
     <button type="button" data-km-tbl="copy" title="Copy the table as text (one row per line, cells split by |)">Copy</button>
+    <button type="button" data-km-tbl="dock" title="Move these tools beside the table" aria-label="Move these tools beside the table">&#8644;</button>
   </div>
-  {# The title sits under the tools row (always laid out, shown on hover), right on top of the table. #}
+  {# The tools float (knowledge_blocks.js places them), so the title sits right on top of the table. #}
   {% if paper %}{% if blk.title %}<div class="km-table-title is-static">{{ blk.title }}</div>{% endif %}
   {% else %}<input class="km-table-title" name="title" value="{{ blk.title or '' }}" placeholder="Table title" aria-label="Table title" autocomplete="off" maxlength="300" data-km-table-title{% if not blk.title %} hidden{% endif %}>
   {% endif %}
