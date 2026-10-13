@@ -345,3 +345,55 @@ def test_subtask_page_offers_edit_selected(client, db_session):
     assert 'data-bulk-status="TO DO"' in page and 'data-bulk-iteration="2"' in page
     assert 'data-bulk-planned="15000"' in page and 'data-bulk-assignee=""' in page
     assert "/testcases/set-status" not in page and "data-bulk-status-value" not in page
+
+
+def test_bulk_edit_sets_clears_and_keeps_the_tester(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-348")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    tc2 = _add_testcase(client, db_session, subtask_id, "TC-2")
+    tess = _user(client, db_session, "Tess Tester")
+
+    response = _bulk_edit(client, subtask_id, [tc1, tc2], tester_id=str(tess))
+    assert _flash(response) == ("Updated 2 test cases: tester Tess Tester.", "success")
+    db_session.expire_all()
+    assert [db_session.get(m.TestCase, i).tester_id for i in (tc1, tc2)] == [tess, tess]
+
+    _bulk_edit(client, subtask_id, [tc1, tc2], status="PASS", tester_id="")  # "Keep"
+    db_session.expire_all()
+    assert [db_session.get(m.TestCase, i).tester_id for i in (tc1, tc2)] == [tess, tess]
+
+    response = _bulk_edit(client, subtask_id, [tc1], tester_id="none")
+    assert _flash(response) == ("Updated 1 test case: tester nobody.", "success")
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, tc1).tester_id is None
+    assert db_session.get(m.TestCase, tc2).tester_id == tess
+
+
+def test_bulk_edit_refuses_an_unknown_tester(client, db_session):
+    import app.models as m
+
+    subtask_id = _create_execution_subtask(client, "EX-349")
+    tc1 = _add_testcase(client, db_session, subtask_id, "TC-1")
+    response = _bulk_edit(client, subtask_id, [tc1], status="PASS", tester_id="999999")
+    assert _flash(response) == ("That tester no longer exists.", "danger")
+    db_session.expire_all()
+    assert db_session.get(m.TestCase, tc1).status == m.TestCaseStatus.TO_DO
+
+
+def test_edit_selected_offers_the_testers(client, db_session):
+    subtask_id = _create_execution_subtask(client, "EX-350")
+    _add_testcase(client, db_session, subtask_id, "TC-1")
+    _user(client, db_session, "Tess Tester")
+    _user(client, db_session, "Dev Only", kind="DEVELOPER")
+
+    page = client.get(f"/subtasks/{subtask_id}").text
+    dialog = page.split('id="bulk-edit"')[1].split('class="modal-backdrop"')[0]
+    tester_select = dialog.split('name="tester_id"')[1].split("</select>")[0]
+    assert ">Tess Tester</option>" in tester_select and "Dev Only" not in tester_select
+    assert '<option value="none">' in tester_select
+    assert 'data-bulk-now="tester"' in dialog
+    # "Keep" on Assignee is a choice: picking a tester must not copy into it
+    assert 'name="tester_id" data-bulk-input data-bulk-label="Tester" data-assignee-mirror="off"' in dialog
+    assert 'data-bulk-tester=""' in page

@@ -544,7 +544,9 @@ document.addEventListener(
       event.target.dataset.touched = "1";
       return;
     }
-    if (event.target.matches('select[name="tester_id"]')) {
+    // A Tester select with data-assignee-mirror="off" (Edit selected test
+    // cases, where a blank Assignee means "keep") never copies into Assignee.
+    if (event.target.matches('select[name="tester_id"]') && event.target.dataset.assigneeMirror !== "off") {
       const form = event.target.closest("form");
       const assignee = form?.querySelector('select[name="assignee_id"]');
       if (assignee && !assignee.dataset.touched) assignee.value = event.target.value;
@@ -1142,7 +1144,8 @@ document.addEventListener("click", (event) => {
   };
   // hint key -> [row data attribute, what an empty value means]
   const NOW = {
-    status: ["bulkStatus", "TO DO"], assignee: ["bulkAssignee", "Nobody"], iteration: ["bulkIteration", "1"],
+    status: ["bulkStatus", "TO DO"], assignee: ["bulkAssignee", "Nobody"], tester: ["bulkTester", "Nobody"],
+    iteration: ["bulkIteration", "1"],
     planned: ["bulkPlanned", "empty"], actual: ["bulkActual", "empty"],
   };
   function nowHint(rows, key) {

@@ -214,6 +214,12 @@
           <span class="bulk-now" data-bulk-now="status"></span>
         </div>
         <div class="field">
+          <label for="bulk-iteration">Iteration</label>
+          <input id="bulk-iteration" name="iteration" inputmode="numeric" placeholder="Keep" autocomplete="off" data-bulk-input data-bulk-label="Iteration">
+          <span class="bulk-now" data-bulk-now="iteration"></span>
+          <span class="bulk-error" data-bulk-iteration-error hidden>Enter a whole number, 1 or more.</span>
+        </div>
+        <div class="field">
           <label for="bulk-assignee">Assignee</label>
           <select id="bulk-assignee" name="assignee_id" data-bulk-input data-bulk-label="Assignee">
             <option value="">Keep</option>
@@ -223,12 +229,15 @@
           <span class="bulk-now" data-bulk-now="assignee"></span>
         </div>
         <div class="field">
-          <label for="bulk-iteration">Iteration</label>
-          <input id="bulk-iteration" name="iteration" inputmode="numeric" placeholder="Keep" autocomplete="off" data-bulk-input data-bulk-label="Iteration">
-          <span class="bulk-now" data-bulk-now="iteration"></span>
-          <span class="bulk-error" data-bulk-iteration-error hidden>Enter a whole number, 1 or more.</span>
+          <label for="bulk-tester">Tester</label>
+          {# data-assignee-mirror="off": "Keep" on Assignee is a choice here, not a blank to fill (see app.js). #}
+          <select id="bulk-tester" name="tester_id" data-bulk-input data-bulk-label="Tester" data-assignee-mirror="off">
+            <option value="">Keep</option>
+            <option value="none">&mdash; Nobody &mdash;</option>
+            {% for u in testers %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+          </select>
+          <span class="bulk-now" data-bulk-now="tester"></span>
         </div>
-        <div aria-hidden="true"></div>
         <div class="field">
           <label for="bulk-planned">Planned cost</label>
           <input id="bulk-planned" name="planned_cost" inputmode="numeric" placeholder="Keep" autocomplete="off" maxlength="64" data-bulk-input data-bulk-label="Planned cost">
@@ -305,6 +314,7 @@
           {% set td = test_data_coverage.get(tc.id, (0, 0, 0, 0)) %}data-sort-test-data="{{ (td[1] / td[0]) if td[0] else (1.0 if td[3] else 0.0) }}"
           data-sort-title="{{ tc.title }}" data-sort-status="{{ tc.status.label }}"
           data-bulk-status="{{ tc.status.label }}" data-bulk-assignee="{{ tc.assignee.name if tc.assignee else '' }}"
+          data-bulk-tester="{{ tc.tester_user.name if tc.tester_user else '' }}"
           data-bulk-iteration="{{ tc.iteration }}" data-bulk-planned="{{ tc.planned_cost or '' }}" data-bulk-actual="{{ tc.actual_cost or '' }}">
         <td><input type="checkbox" data-selection-name="testcase_ids" value="{{ tc.id }}" aria-label="Select {{ tc.display_code }}"></td>
         <td><a class="badge code" href="/testcases/{{ tc.id }}/execute">{{ tc.display_code }}</a></td>

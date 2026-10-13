@@ -315,14 +315,14 @@ MAX_COST_CHARS = 64
 @router.post("/subtasks/{subtask_id}/testcases/bulk-edit")
 def bulk_edit_selected_testcases(
     request: Request, subtask_id: int, testcase_ids: list[int] = Form([]),
-    status: str = Form(""), assignee_id: str = Form(""), iteration: str = Form(""),
+    status: str = Form(""), assignee_id: str = Form(""), tester_id: str = Form(""), iteration: str = Form(""),
     planned_cost: str = Form(""), actual_cost: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """Set the same values on every selected test case of this subtask. Each
     field is optional: left empty it keeps every test case's own value. An
-    assignee of "none" clears it. Nothing changes unless every value given
-    is valid."""
+    assignee or tester of "none" clears it. Nothing changes unless every
+    value given is valid."""
     subtask = db.get(Subtask, subtask_id)
     if subtask is None:
         return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
@@ -340,16 +340,17 @@ def bulk_edit_selected_testcases(
             return refuse("Pick a valid status.")
         changes["status"] = new_status
         described.append(f"status {new_status.label}")
-    assignee = assignee_id.strip()
-    if assignee == "none":
-        changes["assignee_id"] = None
-        described.append("assignee nobody")
-    elif assignee:
-        user = db.get(User, int(assignee)) if assignee.isdecimal() else None
-        if user is None:
-            return refuse("That assignee no longer exists.")
-        changes["assignee_id"] = user.id
-        described.append(f"assignee {user.name}")
+    for field, role, raw in (("assignee_id", "assignee", assignee_id), ("tester_id", "tester", tester_id)):
+        person = raw.strip()
+        if person == "none":
+            changes[field] = None
+            described.append(f"{role} nobody")
+        elif person:
+            user = db.get(User, int(person)) if person.isdecimal() else None
+            if user is None:
+                return refuse(f"That {role} no longer exists.")
+            changes[field] = user.id
+            described.append(f"{role} {user.name}")
     iteration = iteration.strip()
     if iteration:
         if not BULK_ITERATION.fullmatch(iteration):
