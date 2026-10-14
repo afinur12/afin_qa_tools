@@ -67,13 +67,9 @@
     // Ellipsis isn't honoured on paper — show chips in full.
     doc.querySelectorAll(".km-chip").forEach((chip) => { chip.style.maxWidth = "none"; });
     doc.querySelectorAll(".km-chip .txt").forEach((t) => { t.style.whiteSpace = "normal"; t.style.overflow = "visible"; });
-    // Nothing may hide inside a scroll area (a scrollbar would eat the last row) —
-    // except in a board whose height was pinned: like on screen it shows what
-    // fits instead of spilling over the boards below it.
+    // Nothing may hide inside a scroll area (a scrollbar would eat the last
+    // row); every board already has room for all of it (growBoardsToContent).
     doc.querySelectorAll(".km-board-body, .km-code .snippet-code").forEach((el) => { el.style.overflow = "visible"; });
-    doc.querySelectorAll(".km-board").forEach((board) => {
-      if (board.style.height) board.querySelector(".km-board-body").style.overflow = "hidden";
-    });
     const wrap = doc.querySelector("[data-km-canvas-wrap]");
     if (wrap) {
       wrap.style.backgroundImage = "none";
@@ -81,7 +77,30 @@
     }
   }
 
+  // On paper every board shows all of its content: a board whose height was
+  // fixed on screen is drawn at the height its content needs, and the boards
+  // below it move down the way they do when a board grows on screen
+  // (KnowledgeLayout.growToContent). This changes only the hidden paper
+  // view the PDF is drawn from.
+  function growBoardsToContent(doc) {
+    const boards = [...doc.querySelectorAll("[data-km-canvas] .km-board")];
+    const boxes = boards.map((board, id) => {
+      const box = { id, x: board.offsetLeft, y: board.offsetTop, w: board.offsetWidth, h: board.offsetHeight };
+      board.style.height = "";
+      board.querySelector(".km-board-body").style.overflow = "visible";
+      return { ...box, full: board.offsetHeight };
+    });
+    L.growToContent(boxes).forEach(({ id, y, h }) => {
+      boards[id].style.top = `${y}px`;
+      boards[id].style.height = `${h}px`;
+    });
+    const canvas = doc.querySelector("[data-km-canvas]");
+    const extent = L.canvasExtent(boards.map((b) => ({ id: 0, x: b.offsetLeft, y: b.offsetTop, w: b.offsetWidth, h: b.offsetHeight })));
+    canvas.style.minHeight = `${extent.height}px`;
+  }
+
   async function renderDocument(doc) {
+    growBoardsToContent(doc);
     // A clone copies the value *attribute*; make it match the field.
     doc.querySelectorAll("input").forEach((input) => input.setAttribute("value", input.value));
     const headElement = doc.querySelector("[data-km-paper-head]");

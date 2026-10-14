@@ -31,6 +31,24 @@
     return items.filter((b) => b.y !== originalY.get(b.id)).map((b) => ({ id: b.id, y: b.y }));
   }
 
+  // PDF export: every board is drawn at its full content height. Each box
+  // carries its on-screen h and its content's `full` height; one that needs
+  // more room (top first) grows and pushes the boards below it as pushDown
+  // does on screen. A fixed height taller than its content stays. Returns
+  // every box as {id, y, h}.
+  function growToContent(boxes) {
+    const items = boxes.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h, full: b.full }));
+    const byId = new Map(items.map((b) => [b.id, b]));
+    const topFirst = [...items].sort((a, b) => a.y - b.y || a.id - b.id).map((b) => b.id);
+    for (const id of topFirst) {
+      const box = byId.get(id);
+      if (!(box.full > box.h)) continue;
+      box.h = box.full;
+      pushDown(items, id).forEach((move) => { byId.get(move.id).y = move.y; });
+    }
+    return items.map(({ id, y, h }) => ({ id, y, h }));
+  }
+
   function nextBoardY(boxes) {
     return boxes.length ? Math.max(...boxes.map((b) => b.y + b.h)) + NEW_BOARD_GAP : 20;
   }
@@ -172,7 +190,7 @@
   }
 
   const api = {
-    GAP, NEW_BOARD_GAP, MIN_W, MIN_H, SNAP, pushDown, nextBoardY, canvasExtent, bestCut, snapMove, snapResize, tsvToGrid,
+    GAP, NEW_BOARD_GAP, MIN_W, MIN_H, SNAP, pushDown, growToContent, nextBoardY, canvasExtent, bestCut, snapMove, snapResize, tsvToGrid,
     gridToPipe, pipeToGrid,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

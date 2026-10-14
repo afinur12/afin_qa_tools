@@ -187,3 +187,37 @@ def test_pipe_to_grid_leaves_ordinary_text_alone():
     assert call("pipeToGrid", "Hello\nA | B") is None
     assert call("pipeToGrid", "no pipes\nat all") is None
     assert call("pipeToGrid", "") is None
+
+
+# ── PDF export: every board at its full content height ──────────────────
+
+def gbox(id, x, y, w, h, full):
+    return {"id": id, "x": x, "y": y, "w": w, "h": h, "full": full}
+
+
+def grown(*boxes):
+    return {b["id"]: (b["y"], b["h"]) for b in call("growToContent", list(boxes))}
+
+
+def test_grow_to_content_pushes_the_board_below():
+    assert grown(gbox(1, 20, 20, 400, 300, 700), gbox(2, 20, 340, 400, 200, 200)) == {1: (20, 700), 2: (740, 200)}
+
+
+def test_grow_to_content_cascades_down_the_column():
+    boxes = [gbox(1, 20, 20, 400, 300, 600), gbox(2, 20, 340, 400, 100, 100), gbox(3, 20, 460, 400, 100, 100)]
+    assert grown(*boxes) == {1: (20, 600), 2: (640, 100), 3: (760, 100)}
+
+
+def test_grow_to_content_leaves_another_column_alone():
+    assert grown(gbox(1, 20, 20, 400, 300, 700), gbox(2, 460, 340, 300, 200, 200)) == {1: (20, 700), 2: (340, 200)}
+
+
+def test_grow_to_content_handles_several_boards_growing_in_one_column():
+    boxes = [gbox(1, 20, 20, 400, 200, 400), gbox(2, 20, 240, 400, 200, 500), gbox(3, 20, 460, 400, 100, 100)]
+    assert grown(*boxes) == {1: (20, 400), 2: (440, 500), 3: (960, 100)}
+
+
+def test_grow_to_content_moves_nothing_when_everything_fits():
+    # A fixed height taller than its content stays as it is on screen.
+    boxes = [gbox(1, 20, 20, 400, 300, 120), gbox(2, 20, 340, 400, 200, 200)]
+    assert grown(*boxes) == {1: (20, 300), 2: (340, 200)}
