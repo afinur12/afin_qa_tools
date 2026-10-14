@@ -231,7 +231,7 @@ def subtask_detail(request: Request, subtask_id: int, db: Session = Depends(get_
     notes = db.query(Note).filter(
         Note.attach_type == NoteAttachType.SUBTASK, Note.attach_id == subtask_id
     ).all()
-    prebuilts = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all()
+    prebuilts = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name, PrebuiltTestCase.created_at.desc(), PrebuiltTestCase.id.desc()).all()
     # A test case is flagged "in Prebuilt" when some prebuilt's name is
     # exactly its title (case-sensitive; surrounding spaces ignored). With
     # several same-named prebuilts the badge links to the oldest one.

@@ -7,6 +7,7 @@ stamp, so an edited stylesheet or script is picked up on an ordinary
 refresh instead of needing a hard reload.
 """
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -45,3 +46,17 @@ def tracker_url(display_code: str) -> str:
 
 
 templates.env.globals["tracker_url"] = tracker_url
+
+
+def local_time(value: datetime | None, fmt: str = "%d %b %Y, %H:%M") -> str:
+    """A stored timestamp in this computer's time. Timestamps the database
+    stamps itself (server_default=func.now()) are UTC with no zone attached;
+    shown as stored they'd be hours off the user's clock."""
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone().strftime(fmt)
+
+
+templates.env.filters["local_time"] = local_time

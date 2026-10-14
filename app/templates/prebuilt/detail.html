@@ -9,6 +9,7 @@
   <div class="page-head-title">
     <h1 class="page-title">{{ prebuilt.name }}</h1>
     {% if prebuilt.description %}<div class="page-sub">{{ prebuilt.description }}</div>{% endif %}
+    <div class="page-sub muted" style="font-size:12.5px;">Created {{ prebuilt.created_at | local_time }}</div>
     {% if prebuilt.service or prebuilt.test_type_ref or prebuilt.simulate_ref or prebuilt.remark %}
     <div class="page-sub" style="margin-top:6px;">
       {% if prebuilt.service %}<span class="badge">{{ prebuilt.service.name }}</span>{% endif %}

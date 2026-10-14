@@ -92,7 +92,7 @@
     <thead><tr>
       <th data-sort-key="name">Name</th><th>Description</th><th data-sort-key="service">Service</th>
       <th data-sort-key="test-type">Test Type</th><th data-sort-key="simulate">Simulate</th>
-      <th data-sort-key="sections">Sections</th><th data-sort-key="steps">Steps</th><th></th>
+      <th data-sort-key="sections">Sections</th><th data-sort-key="steps">Steps</th><th data-sort-key="created">Created</th><th></th>
     </tr></thead>
     <tbody>
       {% for prebuilt in prebuilts %}
@@ -104,7 +104,9 @@
           data-sort-service="{{ (prebuilt.service.name if prebuilt.service else '') | lower }}"
           data-sort-test-type="{{ (prebuilt.test_type_ref.name if prebuilt.test_type_ref else '') | lower }}"
           data-sort-simulate="{{ (prebuilt.simulate_ref.name if prebuilt.simulate_ref else '') | lower }}"
-          data-sort-sections="{{ prebuilt.sections | length }}" data-sort-steps="{{ prebuilt.step_count }}">
+          data-sort-sections="{{ prebuilt.sections | length }}" data-sort-steps="{{ prebuilt.step_count }}"
+          {#- digits only, so the click-to-sort compares it as a number #}
+          data-sort-created="{{ prebuilt.created_at.strftime('%Y%m%d%H%M%S') }}">
         <td><a href="/prebuilt/{{ prebuilt.id }}" style="color:var(--ink); font-weight:500;">{{ prebuilt.name }}</a></td>
         <td class="muted">{{ prebuilt.description or '' }}</td>
         <td>{% if prebuilt.service %}<span class="badge">{{ prebuilt.service.name }}</span>{% endif %}</td>
@@ -112,6 +114,7 @@
         <td>{% if prebuilt.simulate_ref %}<span class="badge">{{ prebuilt.simulate_ref.name }}</span>{% endif %}</td>
         <td class="muted">{{ prebuilt.sections | length }}</td>
         <td class="muted">{{ prebuilt.step_count }}</td>
+        <td class="muted" style="white-space:nowrap;">{{ prebuilt.created_at | local_time }}</td>
         <td style="width:1%; white-space:nowrap;">
           <a class="btn act edit" href="#" data-modal-open="edit-prebuilt-{{ prebuilt.id }}"
              title="Edit template" aria-label="Edit template {{ prebuilt.name }}">{{ icon_pencil() }}</a>
@@ -163,10 +166,10 @@
         </div>
       {% endcall %}
       {% else %}
-      <tr><td colspan="8" class="empty">No templates yet. Create one, or save an existing test case as a template from its page.</td></tr>
+      <tr><td colspan="9" class="empty">No templates yet. Create one, or save an existing test case as a template from its page.</td></tr>
       {% endfor %}
       {% if prebuilts %}
-      <tr data-filter-empty hidden><td colspan="8" class="empty">No templates match your search.</td></tr>
+      <tr data-filter-empty hidden><td colspan="9" class="empty">No templates match your search.</td></tr>
       {% endif %}
     </tbody>
   </table>

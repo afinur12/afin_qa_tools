@@ -39,7 +39,7 @@
       <input type="radio" name="prebuilt_id" value="{{ prebuilt.id }}" data-prebuilt-name="{{ prebuilt.name }}">
       <span><strong>{{ prebuilt.name }}</strong>
         <span class="muted">&mdash; {{ prebuilt.sections | length }} section{{ '' if prebuilt.sections | length == 1 else 's' }},
-        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service %} &middot; {{ prebuilt.service.name }}{% endif %}{% if prebuilt.test_type_ref %} &middot; {{ prebuilt.test_type_ref.name }}{% endif %}{% if prebuilt.simulate_ref %} &middot; {{ prebuilt.simulate_ref.name }}{% endif %}</span>
+        {{ prebuilt.step_count }} step{{ '' if prebuilt.step_count == 1 else 's' }}{% if prebuilt.service %} &middot; {{ prebuilt.service.name }}{% endif %}{% if prebuilt.test_type_ref %} &middot; {{ prebuilt.test_type_ref.name }}{% endif %}{% if prebuilt.simulate_ref %} &middot; {{ prebuilt.simulate_ref.name }}{% endif %} &middot; created {{ prebuilt.created_at | local_time }}</span>
       </span>
     </label>
     <template data-prebuilt-preview="{{ prebuilt.id }}">

@@ -32,7 +32,7 @@ def new_testcase_form(request: Request, subtask_id: int, db: Session = Depends(g
         {
             "testcase": None, "subtask": subtask, "error": None,
             "values": {"display_code": "", "title": ""},
-            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
+            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name, PrebuiltTestCase.created_at.desc(), PrebuiltTestCase.id.desc()).all(),
         },
     )
 
@@ -60,7 +60,7 @@ def create_testcase(
                 "subtask": subtask,
                 "error": f'Code "{display_code}" is already used in this subtask.',
                 "values": {"display_code": display_code, "title": title},
-                "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
+                "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name, PrebuiltTestCase.created_at.desc(), PrebuiltTestCase.id.desc()).all(),
             },
             status_code=422,
         )

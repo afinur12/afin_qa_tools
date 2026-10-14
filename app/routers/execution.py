@@ -42,7 +42,7 @@ def _render_execute(request: Request, testcase: TestCase, db: Session, error: st
             "section_labels": SECTION_LABELS,
             "test_types": db.query(TestType).order_by(TestType.name).all(),
             "test_priorities": db.query(TestPriority).order_by(TestPriority.name).all(),
-            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all(),
+            "prebuilts": db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name, PrebuiltTestCase.created_at.desc(), PrebuiltTestCase.id.desc()).all(),
             "current_label_ids": [l.id for l in get_labels(db, LabelAttachType.TESTCASE, testcase.id)],
             "testcase_labels": get_labels(db, LabelAttachType.TESTCASE, testcase.id),
             "copy_destinations": _copy_destinations(db),

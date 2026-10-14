@@ -46,7 +46,7 @@ def _render_detail(request: Request, prebuilt: PrebuiltTestCase, db: Session, er
 
 @router.get("/prebuilt")
 def list_prebuilt(request: Request, db: Session = Depends(get_db)):
-    items = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name).all()
+    items = db.query(PrebuiltTestCase).order_by(PrebuiltTestCase.name, PrebuiltTestCase.created_at.desc(), PrebuiltTestCase.id.desc()).all()
     return templates.TemplateResponse(
         request,
         "prebuilt/list.html",

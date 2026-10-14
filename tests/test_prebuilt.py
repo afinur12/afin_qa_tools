@@ -265,3 +265,60 @@ def test_save_an_existing_testcase_as_a_prebuilt(client):
     page = client.get(resp.headers["location"]).text
     assert "Reusable flow" in page
     assert "captured step" in page
+
+
+# ── Created date: tells apart templates that share a name ────────────────────
+
+def _set_created(db_session, prebuilt_id, when):
+    import app.models as m
+
+    prebuilt = db_session.get(m.PrebuiltTestCase, int(prebuilt_id))
+    prebuilt.created_at = when
+    db_session.commit()
+
+
+def _local(when):
+    """The database stamps created_at in UTC; pages show this computer's time."""
+    from datetime import timezone
+
+    return when.replace(tzinfo=timezone.utc).astimezone().strftime("%d %b %Y, %H:%M")
+
+
+def test_prebuilt_list_shows_when_each_template_was_created(client, db_session):
+    from datetime import datetime
+
+    prebuilt_id = _make_prebuilt(client, "Dated template")
+    when = datetime(2026, 10, 6, 8, 22, 54)
+    _set_created(db_session, prebuilt_id, when)
+
+    page = client.get("/prebuilt").text
+    assert '<th data-sort-key="created">Created</th>' in page
+    assert 'data-sort-created="20261006082254"' in page
+    assert f">{_local(when)}</td>" in page
+
+
+def test_prebuilt_page_shows_its_created_date(client, db_session):
+    from datetime import datetime
+
+    prebuilt_id = _make_prebuilt(client, "Dated template")
+    when = datetime(2026, 10, 6, 8, 22, 54)
+    _set_created(db_session, prebuilt_id, when)
+    assert f"Created {_local(when)}" in client.get(f"/prebuilt/{prebuilt_id}").text
+
+
+def test_same_named_templates_are_listed_newest_first_with_their_dates(client, db_session):
+    from datetime import datetime
+
+    older = _make_prebuilt(client, "Twin template")
+    newer = _make_prebuilt(client, "Twin template")
+    _set_created(db_session, older, datetime(2026, 10, 1, 1, 0))
+    _set_created(db_session, newer, datetime(2026, 10, 5, 2, 30))
+
+    listing = client.get("/prebuilt").text
+    assert listing.index(f'href="/prebuilt/{newer}"') < listing.index(f'href="/prebuilt/{older}"')
+
+    subtask_id = _make_subtask(client, "EX-860")
+    picker = client.get(f"/subtasks/{subtask_id}").text
+    assert picker.index(f'name="prebuilt_id" value="{newer}"') < picker.index(f'name="prebuilt_id" value="{older}"')
+    assert f"created {_local(datetime(2026, 10, 5, 2, 30))}" in picker
+    assert f"created {_local(datetime(2026, 10, 1, 1, 0))}" in picker
