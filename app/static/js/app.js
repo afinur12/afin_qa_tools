@@ -1435,12 +1435,13 @@ function openSlideshow(startSrc) {
 
 // Clicking a screenshot thumbnail opens the same slideshow as the "View
 // Images" toolbar button, scrolled straight to that image instead of
-// always starting at the first one.
-document.querySelectorAll("[data-shot-view]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const img = button.querySelector("img");
-    openSlideshow(img ? img.src : undefined);
-  });
+// always starting at the first one. Delegated, so a thumbnail added after
+// the page loaded (a pasted screenshot) works without a refresh.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-shot-view]");
+  if (!button) return;
+  const img = button.querySelector("img");
+  openSlideshow(img ? img.src : undefined);
 });
 
 function closeSlideshow() {

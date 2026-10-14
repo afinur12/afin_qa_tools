@@ -6,28 +6,29 @@
 // than one image only ever saved the first. The thumbnail is now inserted
 // straight into the page, so nothing scrolls and every pasted image is kept.
 
+// The icon_eye(16) and icon_trash(13) macros (macros.html).
+const EYE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const TRASH_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+// Same markup as a thumbnail the page was rendered with (testcases/execute.html),
+// so a pasted screenshot looks and behaves the same straight away: click it to
+// view it, trash icon to remove it.
 function thumbnailFor(screenshot, stepNumber) {
   const wrapper = document.createElement("div");
   wrapper.className = "shot";
-
-  const image = document.createElement("img");
+  wrapper.innerHTML = `
+    <button type="button" class="shot-view" data-shot-view>
+      <img>
+      <span class="shot-view-overlay" aria-hidden="true">${EYE_ICON}</span>
+    </button>
+    <form method="post" style="margin-top:5px;">
+      <button class="btn act remove" type="submit" style="width:100%;" title="Remove screenshot" aria-label="Remove screenshot">${TRASH_ICON}</button>
+    </form>`;
+  wrapper.querySelector("[data-shot-view]").setAttribute("aria-label", `View screenshot for step ${stepNumber}`);
+  const image = wrapper.querySelector("img");
   image.src = screenshot.url;
   image.alt = `Screenshot for step ${stepNumber}`;
-  wrapper.appendChild(image);
-
-  const form = document.createElement("form");
-  form.method = "post";
-  form.action = `/screenshots/${screenshot.id}/delete`;
-  form.style.marginTop = "5px";
-
-  const button = document.createElement("button");
-  button.className = "btn danger sm";
-  button.type = "submit";
-  button.style.cssText = "width:100%; padding:3px 6px; font-size:11px;";
-  button.textContent = "Remove";
-
-  form.appendChild(button);
-  wrapper.appendChild(form);
+  wrapper.querySelector("form").action = `/screenshots/${screenshot.id}/delete`;
   return wrapper;
 }
 
