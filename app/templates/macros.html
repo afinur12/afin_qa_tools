@@ -5,7 +5,7 @@
    standalone form page with its inline error, which also serves as the
    no-JS fallback: the "+ New ..." trigger keeps a real href.
 #}
-{% macro modal(id, title, action, hint=None, wide=False, enctype=None, method='post', confirm=None) %}
+{% macro modal(id, title, action, hint=None, wide=False, enctype=None, method='post', confirm=None, download=None) %}
 <div class="modal-backdrop" id="{{ id }}" data-modal hidden>
   <div class="modal{% if wide %} modal--wide{% endif %}" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title">
     <div class="modal-head">
@@ -23,7 +23,10 @@
     </div>
     {% endif %}
 
-    <form method="{{ method }}" action="{{ action }}"{% if enctype %} enctype="{{ enctype }}"{% endif %}{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+    {# A file upload shows its progress (progress.js); `download` makes the
+       form's result a tracked download instead of a page. #}
+    <form method="{{ method }}" action="{{ action }}"{% if enctype %} enctype="{{ enctype }}"{% endif %}{% if confirm %} data-confirm="{{ confirm }}"{% endif %}
+          {%- if enctype == 'multipart/form-data' %} data-progress-upload{% endif %}{% if download %} data-download="{{ download }}"{% endif %}>
       {{ caller() }}
     </form>
   </div>

@@ -38,16 +38,16 @@
       <button class="btn act remove" type="submit" title="Delete test case" aria-label="Delete test case">{{ icon_trash() }}</button>
     </form>
     {% if has_images %}
-    <a class="btn act export" href="/testcases/{{ testcase.id }}/export-images"
+    <a class="btn act export" href="/testcases/{{ testcase.id }}/export-images" data-download="Images · {{ testcase.display_code }}"
        title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
     {% endif %}
-    <a class="btn act docx" href="/testcases/{{ testcase.id }}/export-docx"
+    <a class="btn act docx" href="/testcases/{{ testcase.id }}/export-docx" data-download="Word document · {{ testcase.display_code }}"
        title="Export .docx" aria-label="Export as Word document">{{ icon_doc() }}</a>
     <a class="btn act edit" href="#" data-modal-open="export-testcase-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
   </div>
 </div>
 
-{% call modal('export-testcase-json', 'Export Test Case as JSON', '/testcases/' ~ testcase.id ~ '/export-json', method='get') %}
+{% call modal('export-testcase-json', 'Export Test Case as JSON', '/testcases/' ~ testcase.id ~ '/export-json', method='get', download='JSON · ' ~ testcase.display_code) %}
   <label class="choice">
     <input type="checkbox" name="include_screenshots" value="1">
     <span>Include screenshots (embedded, larger file)</span>

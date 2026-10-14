@@ -45,10 +45,10 @@
   <a class="btn act edit" href="#" data-modal-open="export-task-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
   {% if ns.has_testcases %}
   {% if ns.has_images %}
-  <a class="btn act export" href="/stories/{{ story.id }}/export-images"
+  <a class="btn act export" href="/stories/{{ story.id }}/export-images" data-download="Images · {{ story.display_code }}"
      title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
   {% endif %}
-  <a class="btn act docx" href="/stories/{{ story.id }}/export-docx"
+  <a class="btn act docx" href="/stories/{{ story.id }}/export-docx" data-download="Word documents · {{ story.display_code }}"
      title="Download all docx (.zip)" aria-label="Download all docx as a zip">{{ icon_doc() }}</a>
   {% endif %}
 </div>
@@ -103,7 +103,7 @@
   </div>
 {% endcall %}
 
-{% call modal('export-task-json', 'Export Task as JSON', '/stories/' ~ story.id ~ '/export-json', method='get') %}
+{% call modal('export-task-json', 'Export Task as JSON', '/stories/' ~ story.id ~ '/export-json', method='get', download='JSON · ' ~ story.display_code) %}
   <label class="choice">
     <input type="checkbox" name="include_screenshots" value="1">
     <span>Include screenshots (embedded, larger file)</span>

@@ -106,7 +106,7 @@
     <div class="km-file-name">{{ name }}</div>
     <div class="km-file-meta">{{ blk.file_size | km_size }}</div>
   </div>
-  <a class="btn secondary sm" href="/knowledge/blocks/{{ blk.id }}/download">Download</a>
+  <a class="btn secondary sm" href="/knowledge/blocks/{{ blk.id }}/download" data-download="{{ name }}">Download</a>
 </div>
 {% endmacro %}
 

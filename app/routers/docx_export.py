@@ -54,6 +54,17 @@ def _content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
 
 
+def _zip_response(buffer: io.BytesIO, filename: str) -> StreamingResponse:
+    """A finished in-memory zip as a download. Content-Length lets the
+    browser show how far a download has got (the progress tray)."""
+    size = buffer.getbuffer().nbytes
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer, media_type="application/zip",
+        headers={"Content-Disposition": _content_disposition(filename), "Content-Length": str(size)},
+    )
+
+
 def _write_testcase_docx(archive: zipfile.ZipFile, testcase: TestCase, prefix: str = "") -> None:
     """Builds one test case's docx and writes it into the zip under `prefix`."""
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -124,11 +135,7 @@ def export_images(request: Request, testcase_id: int, db: Session = Depends(get_
 
     buffer.seek(0)
     filename = f"{_testcase_basename(testcase)}.zip"
-    return StreamingResponse(
-        buffer,
-        media_type="application/zip",
-        headers={"Content-Disposition": _content_disposition(filename)},
-    )
+    return _zip_response(buffer, filename)
 
 
 @router.get("/subtasks/{subtask_id}/export-docx")
@@ -145,9 +152,7 @@ def export_subtask_docx(request: Request, subtask_id: int, db: Session = Depends
 
     buffer.seek(0)
     filename = f"{_safe_filename(subtask.display_code)} - all docx.zip"
-    return StreamingResponse(
-        buffer, media_type="application/zip", headers={"Content-Disposition": _content_disposition(filename)}
-    )
+    return _zip_response(buffer, filename)
 
 
 @router.get("/subtasks/{subtask_id}/export-images")
@@ -166,9 +171,7 @@ def export_subtask_images(request: Request, subtask_id: int, db: Session = Depen
 
     buffer.seek(0)
     filename = f"{_safe_filename(subtask.display_code)} - all images.zip"
-    return StreamingResponse(
-        buffer, media_type="application/zip", headers={"Content-Disposition": _content_disposition(filename)}
-    )
+    return _zip_response(buffer, filename)
 
 
 @router.get("/stories/{story_id}/export-docx")
@@ -190,9 +193,7 @@ def export_story_docx(request: Request, story_id: int, db: Session = Depends(get
 
     buffer.seek(0)
     filename = f"{_safe_filename(story.display_code)} - all docx.zip"
-    return StreamingResponse(
-        buffer, media_type="application/zip", headers={"Content-Disposition": _content_disposition(filename)}
-    )
+    return _zip_response(buffer, filename)
 
 
 @router.get("/stories/{story_id}/export-images")
@@ -217,9 +218,7 @@ def export_story_images(request: Request, story_id: int, db: Session = Depends(g
 
     buffer.seek(0)
     filename = f"{_safe_filename(story.display_code)} - all images.zip"
-    return StreamingResponse(
-        buffer, media_type="application/zip", headers={"Content-Disposition": _content_disposition(filename)}
-    )
+    return _zip_response(buffer, filename)
 
 
 # ── JSON export (see app/testcase_io.py for the shared schema + the import

@@ -4,6 +4,7 @@ import time
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import deletion
@@ -177,10 +178,25 @@ async def import_testcases_preview(request: Request, subtask_id: int, file: Uplo
         return redirect_with_flash(f"/subtasks/{subtask_id}", str(exc), category="danger")
     if not candidates:
         return redirect_with_flash(f"/subtasks/{subtask_id}", "That file has no test cases to import.", category="danger")
+    # Post / redirect / get: the preview gets its own address, so a page that
+    # uploaded the file in the background (showing its progress) just opens
+    # it, and a refresh shows the preview again instead of re-posting.
+    token = _stash_candidates(candidates)
+    return RedirectResponse(f"/subtasks/{subtask_id}/testcases/import-preview/{token}", status_code=303)
+
+
+@router.get("/subtasks/{subtask_id}/testcases/import-preview/{token}")
+def show_import_preview(request: Request, subtask_id: int, token: str, db: Session = Depends(get_db)):
+    subtask = db.get(Subtask, subtask_id)
+    if subtask is None:
+        return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
+    candidates = _load_stashed_candidates(token)
+    if candidates is None:
+        return redirect_with_flash(
+            f"/subtasks/{subtask_id}", "That import preview has expired. Upload the file again.", category="danger"
+        )
     return templates.TemplateResponse(
-        request,
-        "testcases/import_preview.html",
-        {"subtask": subtask, "rows": candidates, "token": _stash_candidates(candidates)},
+        request, "testcases/import_preview.html", {"subtask": subtask, "rows": candidates, "token": token},
     )
 
 

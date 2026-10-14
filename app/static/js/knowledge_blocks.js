@@ -566,15 +566,43 @@
       return;
     }
     const body = new FormData();
-    body.append("file", file, file.name || "pasted-image.png");
-    const response = await post(`/knowledge/boards/${board.dataset.boardId}/upload`, body);
-    if (!response) return;
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      toast(data.error || "Upload failed.", "danger");
+    const name = file.name || "pasted-image.png";
+    body.append("file", file, name);
+    // A card in the progress tray (progress.js): the upload's percentage,
+    // then "Saving" while the server stores it.
+    const P = window.Progress;
+    const controller = new AbortController();
+    const card = P.job(`Uploading ${name}`, { icon: "up", onCancel: () => controller.abort() });
+    P.begin();
+    let result;
+    try {
+      result = await P.upload(`/knowledge/boards/${board.dataset.boardId}/upload`, body, {
+        headers: { "X-Requested-With": "fetch" },
+        signal: controller.signal,
+        onProgress(loaded, total) {
+          if (P.percent(loaded, total) < 100) card.bytes("Uploading", loaded, total);
+          else card.working("Saving");
+        },
+      });
+    } catch (error) {
+      if (error.name === "AbortError") card.cancelled();
+      else card.failed("Couldn't upload. Check that the app is still running, then try again.");
+      return;
+    } finally {
+      P.end();
+    }
+    if (result.status >= 400) {
+      let message = "Upload failed.";
+      try {
+        message = JSON.parse(result.text).error || message;
+      } catch {
+        // not a JSON error: keep the generic message
+      }
+      card.failed(message);
       return;
     }
-    const block = insertBlock(board, await response.text());
+    card.done(`Added to ${board.querySelector("[data-km-board-title]")?.value || "the board"}`);
+    const block = insertBlock(board, result.text);
     // A PNG is swapped for its compressed copy a moment after upload; a
     // fetch caught mid-swap fails, so a new image gets one more try.
     const img = block.querySelector(".km-image img");

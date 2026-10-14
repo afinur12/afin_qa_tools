@@ -2865,3 +2865,54 @@ body.km-has-fullscreen .toast, body.km-has-maximized .toast { z-index: 2000; }
 .km-grid.has-col-widths td { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .km-grid.is-col-edge, .km-grid.is-col-edge td { cursor: col-resize; }
 .km-grid.is-row-edge, .km-grid.is-row-edge td { cursor: row-resize; }
+
+/* ── Loading and progress (progress.js) ──────────────────────────────────
+   One bar everywhere: a real percentage where the browser can measure it,
+   a sweeping "working" stripe while the server does its part. */
+.pbar { position: relative; height: 6px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
+.pbar > i { position: absolute; top: 0; bottom: 0; left: 0; width: 0; border-radius: inherit; background: var(--indigo); transition: width .25s ease; }
+.pbar.is-working > i { width: 35%; animation: pbar-sweep 1.15s ease-in-out infinite; }
+.pbar.is-done > i { width: 100%; background: var(--pass); }
+.pbar.is-failed > i { width: 100%; background: var(--fail); }
+@keyframes pbar-sweep { from { left: -35%; } to { left: 100%; } }
+/* Thin bar along the top of the page while anything is running. */
+.progress-topbar { position: fixed; left: 0; right: 0; top: 0; height: 3px; z-index: 2147483600; overflow: hidden; pointer-events: none; }
+.progress-topbar > i { position: absolute; top: 0; bottom: 0; width: 30%; background: var(--lime-deep); animation: pbar-sweep 1.3s ease-in-out infinite; }
+.spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; flex: none; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.is-busy { cursor: progress; }
+a.is-busy { pointer-events: none; opacity: .75; }
+/* Import dialogs: upload, then "Importing… 0:04". */
+.upload-progress { display: grid; gap: 6px; margin: 2px 0 8px; }
+.upload-progress-line { display: flex; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
+.upload-progress-line .num { margin-left: auto; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Downloads: one card each, bottom right. */
+.progress-tray { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 2147483500; width: min(360px, calc(100vw - 32px)); display: grid; gap: 10px; }
+.progress-tray:empty { display: none; }
+.progress-job { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 12px 14px; display: grid; gap: 8px; }
+.progress-job-head { display: flex; align-items: center; gap: 10px; }
+.progress-job-icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--indigo-soft); color: var(--indigo-ink); flex: none; }
+.progress-job.is-done .progress-job-icon { background: var(--pass-bg); color: var(--pass); }
+.progress-job.is-failed .progress-job-icon { background: var(--fail-bg); color: var(--fail); }
+.progress-job-text { flex: 1; min-width: 0; }
+.progress-job-title { color: var(--ink); font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.progress-job-sub { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.progress-job-x { width: 26px; height: 26px; flex: none; border: 0; border-radius: 50%; background: transparent; color: var(--ink-3); font-size: 17px; line-height: 1; cursor: pointer; }
+.progress-job-x:hover { background: var(--surface-sunk); color: var(--ink); }
+/* A pasted screenshot while it uploads: shown at once, filling up. */
+.shot.is-uploading .shot-view, .shot.is-failed .shot-view { cursor: default; }
+.shot-progress { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 5px; padding: 0 9px; border-radius: 8px; background: rgba(15, 15, 18, .5); color: #fff; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shot-progress .pbar { width: 100%; height: 5px; background: rgba(255, 255, 255, .25); }
+.shot-progress .pbar > i { background: var(--lime); }
+.shot.is-failed .shot-progress { background: rgba(120, 24, 18, .72); }
+.shot.is-failed .shot-progress .pbar { display: none; }
+.shot .btn.act.retry { width: 100%; background: var(--indigo-soft); color: var(--indigo-ink); font-size: 12px; font-weight: 650; }
+@media (prefers-reduced-motion: reduce) { .pbar.is-working > i, .progress-topbar > i, .spin { animation-duration: 3s; } }
+
+/* Knowledge PDF export: one segment per page of a section. */
+.km-export-progress { margin: 4px 0 2px; }
+.km-export-progress.is-segments { display: flex; gap: 4px; }
+.km-export-progress.is-segments > span { flex: 1; height: 6px; border-radius: 3px; background: var(--line); transition: background .2s ease; }
+.km-export-progress.is-segments > span.is-done { background: var(--indigo); }
+.km-export-progress.is-segments.is-done > span { background: var(--pass); }
+.km-export-progress.is-segments.is-failed > span:not(.is-done) { background: var(--fail-bg); }

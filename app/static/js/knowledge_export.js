@@ -11,6 +11,28 @@
   const L = window.KnowledgeLayout;
   const status = dialog.querySelector("[data-km-export-status]");
   const runButton = dialog.querySelector("[data-km-export-run]");
+  // Progress (progress.js): one segment per page of a section, filled as each
+  // page is rendered; a single moving bar for one page.
+  const progressBox = dialog.querySelector("[data-km-export-progress]");
+  function showProgress(pageCount) {
+    progressBox.hidden = false;
+    progressBox.className = "km-export-progress";
+    progressBox.innerHTML = "";
+    if (pageCount) {
+      progressBox.classList.add("is-segments");
+      for (let i = 0; i < pageCount; i++) progressBox.appendChild(document.createElement("span"));
+    } else {
+      const bar = window.Progress.makeBar();
+      window.Progress.setBar(bar, "working");
+      progressBox.appendChild(bar);
+    }
+  }
+  const markPageDone = (i) => progressBox.children[i]?.classList.add("is-done");
+  function finishProgress(ok) {
+    const bar = progressBox.querySelector(".pbar");
+    if (bar) window.Progress.setBar(bar, ok ? "done" : "failed");
+    else progressBox.classList.add(ok ? "is-done" : "is-failed");
+  }
   const DEFAULT_STATUS = "Exact layout as on screen, on white paper (A4). Text is part of the picture, so it isn't selectable.";
   // Width of the hidden paper view: the page head and the boards share one
   // scale, and a page with one small board isn't blown up to the sheet width.
@@ -28,6 +50,7 @@
     dialog.querySelector(`input[name="km_export_scope"][value="${hasPage ? scope : "section"}"]`).checked = true;
     dialog.querySelector("[data-km-export-section-name]").textContent = sectionName;
     status.textContent = DEFAULT_STATUS;
+    progressBox.hidden = true;
     window.KnowledgeCanvas?.leaveOverlays();
     openModal(dialog, trigger);
   }
@@ -210,7 +233,8 @@
     const size = landscape ? [842, 595] : [595, 842];
     const job = { ...target }; // reopening the dialog for another section mid-run can't relabel this one
     const textWidth = size[0] - 56;
-    runButton.disabled = true;
+    window.Progress.busyButton(runButton, "Exporting…");
+    window.Progress.begin();
     cancelled = false;
     try {
       const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
@@ -223,6 +247,7 @@
         const page = document.querySelector("[data-km-page]");
         const title = document.querySelector("input.km-title")?.value || "Untitled page";
         status.textContent = `Rendering "${title}"…`;
+        showProgress(0);
         const used = await addPaperPage(pdf, page.dataset.kmPage, size);
         for (let i = 0; i < used; i++) labels.push(title);
         fileName = `${job.sectionName} - ${title}.pdf`;
@@ -230,6 +255,7 @@
         const response = await fetch(`/knowledge/sections/${job.sectionId}/pages.json`);
         if (!response.ok) throw new Error("the section no longer exists");
         const pages = await response.json();
+        showProgress(pages.length);
         let cover = pdf.addPage(size);
         labels.push("Contents");
         const sectionTitle = pdfText(job.sectionName);
@@ -252,11 +278,13 @@
           status.textContent = `Rendering page ${i + 1} of ${pages.length}: "${pages[i].title}"…`;
           const used = await addPaperPage(pdf, pages[i].id, size);
           for (let k = 0; k < used; k++) labels.push(pages[i].title);
+          markPageDone(i);
         }
         fileName = `${job.sectionName}.pdf`;
       }
       if (cancelled) {
         status.textContent = "Export cancelled.";
+        finishProgress(false);
         return;
       }
       pdf.getPages().forEach((sheet, i) => sheet.drawText(
@@ -272,10 +300,13 @@
       link.remove();
       setTimeout(() => URL.revokeObjectURL(link.href), 60000);
       status.textContent = `Downloaded "${link.download}" — ${labels.length} PDF page${labels.length === 1 ? "" : "s"}.`;
+      finishProgress(true);
     } catch (error) {
       status.textContent = `Export failed: ${error.message || error}`;
+      finishProgress(false);
     } finally {
-      runButton.disabled = false;
+      window.Progress.freeButton(runButton);
+      window.Progress.end();
     }
   });
 })();

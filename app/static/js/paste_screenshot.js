@@ -42,12 +42,76 @@ function shotsContainer(zone) {
   return shots;
 }
 
-function setHint(zone, text) {
-  const hint = zone.querySelector(".dropzone-hint");
-  if (hint) hint.textContent = text;
+// A pasted image shows at once as a tile that fills up while it uploads
+// (window.Progress, progress.js), says "Saving…" while the server stores it,
+// then becomes the real thumbnail. A failed upload keeps its tile with a
+// Retry button.
+function pendingTile(file, stepNumber) {
+  const tile = document.createElement("div");
+  tile.className = "shot is-uploading";
+  tile.innerHTML = `
+    <div class="shot-view">
+      <img>
+      <div class="shot-progress" aria-live="polite"><span>0%</span></div>
+    </div>
+    <div style="margin-top:5px;">
+      <button class="btn act remove" type="button" style="width:100%;" disabled></button>
+    </div>`;
+  const image = tile.querySelector("img");
+  image.src = URL.createObjectURL(file);
+  image.alt = `Screenshot for step ${stepNumber}, uploading`;
+  tile.querySelector(".shot-progress").appendChild(window.Progress.makeBar());
+  return tile;
 }
 
-const DEFAULT_HINT = "Click here, then press Ctrl+V to paste a screenshot.";
+async function uploadTile(tile, file, uploadUrl, stepNumber) {
+  const P = window.Progress;
+  const label = tile.querySelector(".shot-progress span");
+  const bar = tile.querySelector(".shot-progress .pbar");
+  const button = tile.querySelector("button");
+  tile.className = "shot is-uploading";
+  label.textContent = "0%";
+  P.setBar(bar, 0);
+  button.className = "btn act remove";
+  button.disabled = true;
+  button.innerHTML = '<span class="spin" aria-hidden="true"></span>';
+  button.title = "Uploading…";
+  button.setAttribute("aria-label", "Uploading");
+  button.onclick = null;
+
+  const formData = new FormData();
+  formData.append("file", file, `pasted.${(file.type.split("/")[1] || "png")}`);
+  P.begin();
+  try {
+    const result = await P.upload(uploadUrl, formData, {
+      accept: "application/json",
+      onProgress(loaded, total) {
+        const pct = P.percent(loaded, total);
+        if (pct !== null && pct < 100) {
+          label.textContent = `${pct}%`;
+          P.setBar(bar, pct);
+        } else {
+          label.textContent = "Saving…";
+          P.setBar(bar, "working");
+        }
+      },
+    });
+    if (result.status !== 200) throw new Error(String(result.status));
+    URL.revokeObjectURL(tile.querySelector("img").src);
+    tile.replaceWith(thumbnailFor(JSON.parse(result.text), stepNumber));
+  } catch {
+    tile.className = "shot is-failed";
+    label.textContent = "Upload failed";
+    button.className = "btn act retry";
+    button.disabled = false;
+    button.textContent = "Retry";
+    button.title = "Try the upload again";
+    button.setAttribute("aria-label", "Retry the upload");
+    button.onclick = () => uploadTile(tile, file, uploadUrl, stepNumber);
+  } finally {
+    P.end();
+  }
+}
 
 document.querySelectorAll(".dropzone[data-step-id]").forEach((zone) => {
   zone.addEventListener("click", () => zone.focus());
@@ -60,34 +124,13 @@ document.querySelectorAll(".dropzone[data-step-id]").forEach((zone) => {
     // Stop the image from also being pasted as content into any focused field.
     event.preventDefault();
 
-    const stepId = zone.dataset.stepId;
     const testcaseId = window.location.pathname.split("/")[2];
+    const uploadUrl = `/testcases/${testcaseId}/steps/${zone.dataset.stepId}/screenshot`;
     const stepNumber = zone.closest(".step")?.querySelector(".step-no")?.textContent?.trim() ?? "";
 
-    setHint(zone, images.length > 1 ? `Uploading ${images.length} images…` : "Uploading…");
-
-    let failed = 0;
-    for (const item of images) {
-      const file = item.getAsFile();
-      if (!file) continue;
-
-      const formData = new FormData();
-      formData.append("file", file, `pasted.${item.type.split("/")[1]}`);
-
-      try {
-        const response = await fetch(`/testcases/${testcaseId}/steps/${stepId}/screenshot`, {
-          method: "POST",
-          body: formData,
-          headers: { Accept: "application/json" },
-        });
-        if (!response.ok) throw new Error(String(response.status));
-        const screenshot = await response.json();
-        shotsContainer(zone).appendChild(thumbnailFor(screenshot, stepNumber));
-      } catch {
-        failed += 1;
-      }
-    }
-
-    setHint(zone, failed ? `${failed} image(s) failed to upload — try again.` : DEFAULT_HINT);
+    // Every tile appears at once; they upload one after another, in order.
+    const queue = images.map((item) => item.getAsFile()).filter(Boolean)
+      .map((file) => ({ file, tile: shotsContainer(zone).appendChild(pendingTile(file, stepNumber)) }));
+    for (const { file, tile } of queue) await uploadTile(tile, file, uploadUrl, stepNumber);
   });
 });

@@ -37,10 +37,10 @@
   <a class="btn act edit" href="#" data-modal-open="export-subtask-json" title="Export as JSON" aria-label="Export as JSON">{{ icon_braces() }}</a>
   {% if subtask.testcases %}
   {% if ns.has_images %}
-  <a class="btn act export" href="/subtasks/{{ subtask.id }}/export-images"
+  <a class="btn act export" href="/subtasks/{{ subtask.id }}/export-images" data-download="Images · {{ subtask.display_code }}"
      title="Download all images (.zip)" aria-label="Download all images as a zip">{{ icon_download() }}</a>
   {% endif %}
-  <a class="btn act docx" href="/subtasks/{{ subtask.id }}/export-docx"
+  <a class="btn act docx" href="/subtasks/{{ subtask.id }}/export-docx" data-download="Word documents · {{ subtask.display_code }}"
      title="Download all docx (.zip)" aria-label="Download all docx as a zip">{{ icon_doc() }}</a>
   {% endif %}
 </div>
@@ -54,7 +54,7 @@
     <div class="muted" style="font-size:12.5px; margin-bottom:8px;">
       Download this subtask's test cases as a Jira-ready JSON file for CodeBuddy.
     </div>
-    <a class="btn secondary" href="/subtasks/{{ subtask.id }}/export-jira-json">Download JSON</a>
+    <a class="btn secondary" href="/subtasks/{{ subtask.id }}/export-jira-json" data-download="Jira JSON · {{ subtask.display_code }}">Download JSON</a>
   </div>
   <div class="field" style="margin-top:20px;">
     <label>Import</label>
@@ -69,7 +69,7 @@
   </div>
 {% endcall %}
 
-{% call modal('export-subtask-json', 'Export Subtask as JSON', '/subtasks/' ~ subtask.id ~ '/export-json', method='get') %}
+{% call modal('export-subtask-json', 'Export Subtask as JSON', '/subtasks/' ~ subtask.id ~ '/export-json', method='get', download='JSON · ' ~ subtask.display_code) %}
   <label class="choice">
     <input type="checkbox" name="include_screenshots" value="1">
     <span>Include screenshots (embedded, larger file)</span>
@@ -181,7 +181,7 @@
     {# Shown by app.js only while at least one row checkbox is ticked. #}
     <div class="selection-actions" data-selection-actions="testcase_ids" hidden>
       <span class="selection-count" data-selection-count>0 selected</span>
-      <form id="export-selected-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/export-selected"
+      <form id="export-selected-form" method="post" action="/subtasks/{{ subtask.id }}/testcases/export-selected" data-download="Selected test cases (JSON) · {{ subtask.display_code }}"
             style="display:inline-flex; align-items:center; gap:8px;">
         <label class="choice" style="margin:0;">
           <input type="checkbox" name="include_screenshots" value="1">
